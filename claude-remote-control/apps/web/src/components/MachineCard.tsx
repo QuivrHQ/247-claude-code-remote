@@ -4,8 +4,14 @@ import { useState, useEffect, useRef } from 'react';
 import { Card } from '@/components/ui/card';
 import { CountBadge, type SessionStatus } from '@/components/ui/status-badge';
 import { SessionList } from './SessionList';
-import { ChevronRight, Monitor } from 'lucide-react';
+import { ChevronRight, Monitor, Zap, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 
 interface Machine {
   id: string;
@@ -43,7 +49,6 @@ export function MachineCard({ machine, onConnect }: MachineCardProps) {
   const agentUrl = machine.config?.agentUrl || 'localhost:4678';
   const projects = machine.config?.projects || [];
 
-  // Fetch sessions when expanded
   useEffect(() => {
     if (!expanded || !isOnline) return;
 
@@ -78,20 +83,16 @@ export function MachineCard({ machine, onConnect }: MachineCardProps) {
     };
 
     fetchSessions();
-
-    // Refresh every 10 seconds while expanded
     const interval = setInterval(fetchSessions, 10000);
     return () => clearInterval(interval);
   }, [expanded, isOnline, agentUrl]);
 
-  // Request notification permission on mount
   useEffect(() => {
     if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'default') {
       Notification.requestPermission();
     }
   }, []);
 
-  // Detect status changes and send browser notifications
   useEffect(() => {
     const prev = prevSessionsRef.current;
 
@@ -147,7 +148,6 @@ export function MachineCard({ machine, onConnect }: MachineCardProps) {
     }
   };
 
-  // Count sessions by status
   const runningCount = sessions.filter((s) => s.status === 'running').length;
   const waitingCount = sessions.filter((s) => s.status === 'waiting').length;
   const permissionCount = sessions.filter((s) => s.status === 'permission').length;
@@ -155,7 +155,7 @@ export function MachineCard({ machine, onConnect }: MachineCardProps) {
   const hooksActive = sessions.some((s) => s.statusSource === 'hook');
 
   return (
-    <Card className="overflow-hidden">
+    <Card className="overflow-hidden transition-shadow hover:shadow-lg hover:shadow-primary/5">
       {/* Card Header - Clickable to expand */}
       <button
         onClick={() => isOnline && setExpanded(!expanded)}
@@ -163,18 +163,25 @@ export function MachineCard({ machine, onConnect }: MachineCardProps) {
         aria-expanded={expanded}
         aria-controls={`machine-${machine.id}-sessions`}
         aria-label={`${machine.name}, ${isOnline ? 'online' : 'offline'}${sessions.length > 0 ? `, ${sessions.length} sessions` : ''}`}
-        className={`w-full p-4 flex items-center gap-3 text-left transition
-          ${isOnline ? 'hover:bg-accent cursor-pointer' : 'opacity-50 cursor-not-allowed'}`}
+        className={`w-full p-4 flex items-center gap-3 text-left transition-all duration-200
+          ${isOnline
+            ? 'hover:bg-accent/50 active:bg-accent cursor-pointer'
+            : 'opacity-50 cursor-not-allowed'
+          }`}
       >
         {/* Expand/Collapse Icon */}
         <ChevronRight
-          className={`w-5 h-5 text-muted-foreground transition-transform ${expanded ? 'rotate-90' : ''}`}
+          className={`w-5 h-5 text-muted-foreground transition-transform duration-200 ${expanded ? 'rotate-90' : ''}`}
           aria-hidden="true"
         />
 
         {/* Machine Icon */}
-        <div className="w-10 h-10 bg-secondary rounded-lg flex items-center justify-center">
-          <Monitor className="w-5 h-5 text-muted-foreground" aria-hidden="true" />
+        <div className={`w-10 h-10 rounded-lg flex items-center justify-center transition-colors
+          ${isOnline ? 'bg-primary/10' : 'bg-secondary'}`}>
+          <Monitor
+            className={`w-5 h-5 ${isOnline ? 'text-primary' : 'text-muted-foreground'}`}
+            aria-hidden="true"
+          />
         </div>
 
         {/* Machine Info */}
@@ -182,37 +189,63 @@ export function MachineCard({ machine, onConnect }: MachineCardProps) {
           <div className="flex items-center gap-2">
             <span className="font-semibold truncate">{machine.name}</span>
             <span
-              className={`w-2 h-2 rounded-full ${isOnline ? 'bg-green-500' : 'bg-destructive'}`}
+              className={`w-2.5 h-2.5 rounded-full transition-colors ${
+                isOnline
+                  ? 'bg-green-500 shadow-sm shadow-green-500/50'
+                  : 'bg-destructive'
+              }`}
               role="status"
               aria-label={isOnline ? 'Online' : 'Offline'}
             />
           </div>
-          <p className="text-sm text-muted-foreground truncate">{agentUrl}</p>
+          <p className="text-sm text-muted-foreground truncate font-mono">{agentUrl}</p>
         </div>
 
         {/* Session Badges */}
         {isOnline && sessions.length > 0 && (
-          <div className="flex items-center gap-2" aria-label="Session counts">
+          <div className="flex items-center gap-2 flex-wrap justify-end" aria-label="Session counts">
             <CountBadge status="running" count={runningCount} />
             <CountBadge status="waiting" count={waitingCount} />
             <CountBadge status="permission" count={permissionCount} />
             <CountBadge status="stopped" count={doneCount} />
-            {hooksActive ? (
-              <span className="px-2 py-0.5 bg-green-500/20 text-green-400 rounded text-xs font-medium">
-                ⚡ hooks
-              </span>
-            ) : (
-              <span className="px-2 py-0.5 bg-yellow-500/20 text-yellow-400 rounded text-xs font-medium">
-                ⚠ no hooks
-              </span>
-            )}
+
+            <TooltipProvider delayDuration={300}>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  {hooksActive ? (
+                    <span className="px-2 py-0.5 bg-green-500/15 text-green-300 border border-green-500/40 rounded text-xs font-medium flex items-center gap-1 cursor-help">
+                      <Zap className="w-3 h-3" />
+                      hooks
+                    </span>
+                  ) : (
+                    <span className="px-2 py-0.5 bg-yellow-500/15 text-yellow-300 border border-yellow-500/40 rounded text-xs font-medium flex items-center gap-1 cursor-help">
+                      <AlertTriangle className="w-3 h-3" />
+                      no hooks
+                    </span>
+                  )}
+                </TooltipTrigger>
+                <TooltipContent side="top">
+                  <p className="font-medium">
+                    {hooksActive ? 'Hooks Active' : 'Hooks Not Configured'}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {hooksActive
+                      ? 'Real-time status updates enabled'
+                      : 'Using tmux fallback - status may be delayed'}
+                  </p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
           </div>
         )}
       </button>
 
       {/* Expanded Session List */}
       {expanded && isOnline && (
-        <div id={`machine-${machine.id}-sessions`} className="border-t border-border">
+        <div
+          id={`machine-${machine.id}-sessions`}
+          className="border-t border-border bg-background/50"
+        >
           <SessionList
             sessions={sessions}
             projects={projects}

@@ -1,11 +1,13 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { MachineCard } from '@/components/MachineCard';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Card } from '@/components/ui/card';
-import { Monitor } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Monitor, Search, RefreshCw } from 'lucide-react';
+import { formatTimeAgo } from '@/lib/time';
 
 interface Machine {
   id: string;
@@ -43,24 +45,35 @@ export default function Home() {
   const router = useRouter();
   const [machines, setMachines] = useState<Machine[]>([]);
   const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  const fetchMachines = useCallback(async (showRefreshIndicator = false) => {
+    if (showRefreshIndicator) setIsRefreshing(true);
+    try {
+      const response = await fetch('/api/machines');
+      const data = await response.json();
+      setMachines(data);
+      setLastRefresh(new Date());
+    } catch (err) {
+      console.error('Failed to fetch machines:', err);
+    } finally {
+      setLoading(false);
+      setIsRefreshing(false);
+    }
+  }, []);
 
   useEffect(() => {
-    const fetchMachines = async () => {
-      try {
-        const response = await fetch('/api/machines');
-        const data = await response.json();
-        setMachines(data);
-      } catch (err) {
-        console.error('Failed to fetch machines:', err);
-      } finally {
-        setLoading(false);
-      }
-    };
-
     fetchMachines();
+    const interval = setInterval(() => fetchMachines(), 30000);
+    return () => clearInterval(interval);
+  }, [fetchMachines]);
 
-    // Refresh machine list every 30 seconds
-    const interval = setInterval(fetchMachines, 30000);
+  // Update "time ago" display every 10 seconds
+  const [, forceUpdate] = useState({});
+  useEffect(() => {
+    const interval = setInterval(() => forceUpdate({}), 10000);
     return () => clearInterval(interval);
   }, []);
 
@@ -71,32 +84,86 @@ export default function Home() {
     );
   };
 
+  // Filter machines by search query
+  const filteredMachines = machines.filter((m) =>
+    m.name.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  const onlineCount = machines.filter((m) => m.status === 'online').length;
+
   return (
     <main className="min-h-screen p-8">
       <div className="max-w-4xl mx-auto">
-        <header className="flex items-center justify-between mb-8">
-          <h1 className="text-3xl font-bold">Claude Remote Control</h1>
-          <span className="text-sm text-muted-foreground" aria-live="polite">
-            {machines.filter((m) => m.status === 'online').length} / {machines.length} online
-          </span>
+        {/* Header */}
+        <header className="mb-8">
+          <div className="flex items-center justify-between mb-4">
+            <h1 className="text-3xl font-bold">Claude Remote Control</h1>
+            <div className="text-right">
+              <p className="text-sm font-medium" aria-live="polite">
+                <span className="text-green-400">{onlineCount}</span>
+                <span className="text-muted-foreground"> / {machines.length} online</span>
+              </p>
+              <button
+                onClick={() => fetchMachines(true)}
+                className="text-xs text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1 ml-auto"
+                aria-label="Refresh machines list"
+              >
+                <RefreshCw className={`w-3 h-3 ${isRefreshing ? 'animate-spin' : ''}`} />
+                Updated {formatTimeAgo(lastRefresh)}
+              </button>
+            </div>
+          </div>
+
+          {/* Search */}
+          {machines.length > 0 && (
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Input
+                type="text"
+                placeholder="Search machines..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-10 bg-secondary/50 border-border focus:bg-secondary"
+                aria-label="Search machines by name"
+              />
+            </div>
+          )}
         </header>
 
+        {/* Content */}
         {loading ? (
           <div className="space-y-4" aria-busy="true" aria-label="Loading machines">
             <MachineCardSkeleton />
             <MachineCardSkeleton />
           </div>
         ) : machines.length === 0 ? (
-          <div className="text-center py-12">
+          <Card className="p-12 text-center">
             <div className="w-16 h-16 bg-secondary rounded-full flex items-center justify-center mx-auto mb-4">
               <Monitor className="w-8 h-8 text-muted-foreground" aria-hidden="true" />
             </div>
-            <p className="text-muted-foreground mb-2">No machines registered yet</p>
-            <p className="text-sm text-muted-foreground/70">Start an agent to register a machine</p>
-          </div>
+            <h2 className="text-lg font-semibold mb-2">No machines registered</h2>
+            <p className="text-sm text-muted-foreground mb-4">
+              Start a local agent to register your first machine.
+            </p>
+            <code className="text-xs bg-secondary px-3 py-2 rounded block max-w-xs mx-auto">
+              pnpm dev:agent
+            </code>
+          </Card>
+        ) : filteredMachines.length === 0 ? (
+          <Card className="p-8 text-center">
+            <p className="text-muted-foreground">
+              No machines matching &quot;{searchQuery}&quot;
+            </p>
+            <button
+              onClick={() => setSearchQuery('')}
+              className="text-sm text-primary hover:underline mt-2"
+            >
+              Clear search
+            </button>
+          </Card>
         ) : (
           <div className="space-y-4" role="list" aria-label="Registered machines">
-            {machines.map((machine) => (
+            {filteredMachines.map((machine) => (
               <MachineCard key={machine.id} machine={machine} onConnect={handleConnect} />
             ))}
           </div>

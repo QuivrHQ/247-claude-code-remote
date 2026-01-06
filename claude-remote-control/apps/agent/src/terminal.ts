@@ -48,10 +48,16 @@ export function createTerminal(cwd: string, sessionName: string): Terminal {
     } as { [key: string]: string },
   });
 
-  // If new session, set history limit to 10000 lines
+  // If new session, configure tmux options
   if (!existingSession) {
     setTimeout(() => {
       exec(`tmux set-option -t "${sessionName}" history-limit 10000`);
+      exec(`tmux set-option -t "${sessionName}" mouse on`);
+    }, 100);
+  } else {
+    // Also enable mouse for existing sessions
+    setTimeout(() => {
+      exec(`tmux set-option -t "${sessionName}" mouse on`);
     }, 100);
   }
 

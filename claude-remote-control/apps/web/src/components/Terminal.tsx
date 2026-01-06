@@ -37,6 +37,11 @@ export function Terminal({ agentUrl, project, sessionName }: TerminalProps) {
     }
   }, []);
 
+  // Focus terminal to enable native scroll handling
+  const focusTerminal = useCallback(() => {
+    xtermRef.current?.focus();
+  }, []);
+
   // Search handlers
   const findNext = useCallback(() => {
     if (searchAddonRef.current && searchQuery) {
@@ -325,7 +330,12 @@ export function Terminal({ agentUrl, project, sessionName }: TerminalProps) {
       )}
 
       {/* Terminal */}
-      <div ref={terminalRef} className="flex-1 bg-[#1a1a2e]" />
+      <div
+        ref={terminalRef}
+        className="flex-1 bg-[#1a1a2e]"
+        onClick={focusTerminal}
+        onMouseEnter={focusTerminal}
+      />
 
       {/* Scroll to bottom indicator */}
       {!isAtBottom && (
