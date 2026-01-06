@@ -94,9 +94,9 @@ export function HomeSidebar({
     // Apply status filter
     if (filter !== 'all') {
       result = result.filter((s) => {
-        if (filter === 'active') return s.status === 'running';
+        if (filter === 'active') return ['running', 'idle'].includes(s.status);
         if (filter === 'waiting') return ['waiting', 'permission'].includes(s.status);
-        if (filter === 'done') return ['stopped', 'ended', 'idle'].includes(s.status);
+        if (filter === 'done') return ['stopped', 'ended'].includes(s.status);
         return true;
       });
     }
@@ -122,7 +122,7 @@ export function HomeSidebar({
   const statusCounts = useMemo(() => {
     return sessions.reduce(
       (acc, s) => {
-        if (s.status === 'running') acc.active++;
+        if (['running', 'idle'].includes(s.status)) acc.active++;
         else if (['waiting', 'permission'].includes(s.status)) acc.waiting++;
         else acc.done++;
         return acc;

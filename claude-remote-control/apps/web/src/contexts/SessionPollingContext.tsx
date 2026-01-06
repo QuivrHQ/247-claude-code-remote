@@ -393,17 +393,13 @@ export function SessionPollingProvider({ children }: { children: ReactNode }) {
 
     if (onlineMachines.length === 0) return;
 
-    // Only poll machines that don't have WS connected (use ref for instant access)
-    const machinesToPoll = onlineMachines.filter((m) => !wsConnectedRef.current.has(m.id));
+    // We now allow polling even if WS is connected as a fallback/safety net
+    // The frequency is low (30s) so it won't cause load issues
+    // const machinesToPoll = onlineMachines.filter((m) => !wsConnectedRef.current.has(m.id));
 
-    if (machinesToPoll.length === 0) {
-      console.log('[Polling] All machines have WS connected, skipping HTTP poll');
-      return;
-    }
+    console.log('[Polling] HTTP polling', onlineMachines.length, 'machines');
 
-    console.log('[Polling] HTTP polling', machinesToPoll.length, 'machines without WS');
-
-    const results = await Promise.all(machinesToPoll.map((machine) => fetchSessionsForMachine(machine)));
+    const results = await Promise.all(onlineMachines.map((machine) => fetchSessionsForMachine(machine)));
 
     setSessionsByMachine((prev) => {
       const next = new Map(prev);

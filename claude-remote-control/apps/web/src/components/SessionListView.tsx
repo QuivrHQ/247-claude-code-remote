@@ -52,9 +52,9 @@ export function SessionListView({ sessions, onSelectSession }: SessionListViewPr
     // Apply status filter
     if (statusFilter !== 'all') {
       result = result.filter((s) => {
-        if (statusFilter === 'active') return s.status === 'running';
+        if (statusFilter === 'active') return ['running', 'idle'].includes(s.status);
         if (statusFilter === 'waiting') return ['waiting', 'permission'].includes(s.status);
-        if (statusFilter === 'done') return ['ended', 'idle'].includes(s.status);
+        if (statusFilter === 'done') return ['ended'].includes(s.status);
         return true;
       });
     }
@@ -89,7 +89,7 @@ export function SessionListView({ sessions, onSelectSession }: SessionListViewPr
   const statusCounts = useMemo(() => {
     return sessions.reduce(
       (acc, s) => {
-        if (s.status === 'running') acc.active++;
+        if (['running', 'idle'].includes(s.status)) acc.active++;
         else if (['waiting', 'permission'].includes(s.status)) acc.waiting++;
         else acc.done++;
         return acc;

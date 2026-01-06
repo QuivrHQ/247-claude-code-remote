@@ -208,21 +208,21 @@ export const SessionCard = forwardRef<HTMLButtonElement, SessionCardProps>(
 
     return (
       <>
-        <button
-          ref={ref}
+        <div
+          ref={ref as any}
           onClick={onClick}
           onMouseEnter={onMouseEnter}
           onMouseLeave={onMouseLeave}
           className={cn(
-            'relative w-full p-3 rounded-xl transition-all group text-left',
+            'relative w-full p-3 rounded-xl transition-all group text-left cursor-pointer',
             'border',
             isActive
               ? cn(
-                  'bg-gradient-to-r from-white/10 to-white/5',
-                  config.borderColor,
-                  'shadow-lg',
-                  config.glow
-                )
+                'bg-gradient-to-r from-white/10 to-white/5',
+                config.borderColor,
+                'shadow-lg',
+                config.glow
+              )
               : 'border-transparent hover:bg-white/5 hover:border-white/10',
             needsAttention && !isActive && 'border-orange-500/30 bg-orange-500/5'
           )}
@@ -346,10 +346,8 @@ export const SessionCard = forwardRef<HTMLButtonElement, SessionCardProps>(
           </div>
 
           {/* Attention pulse overlay */}
-          {needsAttention && !isActive && (
-            <div className="absolute inset-0 rounded-xl border border-orange-500/40 animate-pulse pointer-events-none" />
-          )}
-        </button>
+
+        </div>
 
         <ConfirmDialog
           open={showKillConfirm}
