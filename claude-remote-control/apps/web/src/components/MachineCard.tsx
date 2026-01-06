@@ -34,7 +34,7 @@ export function MachineCard({ machine, onClick }: MachineCardProps) {
   const isOnline = machine.status === 'online';
   const agentUrl = machine.config?.agentUrl || 'localhost:4678';
 
-  const workingCount = sessions.filter((s) => s.status === 'working').length;
+  const workingCount = sessions.filter((s) => s.status === 'working' || s.status === 'init').length;
   const needsAttentionCount = sessions.filter((s) => s.status === 'needs_attention').length;
   const hooksActive = sessions.some((s) => s.statusSource === 'hook');
 

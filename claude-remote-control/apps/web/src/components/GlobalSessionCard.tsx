@@ -35,6 +35,14 @@ const statusConfig: Record<
     label: string;
   }
 > = {
+  init: {
+    icon: Loader2,
+    color: 'text-purple-400',
+    bgColor: 'bg-purple-500/10',
+    borderColor: 'border-purple-500/30',
+    glow: 'shadow-purple-500/20',
+    label: 'Starting',
+  },
   working: {
     icon: Loader2,
     color: 'text-blue-400',

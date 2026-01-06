@@ -2,9 +2,9 @@ import { describe, it, expect } from 'vitest';
 import type { SessionInfo } from '@/lib/notifications';
 import type { SessionStatus, AttentionReason } from '@claude-remote/shared';
 
-// Simplified sorting logic - just createdAt (oldest first)
+// Simplified sorting logic - just createdAt (newest first)
 const sortSessions = (sessions: SessionInfo[]): SessionInfo[] => {
-  return [...sessions].sort((a, b) => a.createdAt - b.createdAt);
+  return [...sessions].sort((a, b) => b.createdAt - a.createdAt);
 };
 
 // Extract the filter logic from SessionSidebar for testing
@@ -13,7 +13,7 @@ type FilterType = 'all' | 'active' | 'waiting' | 'done';
 const filterSessions = (sessions: SessionInfo[], filter: FilterType): SessionInfo[] => {
   if (filter === 'all') return sessions;
   return sessions.filter((s) => {
-    if (filter === 'active') return s.status === 'working';
+    if (filter === 'active') return s.status === 'working' || s.status === 'init';
     if (filter === 'waiting')
       return s.status === 'needs_attention' && s.attentionReason !== 'task_complete';
     if (filter === 'done')
@@ -27,7 +27,7 @@ const filterSessions = (sessions: SessionInfo[], filter: FilterType): SessionInf
 const countByStatus = (sessions: SessionInfo[]): { active: number; waiting: number; done: number } => {
   return sessions.reduce(
     (acc, s) => {
-      if (s.status === 'working') acc.active++;
+      if (s.status === 'working' || s.status === 'init') acc.active++;
       else if (s.status === 'needs_attention') {
         if (s.attentionReason === 'task_complete') acc.done++;
         else acc.waiting++;
@@ -56,7 +56,7 @@ const createSession = (
 
 describe('Session Sorting', () => {
   describe('sortSessions - chronological order only', () => {
-    it('sorts by createdAt (oldest first)', () => {
+    it('sorts by createdAt (newest first)', () => {
       const sessions = [
         createSession('c', 'working', 3000),
         createSession('a', 'idle', 1000),
@@ -64,9 +64,9 @@ describe('Session Sorting', () => {
       ];
 
       const sorted = sortSessions(sessions);
-      expect(sorted[0].name).toBe('a'); // createdAt: 1000
+      expect(sorted[0].name).toBe('c'); // createdAt: 3000 (newest)
       expect(sorted[1].name).toBe('b'); // createdAt: 2000
-      expect(sorted[2].name).toBe('c'); // createdAt: 3000
+      expect(sorted[2].name).toBe('a'); // createdAt: 1000 (oldest)
     });
 
     it('ignores status when sorting', () => {
@@ -77,10 +77,10 @@ describe('Session Sorting', () => {
       ];
 
       const sorted = sortSessions(sessions);
-      // Should be in createdAt order, not status order
-      expect(sorted[0].name).toBe('idle');
+      // Should be in createdAt order (newest first), not status order
+      expect(sorted[0].name).toBe('waiting');
       expect(sorted[1].name).toBe('working');
-      expect(sorted[2].name).toBe('waiting');
+      expect(sorted[2].name).toBe('idle');
     });
 
     it('ignores lastStatusChange when sorting', () => {
@@ -90,9 +90,9 @@ describe('Session Sorting', () => {
       ];
 
       const sorted = sortSessions(sessions);
-      // Should sort by createdAt, not lastStatusChange
-      expect(sorted[0].name).toBe('old-created-recent-change');
-      expect(sorted[1].name).toBe('new-created-old-change');
+      // Should sort by createdAt (newest first), not lastStatusChange
+      expect(sorted[0].name).toBe('new-created-old-change');
+      expect(sorted[1].name).toBe('old-created-recent-change');
     });
 
     it('handles empty array', () => {
@@ -130,20 +130,28 @@ describe('Session Filtering', () => {
     createSession('working2', 'working', 4000),
     createSession('done1', 'needs_attention', 5000, 'task_complete'),
     createSession('idle1', 'idle', 6000),
+    createSession('init1', 'init', 7000),
+    createSession('init2', 'init', 8000),
   ];
 
   describe('filter: all', () => {
     it('returns all sessions', () => {
       const filtered = filterSessions(sessions, 'all');
-      expect(filtered).toHaveLength(6);
+      expect(filtered).toHaveLength(8);
     });
   });
 
   describe('filter: active', () => {
-    it('returns only working sessions', () => {
+    it('returns working and init sessions', () => {
       const filtered = filterSessions(sessions, 'active');
-      expect(filtered).toHaveLength(2);
-      expect(filtered.every((s) => s.status === 'working')).toBe(true);
+      expect(filtered).toHaveLength(4);
+      expect(filtered.every((s) => s.status === 'working' || s.status === 'init')).toBe(true);
+    });
+
+    it('includes init sessions as active', () => {
+      const filtered = filterSessions(sessions, 'active');
+      expect(filtered.find((s) => s.name === 'init1')).toBeDefined();
+      expect(filtered.find((s) => s.name === 'init2')).toBeDefined();
     });
   });
 
@@ -187,6 +195,12 @@ describe('Session Filtering', () => {
       expect(filtered.find((s) => s.name === 'waiting1')).toBeUndefined();
       expect(filtered.find((s) => s.name === 'waiting2')).toBeUndefined();
     });
+
+    it('excludes init sessions', () => {
+      const filtered = filterSessions(sessions, 'done');
+      expect(filtered.find((s) => s.name === 'init1')).toBeUndefined();
+      expect(filtered.find((s) => s.name === 'init2')).toBeUndefined();
+    });
   });
 });
 
@@ -198,6 +212,30 @@ describe('Session Counting', () => {
     ];
     const counts = countByStatus(sessions);
     expect(counts.active).toBe(2);
+    expect(counts.waiting).toBe(0);
+    expect(counts.done).toBe(0);
+  });
+
+  it('counts init sessions as active', () => {
+    const sessions = [
+      createSession('i1', 'init', 1000),
+      createSession('i2', 'init', 2000),
+    ];
+    const counts = countByStatus(sessions);
+    expect(counts.active).toBe(2);
+    expect(counts.waiting).toBe(0);
+    expect(counts.done).toBe(0);
+  });
+
+  it('counts both working and init as active', () => {
+    const sessions = [
+      createSession('w1', 'working', 1000),
+      createSession('i1', 'init', 2000),
+      createSession('w2', 'working', 3000),
+      createSession('i2', 'init', 4000),
+    ];
+    const counts = countByStatus(sessions);
+    expect(counts.active).toBe(4);
     expect(counts.waiting).toBe(0);
     expect(counts.done).toBe(0);
   });
@@ -236,6 +274,7 @@ describe('Session Counting', () => {
     const sessions = [
       createSession('w1', 'working', 1000),
       createSession('w2', 'working', 2000),
+      createSession('i1', 'init', 2500),
       createSession('wait1', 'needs_attention', 3000, 'permission'),
       createSession('wait2', 'needs_attention', 4000, 'input'),
       createSession('done1', 'needs_attention', 5000, 'task_complete'),
@@ -243,7 +282,7 @@ describe('Session Counting', () => {
       createSession('idle2', 'idle', 7000),
     ];
     const counts = countByStatus(sessions);
-    expect(counts.active).toBe(2);
+    expect(counts.active).toBe(3); // 2 working + 1 init
     expect(counts.waiting).toBe(2);
     expect(counts.done).toBe(3); // 1 task_complete + 2 idle
   });
@@ -274,8 +313,9 @@ describe('Sort Stability', () => {
     const sortedBefore = sortSessions(sessionsBeforeChange);
     const sortedAfter = sortSessions(sessionsAfterChange);
 
-    expect(sortedBefore.map((s) => s.name)).toEqual(['a', 'b', 'c']);
-    expect(sortedAfter.map((s) => s.name)).toEqual(['a', 'b', 'c']);
+    // Newest first: c, b, a
+    expect(sortedBefore.map((s) => s.name)).toEqual(['c', 'b', 'a']);
+    expect(sortedAfter.map((s) => s.name)).toEqual(['c', 'b', 'a']);
   });
 
   it('order never changes when status changes', () => {
@@ -295,9 +335,9 @@ describe('Sort Stability', () => {
     const sortedBefore = sortSessions(sessionsBefore);
     const sortedAfter = sortSessions(sessionsAfter);
 
-    // Order should be identical - 'b' should NOT jump to the top
-    expect(sortedBefore.map((s) => s.name)).toEqual(['a', 'b', 'c']);
-    expect(sortedAfter.map((s) => s.name)).toEqual(['a', 'b', 'c']);
+    // Order should be identical (newest first) - 'b' should NOT jump
+    expect(sortedBefore.map((s) => s.name)).toEqual(['c', 'b', 'a']);
+    expect(sortedAfter.map((s) => s.name)).toEqual(['c', 'b', 'a']);
   });
 
   it('produces identical results regardless of input order', () => {
@@ -310,7 +350,8 @@ describe('Sort Stability', () => {
     const sorted1 = sortSessions(sessions);
     const sorted2 = sortSessions([...sessions].reverse());
 
-    expect(sorted1.map((s) => s.name)).toEqual(['a', 'b', 'c']);
-    expect(sorted2.map((s) => s.name)).toEqual(['a', 'b', 'c']);
+    // Newest first: c, b, a
+    expect(sorted1.map((s) => s.name)).toEqual(['c', 'b', 'a']);
+    expect(sorted2.map((s) => s.name)).toEqual(['c', 'b', 'a']);
   });
 });

@@ -5,6 +5,7 @@ import type {
   Environment,
   EnvironmentMetadata,
   EnvironmentProvider,
+  EnvironmentIcon,
   CreateEnvironmentRequest,
   UpdateEnvironmentRequest,
 } from '@claude-remote/shared';
@@ -22,6 +23,7 @@ function toEnvironment(row: DbEnvironment): Environment {
     id: row.id,
     name: row.name,
     provider: row.provider,
+    icon: row.icon as EnvironmentIcon | null,
     isDefault: row.is_default === 1,
     variables: JSON.parse(row.variables),
     createdAt: row.created_at,
@@ -37,6 +39,7 @@ function toMetadata(env: Environment): EnvironmentMetadata {
     id: env.id,
     name: env.name,
     provider: env.provider,
+    icon: env.icon,
     isDefault: env.isDefault,
     variableKeys: Object.keys(env.variables),
     createdAt: env.createdAt,
@@ -118,10 +121,19 @@ export function createEnvironment(req: CreateEnvironmentRequest): Environment {
 
   db.prepare(
     `
-    INSERT INTO environments (id, name, provider, is_default, variables, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO environments (id, name, provider, icon, is_default, variables, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
   `
-  ).run(id, req.name, req.provider, req.isDefault || isFirstEnv ? 1 : 0, JSON.stringify(req.variables), now, now);
+  ).run(
+    id,
+    req.name,
+    req.provider,
+    req.icon ?? null,
+    req.isDefault || isFirstEnv ? 1 : 0,
+    JSON.stringify(req.variables),
+    now,
+    now
+  );
 
   console.log(`[Environments] Created environment: ${req.name} (${req.provider})`);
   return getEnvironment(id)!;
@@ -152,6 +164,7 @@ export function updateEnvironment(id: string, req: UpdateEnvironmentRequest): En
     UPDATE environments SET
       name = ?,
       provider = ?,
+      icon = ?,
       is_default = ?,
       variables = ?,
       updated_at = ?
@@ -160,6 +173,7 @@ export function updateEnvironment(id: string, req: UpdateEnvironmentRequest): En
   ).run(
     req.name ?? existing.name,
     req.provider ?? existing.provider,
+    req.icon !== undefined ? req.icon : existing.icon,
     req.isDefault !== undefined ? (req.isDefault ? 1 : 0) : (existing.isDefault ? 1 : 0),
     JSON.stringify(updatedVariables),
     now,
@@ -293,10 +307,10 @@ export function ensureDefaultEnvironment(): void {
 
     db.prepare(
       `
-      INSERT INTO environments (id, name, provider, is_default, variables, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO environments (id, name, provider, icon, is_default, variables, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     `
-    ).run('default-anthropic', 'Anthropic (Default)', 'anthropic', 1, JSON.stringify({ ANTHROPIC_API_KEY: '' }), now, now);
+    ).run('default-anthropic', 'Anthropic (Default)', 'anthropic', null, 1, JSON.stringify({ ANTHROPIC_API_KEY: '' }), now, now);
   }
 }
 

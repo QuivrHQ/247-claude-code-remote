@@ -20,12 +20,14 @@ interface TerminalSnapshot {
 }
 
 const statusColors: Record<SessionStatus, string> = {
+  init: 'text-purple-400 bg-purple-500/20',
   working: 'text-blue-400 bg-blue-500/20',
   needs_attention: 'text-orange-400 bg-orange-500/20',
   idle: 'text-gray-400 bg-gray-500/20',
 };
 
 const statusLabels: Record<SessionStatus, string> = {
+  init: 'Starting',
   working: 'Working',
   needs_attention: 'Attention',
   idle: 'Idle',

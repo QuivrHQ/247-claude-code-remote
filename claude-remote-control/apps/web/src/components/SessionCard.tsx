@@ -2,7 +2,7 @@
 
 import { forwardRef, useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Zap, Clock, MessageSquare, Shield, Circle, Loader2, X, Activity, FileText, CheckCircle } from 'lucide-react';
+import { Zap, Clock, MessageSquare, Shield, Circle, Loader2, X, Activity, FileText, CheckCircle, Archive } from 'lucide-react';
 import { type SessionInfo } from '@/lib/notifications';
 import { type SessionStatus, type AttentionReason } from '@claude-remote/shared';
 import { ConfirmDialog } from './ui/confirm-dialog';
@@ -17,6 +17,7 @@ interface SessionCardProps {
   index: number;
   onClick: () => void;
   onKill?: () => Promise<void>;
+  onArchive?: () => Promise<void>;
   onMouseEnter?: (e: React.MouseEvent) => void;
   onMouseLeave?: () => void;
 }
@@ -32,6 +33,14 @@ const statusConfig: Record<
     label: string;
   }
 > = {
+  init: {
+    icon: Loader2,
+    color: 'text-purple-400',
+    bgColor: 'bg-purple-500/10',
+    borderColor: 'border-purple-500/30',
+    glow: 'shadow-purple-500/20',
+    label: 'Starting',
+  },
   working: {
     icon: Loader2,
     color: 'text-blue-400',
@@ -86,9 +95,11 @@ function formatStatusTime(timestamp: number | undefined): string {
 }
 
 export const SessionCard = forwardRef<HTMLButtonElement, SessionCardProps>(
-  ({ session, isActive, isCollapsed, index, onClick, onKill, onMouseEnter, onMouseLeave }, ref) => {
+  ({ session, isActive, isCollapsed, index, onClick, onKill, onArchive, onMouseEnter, onMouseLeave }, ref) => {
     const [showKillConfirm, setShowKillConfirm] = useState(false);
+    const [showArchiveConfirm, setShowArchiveConfirm] = useState(false);
     const [isKilling, setIsKilling] = useState(false);
+    const [isArchiving, setIsArchiving] = useState(false);
     const [, setTick] = useState(0);
 
     // Update time display every 10 seconds
@@ -134,6 +145,25 @@ export const SessionCard = forwardRef<HTMLButtonElement, SessionCardProps>(
         setIsKilling(false);
       }
     };
+
+    const handleArchiveClick = (e: React.MouseEvent) => {
+      e.stopPropagation();
+      setShowArchiveConfirm(true);
+    };
+
+    const handleArchiveConfirm = async () => {
+      if (!onArchive) return;
+      setIsArchiving(true);
+      try {
+        await onArchive();
+        setShowArchiveConfirm(false);
+      } finally {
+        setIsArchiving(false);
+      }
+    };
+
+    // Show archive button for "done" sessions (idle or task_complete)
+    const canArchive = onArchive && (status === 'idle' || (status === 'needs_attention' && attentionReason === 'task_complete'));
 
     if (isCollapsed) {
       return (
@@ -236,21 +266,37 @@ export const SessionCard = forwardRef<HTMLButtonElement, SessionCardProps>(
             needsAttention && !isActive && 'border-orange-500/30 bg-orange-500/5'
           )}
         >
-          {/* Kill button - expanded mode */}
-          {onKill && (
-            <button
-              onClick={handleKillClick}
-              className={cn(
-                'absolute top-2 right-2 p-1.5 rounded-lg',
-                'bg-red-500/0 hover:bg-red-500/20 text-red-400/0 hover:text-red-400',
-                'opacity-0 group-hover:opacity-100 transition-all',
-                'z-10'
-              )}
-              title="Kill session"
-            >
-              <X className="w-4 h-4" />
-            </button>
-          )}
+          {/* Action buttons - expanded mode */}
+          <div className="absolute top-2 right-2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity z-10">
+            {/* Archive button */}
+            {canArchive && (
+              <button
+                onClick={handleArchiveClick}
+                className={cn(
+                  'p-1.5 rounded-lg',
+                  'bg-transparent hover:bg-gray-500/20 text-gray-400 hover:text-gray-300',
+                  'transition-all'
+                )}
+                title="Archive session"
+              >
+                <Archive className="w-4 h-4" />
+              </button>
+            )}
+            {/* Kill button */}
+            {onKill && (
+              <button
+                onClick={handleKillClick}
+                className={cn(
+                  'p-1.5 rounded-lg',
+                  'bg-transparent hover:bg-red-500/20 text-red-400 hover:text-red-300',
+                  'transition-all'
+                )}
+                title="Kill session"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            )}
+          </div>
 
           {/* Active indicator line */}
           {isActive && (
@@ -299,13 +345,15 @@ export const SessionCard = forwardRef<HTMLButtonElement, SessionCardProps>(
                 {session.environment && (
                   <EnvironmentBadge
                     provider={session.environment.provider}
+                    icon={session.environment.icon}
+                    name={session.environment.name}
                     showLabel={false}
                     size="sm"
                   />
                 )}
                 {shortcut && (
                   <kbd className="hidden group-hover:inline-flex px-1.5 py-0.5 text-[10px] font-mono bg-white/10 rounded text-white/40 border border-white/10">
-                    ⌘{shortcut}
+                    ⌥{shortcut}
                   </kbd>
                 )}
               </div>
@@ -367,6 +415,17 @@ export const SessionCard = forwardRef<HTMLButtonElement, SessionCardProps>(
           variant="destructive"
           onConfirm={handleKillConfirm}
           isLoading={isKilling}
+        />
+
+        <ConfirmDialog
+          open={showArchiveConfirm}
+          onOpenChange={setShowArchiveConfirm}
+          title="Archive session?"
+          description={`Archive "${displayName}" (${session.project})? The terminal will be closed but the session will be kept in history.`}
+          confirmText="Archive"
+          variant="default"
+          onConfirm={handleArchiveConfirm}
+          isLoading={isArchiving}
         />
       </>
     );

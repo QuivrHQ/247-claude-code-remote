@@ -4,8 +4,9 @@ import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Plus, Trash2, Zap, Globe, Eye, EyeOff, AlertCircle, Star } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import type { EnvironmentProvider, Environment, EnvironmentMetadata } from '@claude-remote/shared';
-import { ENVIRONMENT_PRESETS } from '@claude-remote/shared';
+import type { EnvironmentProvider, Environment, EnvironmentMetadata, EnvironmentIcon } from '@claude-remote/shared';
+import { ENVIRONMENT_PRESETS, DEFAULT_PROVIDER_ICONS } from '@claude-remote/shared';
+import { IconPicker } from './IconPicker';
 
 interface EnvVariable {
   key: string;
@@ -35,6 +36,7 @@ export function EnvironmentFormModal({
 }: EnvironmentFormModalProps) {
   const [name, setName] = useState('');
   const [provider, setProvider] = useState<EnvironmentProvider>('anthropic');
+  const [icon, setIcon] = useState<EnvironmentIcon | null>(null);
   const [variables, setVariables] = useState<EnvVariable[]>([]);
   const [isDefault, setIsDefault] = useState(false);
   const [showSecrets, setShowSecrets] = useState<Record<number, boolean>>({});
@@ -47,6 +49,7 @@ export function EnvironmentFormModal({
       // Reset form when closed
       setName('');
       setProvider('anthropic');
+      setIcon(null);
       setVariables([]);
       setIsDefault(false);
       setShowSecrets({});
@@ -66,6 +69,7 @@ export function EnvironmentFormModal({
             const env: Environment = await response.json();
             setName(env.name);
             setProvider(env.provider);
+            setIcon(env.icon);
             setIsDefault(env.isDefault);
             setVariables(
               Object.entries(env.variables).map(([key, value]) => ({
@@ -161,6 +165,7 @@ export function EnvironmentFormModal({
         body: JSON.stringify({
           name: name.trim(),
           provider,
+          icon,
           isDefault,
           variables: variablesObj,
         }),
@@ -181,7 +186,8 @@ export function EnvironmentFormModal({
     }
   };
 
-  const isValid = name.trim() && variables.some((v) => v.key.trim());
+  // Allow environments with no variables (for using system defaults)
+  const isValid = name.trim().length > 0;
 
   return (
     <AnimatePresence>
@@ -287,35 +293,56 @@ export function EnvironmentFormModal({
                 </div>
               </div>
 
-              {/* Name */}
-              <div>
-                <label className="block text-sm font-medium text-white/60 mb-2">Name</label>
-                <input
-                  type="text"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder="e.g., Production, Development"
-                  className={cn(
-                    'w-full px-4 py-3 rounded-xl',
-                    'bg-white/5 border border-white/10',
-                    'text-white placeholder:text-white/30',
-                    'focus:outline-none focus:border-orange-500/50 focus:bg-white/10',
-                    'transition-all'
-                  )}
-                />
+              {/* Name & Icon */}
+              <div className="flex gap-4">
+                <div className="flex-1">
+                  <label className="block text-sm font-medium text-white/60 mb-2">Name</label>
+                  <input
+                    type="text"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    placeholder="e.g., Production, Development"
+                    className={cn(
+                      'w-full px-4 py-3 rounded-xl',
+                      'bg-white/5 border border-white/10',
+                      'text-white placeholder:text-white/30',
+                      'focus:outline-none focus:border-orange-500/50 focus:bg-white/10',
+                      'transition-all'
+                    )}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-white/60 mb-2">Icon</label>
+                  <IconPicker
+                    value={icon}
+                    onChange={setIcon}
+                    provider={provider}
+                  />
+                </div>
               </div>
 
               {/* Environment Variables */}
               <div>
                 <div className="flex items-center justify-between mb-3">
                   <label className="text-sm font-medium text-white/60">Environment Variables</label>
-                  <button
-                    onClick={addVariable}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-white/5 hover:bg-white/10 text-white/60 hover:text-white border border-white/10 hover:border-white/20 transition-all"
-                  >
-                    <Plus className="w-3.5 h-3.5" />
-                    Add Variable
-                  </button>
+                  <div className="flex items-center gap-2">
+                    {variables.length > 0 && (
+                      <button
+                        onClick={() => setVariables([])}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-white/5 hover:bg-red-500/20 text-white/40 hover:text-red-400 border border-white/10 hover:border-red-500/30 transition-all"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                        Clear all
+                      </button>
+                    )}
+                    <button
+                      onClick={addVariable}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-white/5 hover:bg-white/10 text-white/60 hover:text-white border border-white/10 hover:border-white/20 transition-all"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      Add Variable
+                    </button>
+                  </div>
                 </div>
 
                 <div className="space-y-2">
@@ -380,11 +407,12 @@ export function EnvironmentFormModal({
                     <div className="text-center py-8 text-white/30 border border-dashed border-white/10 rounded-xl">
                       <Zap className="w-6 h-6 mx-auto mb-2 opacity-50" />
                       <p className="text-sm">No variables configured</p>
+                      <p className="text-xs text-white/20 mt-1">Will use system environment variables</p>
                       <button
                         onClick={addVariable}
-                        className="mt-2 text-orange-400 hover:text-orange-300 text-sm"
+                        className="mt-3 text-orange-400 hover:text-orange-300 text-sm"
                       >
-                        Add your first variable
+                        Add a variable
                       </button>
                     </div>
                   )}

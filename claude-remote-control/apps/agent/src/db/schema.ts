@@ -14,6 +14,7 @@ export interface DbSession {
   last_activity: number;
   last_status_change: number;
   environment_id: string | null;
+  archived_at: number | null;
   created_at: number;
   updated_at: number;
 }
@@ -31,6 +32,7 @@ export interface DbEnvironment {
   id: string;
   name: string;
   provider: EnvironmentProvider;
+  icon: string | null; // Lucide icon name
   is_default: number; // SQLite uses 0/1 for booleans
   variables: string; // JSON string
   created_at: number;
@@ -73,7 +75,7 @@ export interface UpsertEnvironmentInput {
 // SQL Schema Definitions
 // ============================================================================
 
-export const SCHEMA_VERSION = 1;
+export const SCHEMA_VERSION = 3;
 
 export const CREATE_TABLES_SQL = `
 -- Sessions: current state of terminal sessions
@@ -81,12 +83,13 @@ CREATE TABLE IF NOT EXISTS sessions (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   name TEXT NOT NULL UNIQUE,
   project TEXT NOT NULL,
-  status TEXT NOT NULL DEFAULT 'idle',
+  status TEXT NOT NULL DEFAULT 'init',
   attention_reason TEXT,
   last_event TEXT,
   last_activity INTEGER NOT NULL,
   last_status_change INTEGER NOT NULL,
   environment_id TEXT,
+  archived_at INTEGER,
   created_at INTEGER NOT NULL,
   updated_at INTEGER NOT NULL
 );
@@ -114,6 +117,7 @@ CREATE TABLE IF NOT EXISTS environments (
   id TEXT PRIMARY KEY,
   name TEXT NOT NULL,
   provider TEXT NOT NULL,
+  icon TEXT,
   is_default INTEGER NOT NULL DEFAULT 0,
   variables TEXT NOT NULL,
   created_at INTEGER NOT NULL,
@@ -142,6 +146,8 @@ CREATE TABLE IF NOT EXISTS schema_version (
 export const RETENTION_CONFIG = {
   /** Max age for sessions before cleanup (24 hours) */
   sessionMaxAge: 24 * 60 * 60 * 1000,
+  /** Max age for archived sessions before cleanup (30 days) */
+  archivedMaxAge: 30 * 24 * 60 * 60 * 1000,
   /** Max age for status history (7 days) */
   historyMaxAge: 7 * 24 * 60 * 60 * 1000,
   /** Cleanup interval (1 hour) */

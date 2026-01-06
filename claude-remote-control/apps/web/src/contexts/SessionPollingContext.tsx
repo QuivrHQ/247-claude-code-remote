@@ -47,6 +47,7 @@ interface SessionPollingContextValue {
   machines: Machine[];
   getSessionsForMachine: (machineId: string) => SessionInfo[];
   getAllSessions: () => SessionWithMachine[];
+  getArchivedSessions: () => SessionWithMachine[];
   getSession: (machineId: string, sessionName: string) => SessionInfo | null;
   refreshMachine: (machineId: string) => Promise<void>;
   setMachines: (machines: Machine[]) => void;
@@ -63,9 +64,19 @@ const FETCH_TIMEOUT = 5000;
 const WS_RECONNECT_BASE_DELAY = 1000;
 const WS_RECONNECT_MAX_DELAY = 30000;
 
+interface ArchivedSessionData {
+  machineId: string;
+  machineName: string;
+  agentUrl: string;
+  sessions: SessionInfo[];
+}
+
 export function SessionPollingProvider({ children }: { children: ReactNode }) {
   const [machines, setMachinesState] = useState<Machine[]>([]);
   const [sessionsByMachine, setSessionsByMachine] = useState<Map<string, MachineSessionData>>(
+    new Map()
+  );
+  const [archivedByMachine, setArchivedByMachine] = useState<Map<string, ArchivedSessionData>>(
     new Map()
   );
   const [loadingMachines, setLoadingMachines] = useState<Set<string>>(new Set());
@@ -221,6 +232,80 @@ export function SessionPollingProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
+  // Archive a session (move from active to archived)
+  const archiveSession = useCallback(
+    (machineId: string, machineName: string, agentUrl: string, session: SessionInfo) => {
+      // Remove from active sessions
+      setSessionsByMachine((prev) => {
+        const next = new Map(prev);
+        const existingData = next.get(machineId);
+
+        if (existingData) {
+          next.set(machineId, {
+            ...existingData,
+            sessions: existingData.sessions.filter((s) => s.name !== session.name),
+            lastFetch: Date.now(),
+          });
+        }
+
+        return next;
+      });
+
+      // Add to archived sessions
+      setArchivedByMachine((prev) => {
+        const next = new Map(prev);
+        const existingData = next.get(machineId);
+
+        if (existingData) {
+          // Add to existing archived list (avoid duplicates)
+          const alreadyExists = existingData.sessions.some((s) => s.name === session.name);
+          if (!alreadyExists) {
+            next.set(machineId, {
+              ...existingData,
+              sessions: [session, ...existingData.sessions],
+            });
+          }
+        } else {
+          next.set(machineId, {
+            machineId,
+            machineName,
+            agentUrl,
+            sessions: [session],
+          });
+        }
+
+        return next;
+      });
+    },
+    []
+  );
+
+  // Fetch archived sessions for a machine
+  const fetchArchivedSessions = useCallback(async (machine: Machine): Promise<void> => {
+    const agentUrl = machine.config?.agentUrl || 'localhost:4678';
+    const protocol = agentUrl.includes('localhost') ? 'http' : 'https';
+
+    try {
+      const response = await fetch(`${protocol}://${agentUrl}/api/sessions/archived`);
+      if (!response.ok) return;
+
+      const sessions: SessionInfo[] = await response.json();
+
+      setArchivedByMachine((prev) => {
+        const next = new Map(prev);
+        next.set(machine.id, {
+          machineId: machine.id,
+          machineName: machine.name,
+          agentUrl,
+          sessions,
+        });
+        return next;
+      });
+    } catch (err) {
+      console.error('[Archived] Failed to fetch archived sessions:', err);
+    }
+  }, []);
+
   // Connect WebSocket for a machine
   const connectWebSocket = useCallback(
     (machine: Machine) => {
@@ -299,6 +384,11 @@ export function SessionPollingProvider({ children }: { children: ReactNode }) {
                 console.log(`[WS] Session removed: ${msg.sessionName}`);
                 removeSession(machine.id, msg.sessionName);
                 break;
+
+              case 'session-archived':
+                console.log(`[WS] Session archived: ${msg.sessionName}`);
+                archiveSession(machine.id, machine.name, agentUrl, msg.session);
+                break;
             }
           } catch (err) {
             console.error('[WS] Failed to parse message:', err);
@@ -344,7 +434,7 @@ export function SessionPollingProvider({ children }: { children: ReactNode }) {
         console.error(`[WS] Failed to create WebSocket for ${machine.name}:`, err);
       }
     },
-    [machines, updateSingleSession, removeSession]
+    [machines, updateSingleSession, removeSession, archiveSession]
   );
 
   // Manage WebSocket connections based on online machines
@@ -387,6 +477,17 @@ export function SessionPollingProvider({ children }: { children: ReactNode }) {
       wsReconnectTimeoutsRef.current.clear();
     };
   }, [machines, connectWebSocket]);
+
+  // Fetch archived sessions when machines change
+  useEffect(() => {
+    const onlineMachines = machines.filter((m) => m.status === 'online');
+    for (const machine of onlineMachines) {
+      // Fetch archived sessions if not already loaded
+      if (!archivedByMachine.has(machine.id)) {
+        fetchArchivedSessions(machine);
+      }
+    }
+  }, [machines, archivedByMachine, fetchArchivedSessions]);
 
   // Fallback HTTP polling (less frequent when WS is working)
   const pollAllMachines = useCallback(async () => {
@@ -468,6 +569,22 @@ export function SessionPollingProvider({ children }: { children: ReactNode }) {
     return allSessions;
   }, [sessionsByMachine]);
 
+  // Get all archived sessions across all machines
+  const getArchivedSessions = useCallback((): SessionWithMachine[] => {
+    const allArchived: SessionWithMachine[] = [];
+    for (const [, data] of archivedByMachine) {
+      for (const session of data.sessions) {
+        allArchived.push({
+          ...session,
+          machineId: data.machineId,
+          machineName: data.machineName,
+          agentUrl: data.agentUrl,
+        });
+      }
+    }
+    return allArchived;
+  }, [archivedByMachine]);
+
   // Get a specific session by machine and name
   const getSession = useCallback(
     (machineId: string, sessionName: string): SessionInfo | null => {
@@ -484,6 +601,7 @@ export function SessionPollingProvider({ children }: { children: ReactNode }) {
     getSessionsForMachine: (machineId: string) =>
       sessionsByMachine.get(machineId)?.sessions || [],
     getAllSessions,
+    getArchivedSessions,
     getSession,
     refreshMachine,
     setMachines: setMachinesState,

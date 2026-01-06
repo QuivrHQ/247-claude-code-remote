@@ -10,12 +10,14 @@ export interface SessionInfo {
   lastActivity?: string;
   lastEvent?: string;
   lastStatusChange?: number;
+  archivedAt?: number; // Timestamp when archived (undefined = active)
   environmentId?: string;
   // Environment metadata for badge display
   environment?: {
     id: string;
     name: string;
     provider: 'anthropic' | 'openrouter';
+    icon: string | null;
     isDefault: boolean;
   };
 }

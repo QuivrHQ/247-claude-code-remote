@@ -13,11 +13,23 @@ export function getSession(name: string): DbSession | null {
 }
 
 /**
- * Get all sessions
+ * Get all active (non-archived) sessions
  */
 export function getAllSessions(): DbSession[] {
   const db = getDatabase();
-  return db.prepare('SELECT * FROM sessions ORDER BY last_activity DESC').all() as DbSession[];
+  return db
+    .prepare('SELECT * FROM sessions WHERE archived_at IS NULL ORDER BY last_activity DESC')
+    .all() as DbSession[];
+}
+
+/**
+ * Get all archived sessions
+ */
+export function getArchivedSessions(): DbSession[] {
+  const db = getDatabase();
+  return db
+    .prepare('SELECT * FROM sessions WHERE archived_at IS NOT NULL ORDER BY archived_at DESC')
+    .all() as DbSession[];
 }
 
 /**
@@ -140,29 +152,80 @@ export function deleteSession(name: string): boolean {
 }
 
 /**
- * Cleanup stale sessions (older than maxAge)
- * Returns number of deleted sessions
+ * Archive a session (mark as done and keep in history)
+ * Returns the archived session or null if not found
  */
-export function cleanupStaleSessions(maxAge: number): number {
+export function archiveSession(name: string): DbSession | null {
   const db = getDatabase();
-  const cutoff = Date.now() - maxAge;
+  const now = Date.now();
 
-  const result = db.prepare('DELETE FROM sessions WHERE last_activity < ?').run(cutoff);
-
-  if (result.changes > 0) {
-    console.log(`[DB] Cleaned up ${result.changes} stale sessions`);
+  const existing = getSession(name);
+  if (!existing) {
+    return null;
   }
 
-  return result.changes;
+  // Already archived
+  if (existing.archived_at) {
+    return existing;
+  }
+
+  db.prepare(
+    `
+    UPDATE sessions SET
+      archived_at = ?,
+      updated_at = ?
+    WHERE name = ?
+  `
+  ).run(now, now, name);
+
+  console.log(`[DB] Archived session: ${name}`);
+  return getSession(name);
+}
+
+/**
+ * Cleanup stale sessions (older than maxAge)
+ * - Non-archived sessions: delete if last_activity older than maxAge
+ * - Archived sessions: delete if archived_at older than archivedMaxAge
+ * Returns number of deleted sessions
+ */
+export function cleanupStaleSessions(maxAge: number, archivedMaxAge?: number): number {
+  const db = getDatabase();
+  const now = Date.now();
+  const cutoff = now - maxAge;
+
+  // Delete stale non-archived sessions
+  const activeResult = db
+    .prepare('DELETE FROM sessions WHERE archived_at IS NULL AND last_activity < ?')
+    .run(cutoff);
+
+  let archivedDeleted = 0;
+  if (archivedMaxAge) {
+    const archivedCutoff = now - archivedMaxAge;
+    const archivedResult = db
+      .prepare('DELETE FROM sessions WHERE archived_at IS NOT NULL AND archived_at < ?')
+      .run(archivedCutoff);
+    archivedDeleted = archivedResult.changes;
+  }
+
+  const totalDeleted = activeResult.changes + archivedDeleted;
+
+  if (totalDeleted > 0) {
+    console.log(
+      `[DB] Cleaned up ${activeResult.changes} stale sessions, ${archivedDeleted} old archived sessions`
+    );
+  }
+
+  return totalDeleted;
 }
 
 /**
  * Reconcile sessions with active tmux sessions
  * - Sessions in DB but not in tmux: mark as idle or delete if old
  * - Sessions in tmux but not in DB: create with idle status
+ * - Archived sessions are skipped (they don't have tmux sessions)
  */
 export function reconcileWithTmux(activeTmuxSessions: Set<string>): void {
-  const dbSessions = getAllSessions();
+  const dbSessions = getAllSessions(); // Only gets non-archived sessions
   const now = Date.now();
   const maxAge = 24 * 60 * 60 * 1000; // 24 hours
 
@@ -170,7 +233,7 @@ export function reconcileWithTmux(activeTmuxSessions: Set<string>): void {
     `[DB] Reconciling ${dbSessions.length} DB sessions with ${activeTmuxSessions.size} tmux sessions`
   );
 
-  // Handle sessions in DB but not in tmux
+  // Handle sessions in DB but not in tmux (skip archived - they're already handled)
   for (const session of dbSessions) {
     if (!activeTmuxSessions.has(session.name)) {
       const age = now - session.last_activity;
@@ -234,6 +297,7 @@ export function toHookStatus(session: DbSession): {
   lastActivity: number;
   lastStatusChange: number;
   project?: string;
+  archivedAt?: number;
 } {
   return {
     status: session.status,
@@ -242,5 +306,6 @@ export function toHookStatus(session: DbSession): {
     lastActivity: session.last_activity,
     lastStatusChange: session.last_status_change,
     project: session.project,
+    archivedAt: session.archived_at ?? undefined,
   };
 }

@@ -17,14 +17,15 @@ export function EditorTerminalTabs({
   onTabChange,
   editorEnabled = true,
 }: EditorTerminalTabsProps) {
-  // Keyboard shortcuts: Cmd+1 for terminal, Cmd+2 for editor
+  // Keyboard shortcuts: Option+T for terminal, Option+E for editor
+  // Use e.code because Option+key produces special chars on Mac
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.metaKey || e.ctrlKey) {
-        if (e.key === '1') {
+      if (e.altKey && !e.metaKey && !e.ctrlKey) {
+        if (e.code === 'KeyT') {
           e.preventDefault();
           onTabChange('terminal');
-        } else if (e.key === '2' && editorEnabled) {
+        } else if (e.code === 'KeyE' && editorEnabled) {
           e.preventDefault();
           onTabChange('editor');
         }
@@ -63,7 +64,7 @@ export function EditorTerminalTabs({
               : 'bg-white/5 text-white/30'
           )}
         >
-          ⌘1
+          ⌥T
         </kbd>
       </button>
 
@@ -89,7 +90,7 @@ export function EditorTerminalTabs({
                 : 'bg-white/5 text-white/30'
             )}
           >
-            ⌘2
+            ⌥E
           </kbd>
         </button>
       )}

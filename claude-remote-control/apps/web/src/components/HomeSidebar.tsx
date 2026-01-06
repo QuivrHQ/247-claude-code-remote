@@ -5,11 +5,13 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
   Plus,
   Search,
   Zap,
   Keyboard,
   X,
+  Archive,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { SessionCard } from './SessionCard';
@@ -26,20 +28,24 @@ interface SelectedSession {
 
 interface HomeSidebarProps {
   sessions: SessionWithMachine[];
+  archivedSessions: SessionWithMachine[];
   selectedSession: SelectedSession | null;
   onSelectSession: (machineId: string, sessionName: string, project: string) => void;
   onNewSession: () => void;
   onSessionKilled?: (machineId: string, sessionName: string) => void;
+  onSessionArchived?: (machineId: string, sessionName: string) => void;
 }
 
 type FilterType = 'all' | 'active' | 'waiting' | 'done';
 
 export function HomeSidebar({
   sessions,
+  archivedSessions,
   selectedSession,
   onSelectSession,
   onNewSession,
   onSessionKilled,
+  onSessionArchived,
 }: HomeSidebarProps) {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -47,6 +53,7 @@ export function HomeSidebar({
   const [hoveredSession, setHoveredSession] = useState<SessionWithMachine | null>(null);
   const [hoverPosition, setHoverPosition] = useState({ x: 0, y: 0 });
   const [showShortcuts, setShowShortcuts] = useState(false);
+  const [historyCollapsed, setHistoryCollapsed] = useState(true);
 
   // Kill session handler
   const handleKillSession = useCallback(
@@ -76,6 +83,34 @@ export function HomeSidebar({
     [selectedSession, onSessionKilled]
   );
 
+  // Archive session handler
+  const handleArchiveSession = useCallback(
+    async (session: SessionWithMachine) => {
+      const protocol = session.agentUrl.includes('localhost') ? 'http' : 'https';
+
+      try {
+        const response = await fetch(
+          `${protocol}://${session.agentUrl}/api/sessions/${encodeURIComponent(session.name)}/archive`,
+          { method: 'POST' }
+        );
+
+        if (response.ok) {
+          toast.success('Session archived');
+          // If we archived the selected session, notify parent
+          if (selectedSession?.sessionName === session.name) {
+            onSessionArchived?.(session.machineId, session.name);
+          }
+        } else {
+          toast.error('Failed to archive session');
+        }
+      } catch (err) {
+        console.error('Failed to archive session:', err);
+        toast.error('Could not connect to agent');
+      }
+    },
+    [selectedSession, onSessionArchived]
+  );
+
   // Filter and sort sessions
   const filteredSessions = useMemo(() => {
     let result = [...sessions];
@@ -94,7 +129,7 @@ export function HomeSidebar({
     // Apply status filter
     if (filter !== 'all') {
       result = result.filter((s) => {
-        if (filter === 'active') return s.status === 'working';
+        if (filter === 'active') return s.status === 'working' || s.status === 'init';
         if (filter === 'waiting')
           return s.status === 'needs_attention' && s.attentionReason !== 'task_complete';
         if (filter === 'done')
@@ -104,15 +139,15 @@ export function HomeSidebar({
       });
     }
 
-    // Sort by createdAt only (oldest first) - stable chronological order
-    return result.sort((a, b) => a.createdAt - b.createdAt);
+    // Sort by createdAt only (newest first) - stable chronological order
+    return result.sort((a, b) => b.createdAt - a.createdAt);
   }, [sessions, searchQuery, filter]);
 
   // Session counts by status
   const statusCounts = useMemo(() => {
     return sessions.reduce(
       (acc, s) => {
-        if (s.status === 'working') acc.active++;
+        if (s.status === 'working' || s.status === 'init') acc.active++;
         else if (s.status === 'needs_attention') {
           if (s.attentionReason === 'task_complete') acc.done++;
           else acc.waiting++;
@@ -126,13 +161,17 @@ export function HomeSidebar({
   // Keyboard navigation
   const handleKeyboard = useCallback(
     (e: KeyboardEvent) => {
-      // Cmd/Ctrl + number to switch sessions
-      if ((e.metaKey || e.ctrlKey) && e.key >= '1' && e.key <= '9') {
-        e.preventDefault();
-        const index = parseInt(e.key) - 1;
-        if (index < filteredSessions.length) {
-          const session = filteredSessions[index];
-          onSelectSession(session.machineId, session.name, session.project);
+      // Option + number to switch sessions (avoids Chrome tab conflict)
+      // Use e.code because Option+number produces special chars on Mac
+      if (e.altKey && !e.metaKey && !e.ctrlKey) {
+        const digitMatch = e.code.match(/^Digit([1-9])$/);
+        if (digitMatch) {
+          e.preventDefault();
+          const index = parseInt(digitMatch[1]) - 1;
+          if (index < filteredSessions.length) {
+            const session = filteredSessions[index];
+            onSelectSession(session.machineId, session.name, session.project);
+          }
         }
       }
 
@@ -142,8 +181,8 @@ export function HomeSidebar({
         onNewSession();
       }
 
-      // Cmd/Ctrl + [ and ] to navigate sessions
-      if ((e.metaKey || e.ctrlKey) && e.key === '[') {
+      // Option + [ and ] to navigate sessions
+      if (e.altKey && !e.metaKey && !e.ctrlKey && (e.code === 'BracketLeft' || e.key === '[')) {
         e.preventDefault();
         const currentIndex = filteredSessions.findIndex(
           (s) => s.name === selectedSession?.sessionName
@@ -154,7 +193,7 @@ export function HomeSidebar({
         }
       }
 
-      if ((e.metaKey || e.ctrlKey) && e.key === ']') {
+      if (e.altKey && !e.metaKey && !e.ctrlKey && (e.code === 'BracketRight' || e.key === ']')) {
         e.preventDefault();
         const currentIndex = filteredSessions.findIndex(
           (s) => s.name === selectedSession?.sessionName
@@ -316,6 +355,7 @@ export function HomeSidebar({
                   index={index}
                   onClick={() => onSelectSession(session.machineId, session.name, session.project)}
                   onKill={() => handleKillSession(session)}
+                  onArchive={() => handleArchiveSession(session)}
                   onMouseEnter={(e) => handleSessionHover(session, e)}
                   onMouseLeave={() => handleSessionHover(null)}
                 />
@@ -334,6 +374,68 @@ export function HomeSidebar({
                   ? 'Try adjusting your filters'
                   : 'Create a new session to get started'}
               </p>
+            </div>
+          )}
+
+          {/* History Section */}
+          {archivedSessions.length > 0 && !isCollapsed && (
+            <div className="mt-4 pt-4 border-t border-white/5">
+              <button
+                onClick={() => setHistoryCollapsed(!historyCollapsed)}
+                className="flex items-center gap-2 px-2 py-1.5 w-full text-left hover:bg-white/5 rounded-lg transition-colors"
+              >
+                <Archive className="w-4 h-4 text-white/40" />
+                <span className="text-xs font-medium text-white/50">Historique</span>
+                <span className="text-xs text-white/30 ml-1">({archivedSessions.length})</span>
+                <ChevronDown
+                  className={cn(
+                    'w-3 h-3 text-white/40 ml-auto transition-transform',
+                    historyCollapsed && '-rotate-90'
+                  )}
+                />
+              </button>
+
+              <AnimatePresence>
+                {!historyCollapsed && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    exit={{ opacity: 0, height: 0 }}
+                    className="mt-2 space-y-1"
+                  >
+                    {archivedSessions.map((session) => {
+                      const displayName = session.name.split('--')[1] || session.name;
+                      const archivedTime = session.archivedAt
+                        ? new Date(session.archivedAt).toLocaleDateString('fr-FR', {
+                            day: 'numeric',
+                            month: 'short',
+                          })
+                        : '';
+
+                      return (
+                        <div
+                          key={`archived-${session.machineId}-${session.name}`}
+                          className="px-2 py-2 rounded-lg bg-white/[0.02] hover:bg-white/5 transition-colors opacity-60 hover:opacity-80"
+                        >
+                          <div className="flex items-center gap-2">
+                            <Archive className="w-3.5 h-3.5 text-white/30 flex-shrink-0" />
+                            <span className="text-xs text-white/60 truncate font-medium">
+                              {displayName}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-2 mt-1 pl-5">
+                            <span className="text-[10px] text-white/30 truncate">
+                              {session.project}
+                            </span>
+                            <span className="text-white/20">·</span>
+                            <span className="text-[10px] text-white/30">{archivedTime}</span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
           )}
         </div>
@@ -388,11 +490,11 @@ export function HomeSidebar({
 
               <div className="space-y-4">
                 <ShortcutRow keys={['⌘', 'N']} description="Create new session" />
-                <ShortcutRow keys={['⌘', '1-9']} description="Switch to session 1-9" />
-                <ShortcutRow keys={['⌘', '[']} description="Previous session" />
-                <ShortcutRow keys={['⌘', ']']} description="Next session" />
-                <ShortcutRow keys={['⌘', '1']} description="Terminal tab" />
-                <ShortcutRow keys={['⌘', '2']} description="Editor tab" />
+                <ShortcutRow keys={['⌥', '1-9']} description="Switch to session 1-9" />
+                <ShortcutRow keys={['⌥', '[']} description="Previous session" />
+                <ShortcutRow keys={['⌥', ']']} description="Next session" />
+                <ShortcutRow keys={['⌥', 'T']} description="Terminal tab" />
+                <ShortcutRow keys={['⌥', 'E']} description="Editor tab" />
                 <ShortcutRow keys={['?']} description="Show this help" />
               </div>
             </motion.div>

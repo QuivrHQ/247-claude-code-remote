@@ -47,7 +47,7 @@ const DEFAULT_MACHINE_ID = 'local-agent';
 export default function Home() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { setMachines: setPollingMachines, getAllSessions } = useSessionPolling();
+  const { setMachines: setPollingMachines, getAllSessions, getArchivedSessions } = useSessionPolling();
   const [agentConnection, setAgentConnection] = useState<ReturnType<typeof loadAgentConnection>>(null);
   const [loading, setLoading] = useState(true);
   const [connectionModalOpen, setConnectionModalOpen] = useState(false);
@@ -202,6 +202,14 @@ export default function Home() {
 
   // Handle session killed
   const handleSessionKilled = useCallback((machineId: string, sessionName: string) => {
+    if (selectedSession?.sessionName === sessionName) {
+      setSelectedSession(null);
+      clearSessionFromUrl();
+    }
+  }, [selectedSession, clearSessionFromUrl]);
+
+  // Handle session archived
+  const handleSessionArchived = useCallback((machineId: string, sessionName: string) => {
     if (selectedSession?.sessionName === sessionName) {
       setSelectedSession(null);
       clearSessionFromUrl();
@@ -440,10 +448,12 @@ export default function Home() {
         {!isFullscreen && (
           <HomeSidebar
             sessions={allSessions}
+            archivedSessions={getArchivedSessions()}
             selectedSession={selectedSession}
             onSelectSession={handleSelectSession}
             onNewSession={() => setNewSessionOpen(true)}
             onSessionKilled={handleSessionKilled}
+            onSessionArchived={handleSessionArchived}
           />
         )}
 

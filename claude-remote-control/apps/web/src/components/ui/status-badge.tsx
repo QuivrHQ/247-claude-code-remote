@@ -17,6 +17,12 @@ const statusConfig: Record<
   SessionStatus,
   { label: string; description: string; className: string; dotClassName: string }
 > = {
+  init: {
+    label: 'Starting',
+    description: 'Session starting up',
+    className: 'bg-purple-500/15 text-purple-300 border border-purple-500/40',
+    dotClassName: 'bg-purple-400 animate-pulse',
+  },
   working: {
     label: 'Working',
     description: 'Claude is actively processing',
@@ -133,6 +139,7 @@ export function CountBadge({ status, count, showTooltip = true, className, ...pr
 
   const config = statusConfig[status];
   const labels: Record<SessionStatus, string> = {
+    init: 'starting',
     working: 'working',
     needs_attention: 'need attention',
     idle: 'idle',

@@ -99,6 +99,21 @@ function broadcastSessionRemoved(sessionName: string) {
   console.log(`[Status WS] Broadcast session removed: ${sessionName}`);
 }
 
+// Broadcast session archived to all subscribers
+function broadcastSessionArchived(sessionName: string, session: WSSessionInfo) {
+  if (statusSubscribers.size === 0) return;
+
+  const message: WSStatusMessageFromAgent = { type: 'session-archived', sessionName, session };
+  const messageStr = JSON.stringify(message);
+
+  for (const ws of statusSubscribers) {
+    if (ws.readyState === WebSocket.OPEN) {
+      ws.send(messageStr);
+    }
+  }
+  console.log(`[Status WS] Broadcast session archived: ${sessionName}`);
+}
+
 // Generate human-readable session names with project prefix
 function generateSessionName(project: string): string {
   const adjectives = ['brave', 'swift', 'calm', 'bold', 'wise', 'keen', 'fair', 'wild', 'bright', 'cool'];
@@ -140,8 +155,11 @@ function cleanupStatusMaps() {
     console.log(`[Status Cleanup] Removed ${cleanedTmux} stale status entries from memory`);
   }
 
-  // Also cleanup SQLite database
-  const dbSessionsCleaned = sessionsDb.cleanupStaleSessions(STALE_THRESHOLD);
+  // Also cleanup SQLite database (pass archivedMaxAge for archived session cleanup)
+  const dbSessionsCleaned = sessionsDb.cleanupStaleSessions(
+    STALE_THRESHOLD,
+    RETENTION_CONFIG.archivedMaxAge
+  );
   const dbHistoryCleaned = historyDb.cleanupOldHistory(RETENTION_CONFIG.historyMaxAge);
 
   if (dbSessionsCleaned > 0 || dbHistoryCleaned > 0) {
@@ -493,19 +511,20 @@ export async function createServer() {
 
   // Create environment
   app.post('/api/environments', (req, res) => {
-    const { name, provider, isDefault, variables } = req.body;
+    const { name, provider, icon, isDefault, variables } = req.body;
 
-    if (!name || !provider || !variables) {
-      return res.status(400).json({ error: 'Missing required fields: name, provider, variables' });
+    if (!name || !provider) {
+      return res.status(400).json({ error: 'Missing required fields: name, provider' });
     }
 
     try {
-      const env = createEnvironment({ name, provider, isDefault, variables });
+      const env = createEnvironment({ name, provider, icon, isDefault, variables: variables ?? {} });
       // Return metadata only (not the actual secrets)
       res.status(201).json({
         id: env.id,
         name: env.name,
         provider: env.provider,
+        icon: env.icon,
         isDefault: env.isDefault,
         variableKeys: Object.keys(env.variables),
         createdAt: env.createdAt,
@@ -519,9 +538,9 @@ export async function createServer() {
 
   // Update environment
   app.put('/api/environments/:id', (req, res) => {
-    const { name, provider, isDefault, variables } = req.body;
+    const { name, provider, icon, isDefault, variables } = req.body;
 
-    const updated = updateEnvironment(req.params.id, { name, provider, isDefault, variables });
+    const updated = updateEnvironment(req.params.id, { name, provider, icon, isDefault, variables });
     if (!updated) {
       return res.status(404).json({ error: 'Environment not found' });
     }
@@ -531,6 +550,7 @@ export async function createServer() {
       id: updated.id,
       name: updated.name,
       provider: updated.provider,
+      icon: updated.icon,
       isDefault: updated.isDefault,
       variableKeys: Object.keys(updated.variables),
       createdAt: updated.createdAt,
@@ -557,7 +577,7 @@ export async function createServer() {
     }
 
     // Validate status
-    const validStatuses: SessionStatus[] = ['working', 'needs_attention', 'idle'];
+    const validStatuses: SessionStatus[] = ['init', 'working', 'needs_attention', 'idle'];
     const receivedStatus: SessionStatus = validStatuses.includes(status) ? status : 'working';
 
     // Validate attention_reason if provided
@@ -617,6 +637,7 @@ export async function createServer() {
           id: envMeta.id,
           name: envMeta.name,
           provider: envMeta.provider,
+          icon: envMeta.icon,
           isDefault: envMeta.isDefault,
         } : undefined,
       });
@@ -650,7 +671,7 @@ export async function createServer() {
         // Extract project from session name (format: project--adjective-noun-number)
         const [project] = name.split('--');
 
-        let status: SessionStatus = 'idle';
+        let status: SessionStatus = 'init';
         let attentionReason: AttentionReason | undefined;
         let statusSource: 'hook' | 'tmux' = 'tmux';
         let lastEvent: string | undefined;
@@ -686,6 +707,7 @@ export async function createServer() {
             id: envMeta.id,
             name: envMeta.name,
             provider: envMeta.provider,
+            icon: envMeta.icon,
             isDefault: envMeta.isDefault,
           } : undefined,
         });
@@ -757,6 +779,102 @@ export async function createServer() {
     } catch {
       res.status(404).json({ error: 'Session not found or already killed' });
     }
+  });
+
+  // Archive a session (mark as done and keep in history)
+  app.post('/api/sessions/:sessionName/archive', async (req, res) => {
+    const { sessionName } = req.params;
+    const { exec } = await import('child_process');
+    const { promisify } = await import('util');
+    const execAsync = promisify(exec);
+
+    // Validate session name format to prevent injection
+    if (!/^[\w-]+$/.test(sessionName)) {
+      return res.status(400).json({ error: 'Invalid session name' });
+    }
+
+    // Archive the session in SQLite
+    const archivedSession = sessionsDb.archiveSession(sessionName);
+    if (!archivedSession) {
+      return res.status(404).json({ error: 'Session not found' });
+    }
+
+    // Kill the tmux session (terminal no longer needed)
+    try {
+      await execAsync(`tmux kill-session -t "${sessionName}" 2>/dev/null`);
+      console.log(`[Archive] Killed tmux session: ${sessionName}`);
+    } catch {
+      // Session might already be dead, that's fine
+      console.log(`[Archive] Tmux session ${sessionName} was already gone`);
+    }
+
+    // Clean up in-memory status tracking
+    tmuxSessionStatus.delete(sessionName);
+
+    // Get environment info for the response
+    const envId = getSessionEnvironment(sessionName);
+    const envMeta = envId ? getEnvironmentMetadata(envId) : undefined;
+
+    // Broadcast session-archived event
+    const archivedInfo: WSSessionInfo = {
+      name: sessionName,
+      project: archivedSession.project,
+      createdAt: archivedSession.created_at,
+      status: archivedSession.status,
+      attentionReason: archivedSession.attention_reason ?? undefined,
+      statusSource: 'hook',
+      lastEvent: archivedSession.last_event ?? undefined,
+      lastStatusChange: archivedSession.last_status_change,
+      archivedAt: archivedSession.archived_at ?? undefined,
+      environmentId: envId,
+      environment: envMeta ? {
+        id: envMeta.id,
+        name: envMeta.name,
+        provider: envMeta.provider,
+        icon: envMeta.icon,
+        isDefault: envMeta.isDefault,
+      } : undefined,
+    };
+
+    broadcastSessionArchived(sessionName, archivedInfo);
+
+    res.json({
+      success: true,
+      message: `Session ${sessionName} archived`,
+      session: archivedInfo,
+    });
+  });
+
+  // Get archived sessions
+  app.get('/api/sessions/archived', (_req, res) => {
+    const archivedSessions = sessionsDb.getArchivedSessions();
+
+    const sessions: WSSessionInfo[] = archivedSessions.map((session) => {
+      const envId = getSessionEnvironment(session.name);
+      const envMeta = envId ? getEnvironmentMetadata(envId) : undefined;
+
+      return {
+        name: session.name,
+        project: session.project,
+        createdAt: session.created_at,
+        status: session.status,
+        attentionReason: session.attention_reason ?? undefined,
+        statusSource: 'hook' as const,
+        lastEvent: session.last_event ?? undefined,
+        lastStatusChange: session.last_status_change,
+        archivedAt: session.archived_at ?? undefined,
+        environmentId: envId,
+        environment: envMeta ? {
+          id: envMeta.id,
+          name: envMeta.name,
+          provider: envMeta.provider,
+          icon: envMeta.icon,
+          isDefault: envMeta.isDefault,
+        } : undefined,
+      };
+    });
+
+    res.json(sessions);
   });
 
   // ========== Editor API Endpoints ==========
@@ -991,7 +1109,7 @@ export async function createServer() {
               const [name, created] = line.split('|');
               const [project] = name.split('--');
 
-              let status: SessionStatus = 'idle';
+              let status: SessionStatus = 'init';
               let attentionReason: AttentionReason | undefined;
               let statusSource: 'hook' | 'tmux' = 'tmux';
               let lastEvent: string | undefined;

@@ -87,6 +87,14 @@ function runMigrations(database: Database.Database): void {
     // Run all schema creation (idempotent with IF NOT EXISTS)
     database.exec(CREATE_TABLES_SQL);
 
+    // Run incremental migrations for existing tables
+    if (currentVersion < 2) {
+      migrateToV2(database);
+    }
+    if (currentVersion < 3) {
+      migrateToV3(database);
+    }
+
     // Record the new version
     database
       .prepare(
@@ -100,6 +108,56 @@ function runMigrations(database: Database.Database): void {
     console.log(`[DB] Migrations complete. Now at v${SCHEMA_VERSION}`);
   } else {
     console.log(`[DB] Database schema is up to date (v${currentVersion})`);
+  }
+
+  // Always ensure required columns exist (handles incomplete migrations)
+  ensureRequiredColumns(database);
+}
+
+/**
+ * Ensure all required columns exist (handles incomplete migrations)
+ */
+function ensureRequiredColumns(database: Database.Database): void {
+  // Check environments.icon column
+  const envColumns = database.pragma('table_info(environments)') as Array<{ name: string }>;
+  if (!envColumns.some((c) => c.name === 'icon')) {
+    console.log('[DB] Adding missing icon column to environments');
+    database.exec('ALTER TABLE environments ADD COLUMN icon TEXT');
+  }
+
+  // Check sessions.archived_at column
+  const sessionColumns = database.pragma('table_info(sessions)') as Array<{ name: string }>;
+  if (!sessionColumns.some((c) => c.name === 'archived_at')) {
+    console.log('[DB] Adding missing archived_at column to sessions');
+    database.exec('ALTER TABLE sessions ADD COLUMN archived_at INTEGER');
+  }
+}
+
+/**
+ * Migration to v2: Add icon column to environments table
+ */
+function migrateToV2(database: Database.Database): void {
+  // Check if icon column already exists
+  const columns = database.pragma('table_info(environments)') as Array<{ name: string }>;
+  const hasIcon = columns.some((c) => c.name === 'icon');
+
+  if (!hasIcon) {
+    console.log('[DB] v2 migration: Adding icon column to environments');
+    database.exec('ALTER TABLE environments ADD COLUMN icon TEXT');
+  }
+}
+
+/**
+ * Migration to v3: Add archived_at column to sessions table
+ */
+function migrateToV3(database: Database.Database): void {
+  // Check if archived_at column already exists
+  const columns = database.pragma('table_info(sessions)') as Array<{ name: string }>;
+  const hasArchivedAt = columns.some((c) => c.name === 'archived_at');
+
+  if (!hasArchivedAt) {
+    console.log('[DB] v3 migration: Adding archived_at column to sessions');
+    database.exec('ALTER TABLE sessions ADD COLUMN archived_at INTEGER');
   }
 }
 

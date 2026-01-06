@@ -49,8 +49,8 @@ export type WSMessageFromAgent =
   | { type: 'history'; data: string; lines: number };
 
 // Session status types for real-time updates
-// Simplified to 3 states: working (active), needs_attention (user intervention needed), idle (no activity)
-export type SessionStatus = 'working' | 'needs_attention' | 'idle';
+// 4 states: init (starting), working (active), needs_attention (user intervention needed), idle (session ended)
+export type SessionStatus = 'init' | 'working' | 'needs_attention' | 'idle';
 
 // Reason why Claude needs attention
 export type AttentionReason =
@@ -72,12 +72,14 @@ export interface WSSessionInfo {
   lastStatusChange?: number;
   createdAt: number;
   lastActivity?: string;
+  archivedAt?: number; // Timestamp when session was archived (undefined = active)
   environmentId?: string; // Track which environment this session uses
   // Environment metadata for UI display
   environment?: {
     id: string;
     name: string;
     provider: EnvironmentProvider;
+    icon: EnvironmentIcon | null;
     isDefault: boolean;
   };
 }
@@ -91,7 +93,8 @@ export type WSStatusMessageToAgent =
 export type WSStatusMessageFromAgent =
   | { type: 'sessions-list'; sessions: WSSessionInfo[] }
   | { type: 'status-update'; session: WSSessionInfo }
-  | { type: 'session-removed'; sessionName: string };
+  | { type: 'session-removed'; sessionName: string }
+  | { type: 'session-archived'; sessionName: string; session: WSSessionInfo };
 
 // API types
 export interface RegisterMachineRequest {
@@ -128,10 +131,26 @@ export interface EditorStatus {
 // Environment types
 export type EnvironmentProvider = 'anthropic' | 'openrouter';
 
+// Available icons for environments
+export const ENVIRONMENT_ICON_OPTIONS = [
+  'zap', 'globe', 'bot', 'brain', 'cpu', 'server', 'cloud',
+  'rocket', 'flask', 'code', 'bug', 'wrench', 'shield', 'lock',
+  'star', 'sparkles', 'flame', 'moon', 'sun', 'leaf'
+] as const;
+
+export type EnvironmentIcon = typeof ENVIRONMENT_ICON_OPTIONS[number];
+
+// Default icons per provider (fallback when icon is null)
+export const DEFAULT_PROVIDER_ICONS: Record<EnvironmentProvider, EnvironmentIcon> = {
+  anthropic: 'zap',
+  openrouter: 'globe',
+};
+
 export interface Environment {
   id: string;
   name: string;
   provider: EnvironmentProvider;
+  icon: EnvironmentIcon | null; // Custom icon, null uses provider default
   isDefault: boolean;
   variables: Record<string, string>;
   createdAt: number;
@@ -143,6 +162,7 @@ export interface EnvironmentMetadata {
   id: string;
   name: string;
   provider: EnvironmentProvider;
+  icon: EnvironmentIcon | null; // Custom icon, null uses provider default
   isDefault: boolean;
   variableKeys: string[]; // Only variable names, not values
   createdAt: number;
@@ -153,6 +173,7 @@ export interface EnvironmentMetadata {
 export interface CreateEnvironmentRequest {
   name: string;
   provider: EnvironmentProvider;
+  icon?: EnvironmentIcon | null;
   isDefault?: boolean;
   variables: Record<string, string>;
 }
@@ -160,6 +181,7 @@ export interface CreateEnvironmentRequest {
 export interface UpdateEnvironmentRequest {
   name?: string;
   provider?: EnvironmentProvider;
+  icon?: EnvironmentIcon | null;
   isDefault?: boolean;
   variables?: Record<string, string>;
 }

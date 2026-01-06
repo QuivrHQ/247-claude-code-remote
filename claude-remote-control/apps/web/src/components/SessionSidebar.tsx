@@ -95,7 +95,7 @@ export function SessionSidebar({
     // Apply status filter
     if (filter !== 'all') {
       result = result.filter((s) => {
-        if (filter === 'active') return s.status === 'working';
+        if (filter === 'active') return s.status === 'working' || s.status === 'init';
         if (filter === 'waiting')
           return s.status === 'needs_attention' && s.attentionReason !== 'task_complete';
         if (filter === 'done')
@@ -105,15 +105,15 @@ export function SessionSidebar({
       });
     }
 
-    // Sort by createdAt only (oldest first) - stable chronological order
-    return result.sort((a, b) => a.createdAt - b.createdAt);
+    // Sort by createdAt only (newest first) - stable chronological order
+    return result.sort((a, b) => b.createdAt - a.createdAt);
   }, [sessions, searchQuery, filter]);
 
   // Session counts by status
   const statusCounts = useMemo(() => {
     return sessions.reduce(
       (acc, s) => {
-        if (s.status === 'working') acc.active++;
+        if (s.status === 'working' || s.status === 'init') acc.active++;
         else if (s.status === 'needs_attention') {
           if (s.attentionReason === 'task_complete') acc.done++;
           else acc.waiting++;
@@ -127,13 +127,17 @@ export function SessionSidebar({
   // Keyboard navigation
   const handleKeyboard = useCallback(
     (e: KeyboardEvent) => {
-      // Cmd/Ctrl + number to switch sessions
-      if ((e.metaKey || e.ctrlKey) && e.key >= '1' && e.key <= '9') {
-        e.preventDefault();
-        const index = parseInt(e.key) - 1;
-        if (index < filteredSessions.length) {
-          const session = filteredSessions[index];
-          onSelectSession(session.name, session.project);
+      // Option + number to switch sessions (avoids Chrome tab conflict)
+      // Use e.code because Option+number produces special chars on Mac
+      if (e.altKey && !e.metaKey && !e.ctrlKey) {
+        const digitMatch = e.code.match(/^Digit([1-9])$/);
+        if (digitMatch) {
+          e.preventDefault();
+          const index = parseInt(digitMatch[1]) - 1;
+          if (index < filteredSessions.length) {
+            const session = filteredSessions[index];
+            onSelectSession(session.name, session.project);
+          }
         }
       }
 
@@ -143,8 +147,8 @@ export function SessionSidebar({
         onNewSession(currentProject);
       }
 
-      // Cmd/Ctrl + [ and ] to navigate sessions
-      if ((e.metaKey || e.ctrlKey) && e.key === '[') {
+      // Option + [ and ] to navigate sessions
+      if (e.altKey && !e.metaKey && !e.ctrlKey && (e.code === 'BracketLeft' || e.key === '[')) {
         e.preventDefault();
         const currentIndex = filteredSessions.findIndex(
           (s) => s.name === currentSessionName
@@ -155,7 +159,7 @@ export function SessionSidebar({
         }
       }
 
-      if ((e.metaKey || e.ctrlKey) && e.key === ']') {
+      if (e.altKey && !e.metaKey && !e.ctrlKey && (e.code === 'BracketRight' || e.key === ']')) {
         e.preventDefault();
         const currentIndex = filteredSessions.findIndex(
           (s) => s.name === currentSessionName
@@ -389,10 +393,11 @@ export function SessionSidebar({
 
               <div className="space-y-4">
                 <ShortcutRow keys={['⌘', 'N']} description="Create new session" />
-                <ShortcutRow keys={['⌘', '1-9']} description="Switch to session 1-9" />
-                <ShortcutRow keys={['⌘', '[']} description="Previous session" />
-                <ShortcutRow keys={['⌘', ']']} description="Next session" />
-                <ShortcutRow keys={['⌘', '⇧', 'F']} description="Search in terminal" />
+                <ShortcutRow keys={['⌥', '1-9']} description="Switch to session 1-9" />
+                <ShortcutRow keys={['⌥', '[']} description="Previous session" />
+                <ShortcutRow keys={['⌥', ']']} description="Next session" />
+                <ShortcutRow keys={['⌥', 'T']} description="Terminal tab" />
+                <ShortcutRow keys={['⌥', 'E']} description="Editor tab" />
                 <ShortcutRow keys={['?']} description="Show this help" />
               </div>
             </motion.div>

@@ -52,7 +52,7 @@ export function SessionListView({ sessions, onSelectSession }: SessionListViewPr
     // Apply status filter
     if (statusFilter !== 'all') {
       result = result.filter((s) => {
-        if (statusFilter === 'active') return s.status === 'working';
+        if (statusFilter === 'active') return s.status === 'working' || s.status === 'init';
         if (statusFilter === 'waiting')
           return s.status === 'needs_attention' && s.attentionReason !== 'task_complete';
         if (statusFilter === 'done')
@@ -72,15 +72,15 @@ export function SessionListView({ sessions, onSelectSession }: SessionListViewPr
       result = result.filter((s) => s.machineName === machineFilter);
     }
 
-    // Sort by createdAt only (oldest first) - stable chronological order
-    return result.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+    // Sort by createdAt only (newest first) - stable chronological order
+    return result.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
   }, [sessions, searchQuery, statusFilter, projectFilter, machineFilter]);
 
   // Session counts by status
   const statusCounts = useMemo(() => {
     return sessions.reduce(
       (acc, s) => {
-        if (s.status === 'working') acc.active++;
+        if (s.status === 'working' || s.status === 'init') acc.active++;
         else if (s.status === 'needs_attention') {
           if (s.attentionReason === 'task_complete') acc.done++;
           else acc.waiting++;
