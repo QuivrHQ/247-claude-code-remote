@@ -91,25 +91,8 @@ export function SessionPollingProvider({ children }: { children: ReactNode }) {
     requestNotificationPermission();
   }, []);
 
-  // Fetch machines from API
-  useEffect(() => {
-    const fetchMachines = async () => {
-      try {
-        const response = await fetch('/api/machines');
-        if (response.ok) {
-          const data = await response.json();
-          console.log('[Sessions] Fetched machines:', data.map((m: Machine) => ({ id: m.id, name: m.name, status: m.status })));
-          setMachinesState(data);
-        }
-      } catch (err) {
-        console.error('Failed to fetch machines:', err);
-      }
-    };
-
-    fetchMachines();
-    const interval = setInterval(fetchMachines, MACHINES_POLLING_INTERVAL);
-    return () => clearInterval(interval);
-  }, []);
+  // NOTE: Machines are now managed by the parent component (from localStorage)
+  // We no longer fetch from /api/machines - the dashboard is stateless!
 
   const fetchSessionsForMachine = useCallback(
     async (machine: Machine): Promise<MachineSessionData> => {
