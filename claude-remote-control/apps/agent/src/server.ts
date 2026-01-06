@@ -600,6 +600,10 @@ export function createServer() {
 
       // Broadcast status update to WebSocket subscribers
       const [sessionProject] = tmux_session.split('--');
+      // Get environment info for this session
+      const envId = getSessionEnvironment(tmux_session);
+      const envMeta = envId ? getEnvironmentMetadata(envId) : undefined;
+
       broadcastStatusUpdate({
         name: tmux_session,
         project: sessionProject || project,
@@ -609,6 +613,13 @@ export function createServer() {
         lastStatusChange: hookData.lastStatusChange,
         createdAt: timestamp || now, // Best approximation without querying tmux
         lastActivity: undefined,
+        environmentId: envId,
+        environment: envMeta ? {
+          id: envMeta.id,
+          name: envMeta.name,
+          provider: envMeta.provider,
+          isDefault: envMeta.isDefault,
+        } : undefined,
       });
     } else {
       // Warning: tmux_session is required for proper per-session status tracking
@@ -646,6 +657,12 @@ export function createServer() {
       lastEvent?: string;
       lastStatusChange?: number;
       environmentId?: string;
+      environment?: {
+        id: string;
+        name: string;
+        provider: 'anthropic' | 'openrouter';
+        isDefault: boolean;
+      };
     }
 
     try {
@@ -677,6 +694,10 @@ export function createServer() {
         }
         // No fallback - if no hook data, status remains 'idle'
 
+        // Get environment info for this session
+        const envId = getSessionEnvironment(name);
+        const envMeta = envId ? getEnvironmentMetadata(envId) : undefined;
+
         sessions.push({
           name,
           project,  // Project is already extracted from session name
@@ -686,7 +707,13 @@ export function createServer() {
           lastActivity: '',
           lastEvent,
           lastStatusChange,
-          environmentId: getSessionEnvironment(name), // Track which environment this session uses
+          environmentId: envId,
+          environment: envMeta ? {
+            id: envMeta.id,
+            name: envMeta.name,
+            provider: envMeta.provider,
+            isDefault: envMeta.isDefault,
+          } : undefined,
         });
       }
 

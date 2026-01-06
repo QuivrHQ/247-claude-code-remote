@@ -63,6 +63,13 @@ export interface WSSessionInfo {
   createdAt: number;
   lastActivity?: string;
   environmentId?: string; // Track which environment this session uses
+  // Environment metadata for UI display
+  environment?: {
+    id: string;
+    name: string;
+    provider: EnvironmentProvider;
+    isDefault: boolean;
+  };
 }
 
 // WebSocket message types - Client to Agent (Status channel)

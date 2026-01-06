@@ -6,6 +6,7 @@ import { Zap, Clock, MessageSquare, Shield, CheckCircle, Circle, Loader2, X, Act
 import { type SessionInfo } from '@/lib/notifications';
 import { type SessionStatus } from './ui/status-badge';
 import { ConfirmDialog } from './ui/confirm-dialog';
+import { EnvironmentBadge } from './EnvironmentBadge';
 import { cn } from '@/lib/utils';
 import { formatRelativeTime } from '@/lib/time';
 
@@ -294,6 +295,13 @@ export const SessionCard = forwardRef<HTMLButtonElement, SessionCardProps>(
                 <span className="font-medium text-sm text-white truncate">
                   {displayName}
                 </span>
+                {session.environment && (
+                  <EnvironmentBadge
+                    provider={session.environment.provider}
+                    showLabel={false}
+                    size="sm"
+                  />
+                )}
                 {shortcut && (
                   <kbd className="hidden group-hover:inline-flex px-1.5 py-0.5 text-[10px] font-mono bg-white/10 rounded text-white/40 border border-white/10">
                     ⌘{shortcut}

@@ -8,6 +8,13 @@ export interface SessionInfo {
   lastEvent?: string;
   lastStatusChange?: number;
   environmentId?: string;
+  // Environment metadata for badge display
+  environment?: {
+    id: string;
+    name: string;
+    provider: 'anthropic' | 'openrouter';
+    isDefault: boolean;
+  };
 }
 
 export function requestNotificationPermission(): void {
