@@ -95,24 +95,17 @@ export function HomeSidebar({
     if (filter !== 'all') {
       result = result.filter((s) => {
         if (filter === 'active') return s.status === 'working';
-        if (filter === 'waiting') return s.status === 'needs_attention';
-        if (filter === 'done') return s.status === 'idle';
+        if (filter === 'waiting')
+          return s.status === 'needs_attention' && s.attentionReason !== 'task_complete';
+        if (filter === 'done')
+          return s.status === 'idle' ||
+            (s.status === 'needs_attention' && s.attentionReason === 'task_complete');
         return true;
       });
     }
 
-    // Sort: needs_attention first, then working, then by createdAt
-    return result.sort((a, b) => {
-      const statusOrder: Record<string, number> = {
-        needs_attention: 0,
-        working: 1,
-        idle: 2,
-      };
-      const orderA = statusOrder[a.status] ?? 10;
-      const orderB = statusOrder[b.status] ?? 10;
-      if (orderA !== orderB) return orderA - orderB;
-      return b.createdAt - a.createdAt;
-    });
+    // Sort by createdAt only (oldest first) - stable chronological order
+    return result.sort((a, b) => a.createdAt - b.createdAt);
   }, [sessions, searchQuery, filter]);
 
   // Session counts by status
@@ -120,8 +113,10 @@ export function HomeSidebar({
     return sessions.reduce(
       (acc, s) => {
         if (s.status === 'working') acc.active++;
-        else if (s.status === 'needs_attention') acc.waiting++;
-        else acc.done++;
+        else if (s.status === 'needs_attention') {
+          if (s.attentionReason === 'task_complete') acc.done++;
+          else acc.waiting++;
+        } else acc.done++;
         return acc;
       },
       { active: 0, waiting: 0, done: 0 }

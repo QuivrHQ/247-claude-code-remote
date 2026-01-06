@@ -21,6 +21,22 @@ let mockProcess: ReturnType<typeof createMockProcess>;
 // Mock child_process.spawn
 vi.mock('child_process', () => ({
   spawn: vi.fn(() => mockProcess),
+  execSync: vi.fn(() => ''),
+}));
+
+// Mock net.createConnection to avoid real socket operations with fake timers
+vi.mock('net', () => ({
+  createConnection: vi.fn(() => {
+    const socket = new EventEmitter() as EventEmitter & {
+      setTimeout: ReturnType<typeof vi.fn>;
+      destroy: ReturnType<typeof vi.fn>;
+    };
+    socket.setTimeout = vi.fn();
+    socket.destroy = vi.fn();
+    // Simulate port is not in use (error event)
+    setTimeout(() => socket.emit('error', new Error('ECONNREFUSED')), 0);
+    return socket;
+  }),
 }));
 
 describe('Editor', () => {

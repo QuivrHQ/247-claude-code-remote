@@ -77,36 +77,40 @@ describe('Notifications', () => {
     });
   });
 
-  describe('Terminal URL generation', () => {
-    const generateTerminalUrl = (
+  describe('Notification click URL generation', () => {
+    // This matches the URL format used in showSessionNotification onclick handler
+    const generateNotificationUrl = (
       machineId: string,
-      project: string,
       sessionName: string
     ): string => {
-      const params = new URLSearchParams({ project, session: sessionName });
-      return `/terminal/${machineId}?${params.toString()}`;
+      return `?session=${encodeURIComponent(sessionName)}&machine=${machineId}`;
     };
 
-    it('generates correct URL with all parameters', () => {
-      const url = generateTerminalUrl(
-        'machine-1',
-        'test-project',
-        'project--brave-lion-42'
-      );
+    it('generates correct URL with query parameters', () => {
+      const url = generateNotificationUrl('local-agent', 'project--brave-lion-42');
 
-      expect(url).toContain('/terminal/machine-1');
-      expect(url).toContain('project=test-project');
-      expect(url).toContain('session=project--brave-lion-42');
+      expect(url).toBe('?session=project--brave-lion-42&machine=local-agent');
     });
 
-    it('properly encodes special characters', () => {
-      const url = generateTerminalUrl(
-        'machine-1',
-        'my project',
-        'project--test-1'
-      );
+    it('encodes special characters in session name', () => {
+      const url = generateNotificationUrl('machine-1', 'project with spaces');
 
-      expect(url).toContain('project=my+project');
+      expect(url).toBe('?session=project%20with%20spaces&machine=machine-1');
+    });
+
+    it('does not use /s/ route format (deprecated)', () => {
+      const url = generateNotificationUrl('machine-1', 'test-session');
+
+      expect(url).not.toContain('/s/');
+      expect(url.startsWith('?')).toBe(true);
+    });
+
+    it('has session parameter before machine parameter', () => {
+      const url = generateNotificationUrl('machine-1', 'test-session');
+
+      const sessionIndex = url.indexOf('session=');
+      const machineIndex = url.indexOf('machine=');
+      expect(sessionIndex).toBeLessThan(machineIndex);
     });
   });
 

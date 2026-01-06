@@ -3,7 +3,7 @@
 import { useState, useCallback } from 'react';
 import { ArrowLeft, WifiOff } from 'lucide-react';
 import { Terminal } from './Terminal';
-import { Editor } from './Editor';
+import { FileExplorer } from './FileExplorer';
 import { EditorTerminalTabs, type ActiveTab } from './EditorTerminalTabs';
 import { StatusBadge, type SessionStatus } from './ui/status-badge';
 import { type SessionInfo } from '@/lib/notifications';
@@ -122,7 +122,7 @@ export function SessionView({
             claudeStatus={sessionInfo?.status}
           />
         ) : (
-          <Editor key={`editor-${project}`} agentUrl={agentUrl} project={project} />
+          <FileExplorer key={`files-${project}`} agentUrl={agentUrl} project={project} />
         )}
       </div>
     </div>

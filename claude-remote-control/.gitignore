@@ -31,3 +31,6 @@ coverage/
 
 # Misc
 *.tsbuildinfo
+
+# SQLite database
+apps/agent/data/

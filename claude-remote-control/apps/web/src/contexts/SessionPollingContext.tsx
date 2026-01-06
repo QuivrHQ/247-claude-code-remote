@@ -452,6 +452,7 @@ export function SessionPollingProvider({ children }: { children: ReactNode }) {
   }, [pollAllMachines, machines.length]);
 
   // Get all sessions across all machines, flattened with machine context
+  // Note: No sorting here - let consuming components handle sorting consistently
   const getAllSessions = useCallback((): SessionWithMachine[] => {
     const allSessions: SessionWithMachine[] = [];
     for (const [, data] of sessionsByMachine) {
@@ -464,12 +465,7 @@ export function SessionPollingProvider({ children }: { children: ReactNode }) {
         });
       }
     }
-    // Sort by lastStatusChange (most recent first), then by createdAt
-    return allSessions.sort((a, b) => {
-      const aTime = a.lastStatusChange || a.createdAt || 0;
-      const bTime = b.lastStatusChange || b.createdAt || 0;
-      return bTime - aTime;
-    });
+    return allSessions;
   }, [sessionsByMachine]);
 
   // Get a specific session by machine and name

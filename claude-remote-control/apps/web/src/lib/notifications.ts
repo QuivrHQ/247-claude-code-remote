@@ -77,7 +77,7 @@ export function showSessionNotification(
     });
 
     notification.onclick = () => {
-      const url = `/s/${machineId}/${encodeURIComponent(session.name)}`;
+      const url = `?session=${encodeURIComponent(session.name)}&machine=${machineId}`;
 
       window.focus();
       window.location.href = url;

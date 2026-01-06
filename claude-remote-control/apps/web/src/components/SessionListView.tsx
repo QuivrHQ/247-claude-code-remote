@@ -53,8 +53,11 @@ export function SessionListView({ sessions, onSelectSession }: SessionListViewPr
     if (statusFilter !== 'all') {
       result = result.filter((s) => {
         if (statusFilter === 'active') return s.status === 'working';
-        if (statusFilter === 'waiting') return s.status === 'needs_attention';
-        if (statusFilter === 'done') return s.status === 'idle';
+        if (statusFilter === 'waiting')
+          return s.status === 'needs_attention' && s.attentionReason !== 'task_complete';
+        if (statusFilter === 'done')
+          return s.status === 'idle' ||
+            (s.status === 'needs_attention' && s.attentionReason === 'task_complete');
         return true;
       });
     }
@@ -69,20 +72,8 @@ export function SessionListView({ sessions, onSelectSession }: SessionListViewPr
       result = result.filter((s) => s.machineName === machineFilter);
     }
 
-    // Sort: needs_attention first, then working, then by lastStatusChange/createdAt
-    return result.sort((a, b) => {
-      const aAttention = a.status === 'needs_attention';
-      const bAttention = b.status === 'needs_attention';
-      if (aAttention !== bAttention) return aAttention ? -1 : 1;
-
-      const aWorking = a.status === 'working';
-      const bWorking = b.status === 'working';
-      if (aWorking !== bWorking) return aWorking ? -1 : 1;
-
-      const aTime = a.lastStatusChange || a.createdAt || 0;
-      const bTime = b.lastStatusChange || b.createdAt || 0;
-      return bTime - aTime;
-    });
+    // Sort by createdAt only (oldest first) - stable chronological order
+    return result.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
   }, [sessions, searchQuery, statusFilter, projectFilter, machineFilter]);
 
   // Session counts by status
@@ -90,8 +81,10 @@ export function SessionListView({ sessions, onSelectSession }: SessionListViewPr
     return sessions.reduce(
       (acc, s) => {
         if (s.status === 'working') acc.active++;
-        else if (s.status === 'needs_attention') acc.waiting++;
-        else acc.done++;
+        else if (s.status === 'needs_attention') {
+          if (s.attentionReason === 'task_complete') acc.done++;
+          else acc.waiting++;
+        } else acc.done++;
         return acc;
       },
       { active: 0, waiting: 0, done: 0 }

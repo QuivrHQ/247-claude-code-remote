@@ -72,6 +72,8 @@ pnpm db:studio        # Open Drizzle Studio UI
 ## Important Rules
 
 - **Always use a local database** - Never use cloud/remote databases (Neon, Supabase, PlanetScale, etc.). Prefer SQLite or other local solutions managed by the agent for all persistence needs.
+- **Always run tests** - Run `pnpm test` before committing any changes. All tests must pass.
+- **Always add relevant tests** - When adding or modifying features, write corresponding unit/integration tests. No code change without appropriate test coverage.
 
 ## Key Technical Decisions
 

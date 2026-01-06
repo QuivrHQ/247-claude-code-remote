@@ -107,7 +107,7 @@ describe('Agent REST API', () => {
 
   beforeAll(async () => {
     const { createServer } = await import('../../src/server.js');
-    server = createServer();
+    server = await createServer();
     app = server._events?.request || server;
   });
 

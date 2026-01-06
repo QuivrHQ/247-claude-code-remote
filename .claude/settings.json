@@ -1,5 +1,18 @@
 {
   "enabledPlugins": {
     "vercel@claude-plugins-official": true
+  },
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/run-tests.sh",
+            "timeout": 180
+          }
+        ]
+      }
+    ]
   }
 }

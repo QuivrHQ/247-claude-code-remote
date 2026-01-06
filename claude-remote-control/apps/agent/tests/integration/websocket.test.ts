@@ -38,6 +38,49 @@ vi.mock('fs/promises', () => ({
   rm: vi.fn().mockResolvedValue(undefined),
 }));
 
+// Mock database modules
+vi.mock('../../src/db/index.js', () => ({
+  initDatabase: vi.fn().mockReturnValue({}),
+  closeDatabase: vi.fn(),
+  migrateEnvironmentsFromJson: vi.fn().mockReturnValue(false),
+  RETENTION_CONFIG: {
+    sessionMaxAge: 24 * 60 * 60 * 1000,
+    historyMaxAge: 7 * 24 * 60 * 60 * 1000,
+    cleanupInterval: 60 * 60 * 1000,
+  },
+}));
+
+vi.mock('../../src/db/environments.js', () => ({
+  getEnvironmentsMetadata: vi.fn().mockReturnValue([]),
+  getEnvironmentMetadata: vi.fn().mockReturnValue(undefined),
+  getEnvironment: vi.fn().mockReturnValue(undefined),
+  createEnvironment: vi.fn().mockReturnValue({ id: 'test-env' }),
+  updateEnvironment: vi.fn().mockReturnValue(null),
+  deleteEnvironment: vi.fn().mockReturnValue(false),
+  getEnvironmentVariables: vi.fn().mockReturnValue({}),
+  setSessionEnvironment: vi.fn(),
+  getSessionEnvironment: vi.fn().mockReturnValue(undefined),
+  clearSessionEnvironment: vi.fn(),
+  ensureDefaultEnvironment: vi.fn(),
+}));
+
+vi.mock('../../src/db/sessions.js', () => ({
+  getAllSessions: vi.fn().mockReturnValue([]),
+  getSession: vi.fn().mockReturnValue(null),
+  upsertSession: vi.fn(),
+  deleteSession: vi.fn().mockReturnValue(true),
+  cleanupStaleSessions: vi.fn().mockReturnValue(0),
+  reconcileWithTmux: vi.fn(),
+  toHookStatus: vi.fn().mockReturnValue({}),
+  clearSessionEnvironmentId: vi.fn(),
+}));
+
+vi.mock('../../src/db/history.js', () => ({
+  recordStatusChange: vi.fn(),
+  getSessionHistory: vi.fn().mockReturnValue([]),
+  cleanupOldHistory: vi.fn().mockReturnValue(0),
+}));
+
 // Create shared mock terminal
 let mockTerminal: any;
 const createMockTerminal = () => {
@@ -112,7 +155,7 @@ describe('WebSocket Terminal', () => {
 
   beforeAll(async () => {
     const { createServer } = await import('../../src/server.js');
-    server = createServer();
+    server = await createServer();
 
     await new Promise<void>((resolve) => {
       server.listen(0, () => {

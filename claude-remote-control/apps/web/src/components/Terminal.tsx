@@ -5,7 +5,6 @@ import { Terminal as XTerm } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import { WebLinksAddon } from '@xterm/addon-web-links';
 import { SearchAddon } from '@xterm/addon-search';
-import { WebglAddon } from '@xterm/addon-webgl';
 import { CanvasAddon } from '@xterm/addon-canvas';
 import '@xterm/xterm/css/xterm.css';
 import { Search, ChevronUp, ChevronDown, X, ArrowDown, Sparkles, Copy, Check } from 'lucide-react';
@@ -44,7 +43,6 @@ export function Terminal({ agentUrl, project, sessionName, environmentId, onConn
   const xtermRef = useRef<XTerm | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
   const searchAddonRef = useRef<SearchAddon | null>(null);
-  const webglAddonRef = useRef<WebglAddon | null>(null);
 
   // Generate session name ONCE on first render, persisted across re-mounts
   const generatedSessionRef = useRef<string | null>(null);
@@ -63,11 +61,6 @@ export function Terminal({ agentUrl, project, sessionName, environmentId, onConn
     if (xtermRef.current) {
       xtermRef.current.scrollToBottom();
     }
-  }, []);
-
-  // Focus terminal to enable native scroll handling
-  const focusTerminal = useCallback(() => {
-    xtermRef.current?.focus();
   }, []);
 
   // Copy terminal selection
@@ -172,6 +165,7 @@ export function Terminal({ agentUrl, project, sessionName, environmentId, onConn
         smoothScrollDuration: 100,
         cursorStyle: 'bar',
         cursorWidth: 2,
+        allowProposedApi: true,
         theme: {
           background: '#0a0a10',
           foreground: '#e4e4e7',
@@ -208,20 +202,34 @@ export function Terminal({ agentUrl, project, sessionName, environmentId, onConn
 
       term.open(terminalRef.current);
 
-      // Try WebGL renderer, fall back to Canvas
-      try {
-        const webglAddon = new WebglAddon();
-        webglAddon.onContextLoss(() => {
-          webglAddon.dispose();
-          webglAddonRef.current = null;
-          if (term) term.loadAddon(new CanvasAddon());
-        });
-        term.loadAddon(webglAddon);
-        webglAddonRef.current = webglAddon;
-      } catch {
-        console.warn('WebGL not available, using Canvas renderer');
-        term.loadAddon(new CanvasAddon());
-      }
+      // Enable Cmd+C / Ctrl+C to copy when there's a selection
+      const currentTermForKeys = term;
+      term.attachCustomKeyEventHandler((event) => {
+        // Cmd+C (Mac) or Ctrl+C (Windows/Linux) with selection = copy
+        if ((event.metaKey || event.ctrlKey) && event.key === 'c' && currentTermForKeys.hasSelection()) {
+          const selection = currentTermForKeys.getSelection();
+          if (selection) {
+            navigator.clipboard.writeText(selection);
+            setCopied(true);
+            setTimeout(() => setCopied(false), 2000);
+          }
+          return false; // Prevent terminal from receiving Ctrl+C
+        }
+        // Cmd+V (Mac) or Ctrl+V (Windows/Linux) = paste
+        if ((event.metaKey || event.ctrlKey) && event.key === 'v') {
+          navigator.clipboard.readText().then((text) => {
+            if (ws && ws.readyState === WebSocket.OPEN) {
+              ws.send(JSON.stringify({ type: 'input', data: text }));
+            }
+          });
+          return false; // Prevent default paste behavior
+        }
+        return true; // Let other keys pass through
+      });
+
+      // Use Canvas renderer (more reliable for text selection)
+      // WebGL can sometimes interfere with mouse selection
+      term.loadAddon(new CanvasAddon());
 
       fitAddon.fit();
 
@@ -336,16 +344,6 @@ export function Terminal({ agentUrl, project, sessionName, environmentId, onConn
       // Clear WebSocket ref
       if (wsRef.current === ws) {
         wsRef.current = null;
-      }
-
-      // Dispose addons first (before terminal)
-      if (webglAddonRef.current) {
-        try {
-          webglAddonRef.current.dispose();
-        } catch {
-          // Ignore disposal errors
-        }
-        webglAddonRef.current = null;
       }
 
       // Dispose terminal
@@ -512,8 +510,6 @@ export function Terminal({ agentUrl, project, sessionName, environmentId, onConn
       <div
         ref={terminalRef}
         className="flex-1 bg-[#0a0a10] px-2 py-1"
-        onClick={focusTerminal}
-        onMouseEnter={focusTerminal}
       />
 
       {/* Scroll to bottom indicator */}

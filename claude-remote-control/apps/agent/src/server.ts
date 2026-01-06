@@ -3,6 +3,7 @@ import cors from 'cors';
 import { WebSocketServer, WebSocket } from 'ws';
 import { createServer as createHttpServer } from 'http';
 import httpProxy from 'http-proxy';
+import { execSync } from 'child_process';
 import { createTerminal } from './terminal.js';
 import {
   initEditor,
@@ -13,8 +14,14 @@ import {
   updateEditorActivity,
   shutdownAllEditors,
 } from './editor.js';
+// Database imports
 import {
-  loadEnvironments,
+  initDatabase,
+  closeDatabase,
+  migrateEnvironmentsFromJson,
+  RETENTION_CONFIG,
+} from './db/index.js';
+import {
   getEnvironmentsMetadata,
   getEnvironmentMetadata,
   getEnvironment,
@@ -25,8 +32,18 @@ import {
   setSessionEnvironment,
   getSessionEnvironment,
   clearSessionEnvironment,
-} from './environments.js';
-import { cloneRepo, extractProjectName } from './git.js';
+  ensureDefaultEnvironment,
+} from './db/environments.js';
+import * as sessionsDb from './db/sessions.js';
+import * as historyDb from './db/history.js';
+import {
+  cloneRepo,
+  extractProjectName,
+  listFiles,
+  getFileContent,
+  openFileInEditor,
+  getChangesSummary,
+} from './git.js';
 import config from '../config.json' with { type: 'json' };
 import type { WSMessageToAgent, AgentConfig, WSSessionInfo, WSStatusMessageFromAgent } from '@claude-remote/shared';
 
@@ -95,12 +112,11 @@ function generateSessionName(project: string): string {
 // Clean up stale status entries (called periodically)
 function cleanupStatusMaps() {
   const now = Date.now();
-  const STALE_THRESHOLD = 24 * 60 * 60 * 1000; // 24 hours
+  const STALE_THRESHOLD = RETENTION_CONFIG.sessionMaxAge;
 
   let cleanedTmux = 0;
 
   // Get active tmux sessions
-  const { execSync } = require('child_process');
   let activeSessions = new Set<string>();
   try {
     const output = execSync('tmux list-sessions -F "#{session_name}" 2>/dev/null', { encoding: 'utf-8' });
@@ -121,7 +137,15 @@ function cleanupStatusMaps() {
   }
 
   if (cleanedTmux > 0) {
-    console.log(`[Status Cleanup] Removed ${cleanedTmux} stale status entries`);
+    console.log(`[Status Cleanup] Removed ${cleanedTmux} stale status entries from memory`);
+  }
+
+  // Also cleanup SQLite database
+  const dbSessionsCleaned = sessionsDb.cleanupStaleSessions(STALE_THRESHOLD);
+  const dbHistoryCleaned = historyDb.cleanupOldHistory(RETENTION_CONFIG.historyMaxAge);
+
+  if (dbSessionsCleaned > 0 || dbHistoryCleaned > 0) {
+    console.log(`[DB Cleanup] Sessions: ${dbSessionsCleaned}, History: ${dbHistoryCleaned}`);
   }
 }
 
@@ -140,8 +164,31 @@ export async function createServer() {
   const typedConfig = config as unknown as AgentConfig;
   await initEditor(typedConfig.editor, config.projects.basePath);
 
-  // Initialize environments
-  loadEnvironments();
+  // Initialize SQLite database
+  const db = initDatabase();
+
+  // Migrate environments from JSON if this is a fresh database
+  migrateEnvironmentsFromJson(db);
+
+  // Ensure default environment exists
+  ensureDefaultEnvironment();
+
+  // Reconcile sessions with active tmux sessions
+  let activeTmuxSessions = new Set<string>();
+  try {
+    const output = execSync('tmux list-sessions -F "#{session_name}" 2>/dev/null', { encoding: 'utf-8' });
+    activeTmuxSessions = new Set(output.trim().split('\n').filter(Boolean));
+  } catch {
+    // No tmux sessions exist
+  }
+  sessionsDb.reconcileWithTmux(activeTmuxSessions);
+
+  // Populate in-memory Map from database (for backward compatibility during transition)
+  const dbSessions = sessionsDb.getAllSessions();
+  for (const session of dbSessions) {
+    tmuxSessionStatus.set(session.name, sessionsDb.toHookStatus(session));
+  }
+  console.log(`[DB] Loaded ${dbSessions.length} sessions from database`);
 
   // Create proxy for code-server
   const editorProxy = httpProxy.createProxyServer({
@@ -534,10 +581,22 @@ export async function createServer() {
         project,
       };
 
+      // Write to SQLite database first (persistent storage)
+      const sessionProject = tmux_session.split('--')[0] || project;
+      sessionsDb.upsertSession(tmux_session, {
+        project: sessionProject,
+        status: receivedStatus,
+        attentionReason: receivedReason,
+        lastEvent: event,
+        lastActivity: timestamp || now,
+        lastStatusChange: statusChanged ? now : existing?.lastStatusChange ?? now,
+        environmentId: getSessionEnvironment(tmux_session),
+      });
+
+      // Then update in-memory Map (for real-time performance)
       tmuxSessionStatus.set(tmux_session, hookData);
 
       // Broadcast status update to WebSocket subscribers
-      const [sessionProject] = tmux_session.split('--');
       const envId = getSessionEnvironment(tmux_session);
       const envMeta = envId ? getEnvironmentMetadata(envId) : undefined;
 
@@ -683,7 +742,11 @@ export async function createServer() {
       await execAsync(`tmux kill-session -t "${sessionName}" 2>/dev/null`);
       console.log(`Killed tmux session: ${sessionName}`);
 
-      // Clean up status tracking and broadcast removal
+      // Clean up from SQLite database
+      sessionsDb.deleteSession(sessionName);
+      sessionsDb.clearSessionEnvironmentId(sessionName);
+
+      // Clean up status tracking (in-memory) and broadcast removal
       tmuxSessionStatus.delete(sessionName);
       clearSessionEnvironment(sessionName); // Clean up environment tracking
       broadcastSessionRemoved(sessionName);
@@ -755,6 +818,106 @@ export async function createServer() {
   // List all running editors
   app.get('/api/editors', (_req, res) => {
     res.json(getAllEditors());
+  });
+
+  // ========== File Explorer API Endpoints ==========
+
+  // Get files tree with git status for a project
+  app.get('/api/files/:project', async (req, res) => {
+    const { project } = req.params;
+
+    if (!isProjectAllowed(project)) {
+      return res.status(403).json({ error: 'Project not allowed' });
+    }
+
+    try {
+      const projectPath = `${config.projects.basePath}/${project}`.replace('~', process.env.HOME!);
+
+      // Check if project exists
+      const fs = await import('fs');
+      if (!fs.existsSync(projectPath)) {
+        return res.status(404).json({ error: 'Project not found' });
+      }
+
+      // Get file tree
+      const files = await listFiles(projectPath);
+
+      // Get changes summary
+      const summary = await getChangesSummary(projectPath);
+
+      res.json({
+        files,
+        summary,
+      });
+    } catch (err) {
+      console.error('[Files] Failed to list files:', err);
+      res.status(500).json({ error: 'Failed to list files', message: (err as Error).message });
+    }
+  });
+
+  // Get content of a specific file
+  app.get('/api/files/:project/content', async (req, res) => {
+    const { project } = req.params;
+    const { path: filePath } = req.query;
+
+    if (!isProjectAllowed(project)) {
+      return res.status(403).json({ error: 'Project not allowed' });
+    }
+
+    if (!filePath || typeof filePath !== 'string') {
+      return res.status(400).json({ error: 'Missing path parameter' });
+    }
+
+    // Validate path to prevent directory traversal
+    if (filePath.includes('..') || filePath.startsWith('/')) {
+      return res.status(400).json({ error: 'Invalid path' });
+    }
+
+    try {
+      const projectPath = `${config.projects.basePath}/${project}`.replace('~', process.env.HOME!);
+      const content = await getFileContent(projectPath, filePath);
+
+      res.json(content);
+    } catch (err) {
+      console.error('[Files] Failed to get file content:', err);
+      res.status(500).json({ error: 'Failed to read file', message: (err as Error).message });
+    }
+  });
+
+  // Open a file in the local editor
+  app.post('/api/files/:project/open', async (req, res) => {
+    const { project } = req.params;
+    const { path: filePath } = req.body;
+
+    if (!isProjectAllowed(project)) {
+      return res.status(403).json({ error: 'Project not allowed' });
+    }
+
+    if (!filePath || typeof filePath !== 'string') {
+      return res.status(400).json({ error: 'Missing path in body' });
+    }
+
+    // Validate path
+    if (filePath.includes('..') || filePath.startsWith('/')) {
+      return res.status(400).json({ error: 'Invalid path' });
+    }
+
+    try {
+      const projectPath = `${config.projects.basePath}/${project}`.replace('~', process.env.HOME!);
+      const result = await openFileInEditor(projectPath, filePath);
+
+      if (result.success) {
+        res.json({
+          success: true,
+          command: result.command,
+        });
+      } else {
+        res.status(400).json(result);
+      }
+    } catch (err) {
+      console.error('[Files] Failed to open file:', err);
+      res.status(500).json({ error: 'Failed to open file', message: (err as Error).message });
+    }
   });
 
   // ========== Editor Proxy Routes ==========
@@ -930,6 +1093,7 @@ export async function createServer() {
   const shutdown = () => {
     console.log('[Server] Shutting down...');
     shutdownAllEditors();
+    closeDatabase(); // Close SQLite database
     server.close();
     process.exit(0);
   };
