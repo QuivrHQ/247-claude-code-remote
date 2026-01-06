@@ -63,11 +63,10 @@ export function SessionSidebar({
 
         if (response.ok) {
           toast.success('Session terminated');
-          // If we killed the current session, clear selection
+          // If we killed the current session, show empty state
           if (sessionName === currentSessionName) {
-            onSelectSession(null, currentProject);
+            onSessionKilled?.();
           }
-          onSessionKilled?.();
         } else {
           toast.error('Failed to terminate session');
         }
@@ -76,7 +75,7 @@ export function SessionSidebar({
         toast.error('Could not connect to agent');
       }
     },
-    [agentUrl, currentSessionName, currentProject, onSelectSession, onSessionKilled]
+    [agentUrl, currentSessionName, onSessionKilled]
   );
 
   // Filter and sort sessions

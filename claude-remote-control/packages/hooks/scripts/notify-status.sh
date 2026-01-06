@@ -12,8 +12,16 @@ STOP_REASON=$(echo "$INPUT" | jq -r '.stop_reason // ""' 2>/dev/null || echo "")
 TOOL_NAME=$(echo "$INPUT" | jq -r '.tool_name // ""' 2>/dev/null || echo "")
 CWD=$(echo "$INPUT" | jq -r '.cwd // ""' 2>/dev/null || echo "")
 
-# Get tmux session name from environment (set by agent when creating session)
-TMUX_SESSION="${CLAUDE_TMUX_SESSION:-}"
+# Detect tmux session name (primary method: use tmux command - most reliable)
+TMUX_SESSION=""
+if [ -n "$TMUX" ]; then
+  TMUX_SESSION=$(tmux display-message -p '#{session_name}' 2>/dev/null || echo "")
+fi
+
+# Fallback: use CLAUDE_TMUX_SESSION env var (set by agent on session creation)
+if [ -z "$TMUX_SESSION" ]; then
+  TMUX_SESSION="${CLAUDE_TMUX_SESSION:-}"
+fi
 
 # Get project name from cwd (last component of path)
 PROJECT=$(basename "$CWD" 2>/dev/null || echo "")

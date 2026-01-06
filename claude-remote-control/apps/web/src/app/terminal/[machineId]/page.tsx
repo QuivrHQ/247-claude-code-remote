@@ -15,9 +15,12 @@ import {
   Maximize2,
   Minimize2,
   RefreshCw,
+  Plus,
 } from 'lucide-react';
 import Link from 'next/link';
 import { Terminal } from '@/components/Terminal';
+import { Editor } from '@/components/Editor';
+import { EditorTerminalTabs, type ActiveTab } from '@/components/EditorTerminalTabs';
 import { SessionSidebar } from '@/components/SessionSidebar';
 import { Card } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -33,16 +36,6 @@ interface Machine {
     projects: string[];
     agentUrl?: string;
   };
-}
-
-// Generate human-readable session names (duplicated from Terminal for preview)
-function generateSessionName(project: string): string {
-  const adjectives = ['brave', 'swift', 'calm', 'bold', 'wise', 'keen', 'fair', 'wild', 'bright', 'cool'];
-  const nouns = ['lion', 'hawk', 'wolf', 'bear', 'fox', 'owl', 'deer', 'lynx', 'eagle', 'tiger'];
-  const adj = adjectives[Math.floor(Math.random() * adjectives.length)];
-  const noun = nouns[Math.floor(Math.random() * nouns.length)];
-  const num = Math.floor(Math.random() * 100);
-  return `${project}--${adj}-${noun}-${num}`;
 }
 
 export default function TerminalPage() {
@@ -64,6 +57,8 @@ export default function TerminalPage() {
   const [isConnected, setIsConnected] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
+  const [showEmptyState, setShowEmptyState] = useState(false);
+  const [activeTab, setActiveTab] = useState<ActiveTab>('terminal');
 
   const agentUrl = machine?.config?.agentUrl || 'localhost:4678';
 
@@ -153,6 +148,7 @@ export default function TerminalPage() {
     (sessionName: string | null, project: string) => {
       setSelectedProject(project);
       setSelectedSession(sessionName || '');
+      setShowEmptyState(false);
       updateUrl(sessionName, project);
     },
     [updateUrl]
@@ -163,9 +159,28 @@ export default function TerminalPage() {
     (project: string) => {
       setSelectedProject(project);
       setSelectedSession('');
+      setShowEmptyState(false);
       updateUrl(null, project);
     },
     [updateUrl]
+  );
+
+  // Handle session killed
+  const handleSessionKilled = useCallback(() => {
+    setSelectedSession('');
+    setShowEmptyState(true);
+    updateUrl(null, selectedProject);
+  }, [selectedProject, updateUrl]);
+
+  // Handle session created - sync URL with actual session name
+  const handleSessionCreated = useCallback(
+    (sessionName: string) => {
+      if (sessionName && sessionName !== selectedSession) {
+        setSelectedSession(sessionName);
+        updateUrl(sessionName, selectedProject);
+      }
+    },
+    [selectedSession, selectedProject, updateUrl]
   );
 
   // Toggle fullscreen
@@ -335,22 +350,44 @@ export default function TerminalPage() {
           currentProject={selectedProject}
           onSelectSession={handleSelectSession}
           onNewSession={handleNewSession}
+          onSessionKilled={handleSessionKilled}
           agentUrl={agentUrl}
         />
 
-        {/* Terminal Area */}
+        {/* Terminal/Editor Area */}
         <main className="flex-1 flex flex-col overflow-hidden">
-          {selectedProject ? (
-            <Terminal
-              key={`${selectedProject}-${selectedSession || 'new'}`}
-              agentUrl={agentUrl}
-              project={selectedProject}
-              sessionName={selectedSession || undefined}
-              onConnectionChange={setIsConnected}
-              claudeStatus={currentSessionInfo?.status}
-            />
-          ) : (
+          {!selectedProject ? (
             <EmptyState onSelectProject={(p) => handleNewSession(p)} projects={projects} />
+          ) : showEmptyState ? (
+            <NoActiveSession onNewSession={() => handleNewSession(selectedProject)} />
+          ) : (
+            <>
+              {/* Tab Bar */}
+              <EditorTerminalTabs
+                activeTab={activeTab}
+                onTabChange={setActiveTab}
+                editorEnabled={true}
+              />
+
+              {/* Content based on active tab */}
+              {activeTab === 'terminal' ? (
+                <Terminal
+                  key={`${selectedProject}-${selectedSession || 'new'}`}
+                  agentUrl={agentUrl}
+                  project={selectedProject}
+                  sessionName={selectedSession || undefined}
+                  onConnectionChange={setIsConnected}
+                  onSessionCreated={handleSessionCreated}
+                  claudeStatus={currentSessionInfo?.status}
+                />
+              ) : (
+                <Editor
+                  key={`editor-${selectedProject}`}
+                  agentUrl={agentUrl}
+                  project={selectedProject}
+                />
+              )}
+            </>
           )}
         </main>
       </div>
@@ -465,6 +502,44 @@ function EmptyState({
             ))}
           </div>
         )}
+      </div>
+    </div>
+  );
+}
+
+// Empty state when session is killed
+function NoActiveSession({ onNewSession }: { onNewSession: () => void }) {
+  return (
+    <div className="flex-1 flex items-center justify-center p-8">
+      <div className="text-center max-w-md">
+        <div
+          className={cn(
+            'w-20 h-20 rounded-2xl mx-auto mb-6',
+            'bg-gradient-to-br from-zinc-500/20 to-zinc-600/20',
+            'border border-zinc-500/20',
+            'flex items-center justify-center'
+          )}
+        >
+          <Monitor className="w-10 h-10 text-zinc-400" />
+        </div>
+        <h2 className="text-xl font-semibold text-white mb-2">Session terminee</h2>
+        <p className="text-white/50 mb-6">
+          La session a ete fermee. Creez une nouvelle session ou selectionnez-en une existante.
+        </p>
+        <button
+          onClick={onNewSession}
+          className={cn(
+            'inline-flex items-center gap-2 px-5 py-2.5 rounded-xl',
+            'bg-gradient-to-r from-orange-500 to-amber-500',
+            'hover:from-orange-400 hover:to-amber-400',
+            'text-white font-medium',
+            'shadow-lg shadow-orange-500/20',
+            'transition-all'
+          )}
+        >
+          <Plus className="w-4 h-4" />
+          Nouvelle session
+        </button>
       </div>
     </div>
   );

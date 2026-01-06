@@ -7,14 +7,14 @@
     "port": 4678,
     "url": "localhost:4678"
   },
+  "editor": {
+    "enabled": true,
+    "portRange": { "start": 4680, "end": 4699 },
+    "idleTimeout": 1800000
+  },
   "projects": {
-    "basePath": "~/Dev/BrainStorming",
-    "whitelist": [
-      "claude-remote-control",
-      "ClaudIn",
-      "enterprise",
-      "quivrcom"
-    ]
+    "basePath": "~/Dev",
+    "whitelist": []
   },
   "dashboard": {
     "apiUrl": "http://localhost:3001/api",

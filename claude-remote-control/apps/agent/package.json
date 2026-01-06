@@ -14,11 +14,13 @@
     "@homebridge/node-pty-prebuilt-multiarch": "^0.13.1",
     "cors": "^2.8.5",
     "express": "^4.21.0",
+    "http-proxy": "^1.18.1",
     "ws": "^8.18.0"
   },
   "devDependencies": {
     "@types/cors": "^2.8.0",
     "@types/express": "^5.0.0",
+    "@types/http-proxy": "^1.17.17",
     "@types/node": "^22.10.5",
     "@types/ws": "^8.5.0",
     "tsx": "^4.19.2",

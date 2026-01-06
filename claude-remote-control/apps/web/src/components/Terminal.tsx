@@ -16,6 +16,7 @@ interface TerminalProps {
   project: string;
   sessionName?: string;
   onConnectionChange?: (connected: boolean) => void;
+  onSessionCreated?: (sessionName: string) => void;
   claudeStatus?: 'running' | 'waiting' | 'permission' | 'stopped' | 'ended' | 'idle';
 }
 
@@ -29,7 +30,7 @@ function generateSessionName(project: string): string {
   return `${project}--${adj}-${noun}-${num}`;
 }
 
-export function Terminal({ agentUrl, project, sessionName, onConnectionChange, claudeStatus }: TerminalProps) {
+export function Terminal({ agentUrl, project, sessionName, onConnectionChange, onSessionCreated, claudeStatus }: TerminalProps) {
   const terminalRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const [connected, setConnected] = useState(false);
@@ -256,6 +257,11 @@ export function Terminal({ agentUrl, project, sessionName, onConnectionChange, c
             rows: currentTerm.rows,
           })
         );
+
+        // Notify parent of the actual session name being used
+        if (onSessionCreated && effectiveSessionName) {
+          onSessionCreated(effectiveSessionName);
+        }
       };
 
       currentWs.onmessage = (event) => {

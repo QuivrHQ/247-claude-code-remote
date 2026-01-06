@@ -2,9 +2,20 @@ import express from 'express';
 import cors from 'cors';
 import { WebSocketServer, WebSocket } from 'ws';
 import { createServer as createHttpServer } from 'http';
+import httpProxy from 'http-proxy';
 import { createTerminal } from './terminal.js';
+import {
+  initEditor,
+  getOrStartEditor,
+  stopEditor,
+  getEditorStatus,
+  getAllEditors,
+  updateEditorActivity,
+  shutdownAllEditors,
+} from './editor.js';
+import { cloneRepo, extractProjectName } from './git.js';
 import config from '../config.json' with { type: 'json' };
-import type { WSMessageToAgent } from '@claude-remote/shared';
+import type { WSMessageToAgent, AgentConfig } from '@claude-remote/shared';
 
 // Store session status from Claude Code hooks (more reliable than tmux heuristics)
 interface HookStatus {
@@ -17,10 +28,10 @@ interface HookStatus {
   stopReason?: string;
 }
 
-// Store by tmux session name (most reliable), Claude session_id (fallback), and project (last resort)
+// Store by tmux session name (primary) and Claude session_id (backup for debugging)
+// NOTE: Removed projectHookStatus - it caused status sharing between sessions in same project
 const tmuxSessionStatus = new Map<string, HookStatus>();
 const claudeSessionStatus = new Map<string, HookStatus>();
-const projectHookStatus = new Map<string, HookStatus>();
 
 // Track pending tool executions to detect permission waiting
 const pendingTools = new Map<string, { toolName: string; timestamp: number }>();
@@ -44,7 +55,38 @@ export function createServer() {
   app.use(express.json());
 
   const server = createHttpServer(app);
-  const wss = new WebSocketServer({ server, path: '/terminal' });
+  const wss = new WebSocketServer({ noServer: true });
+
+  // Initialize editor manager
+  const typedConfig = config as unknown as AgentConfig;
+  initEditor(typedConfig.editor, config.projects.basePath);
+
+  // Create proxy for code-server
+  const editorProxy = httpProxy.createProxyServer({
+    ws: true,
+    changeOrigin: true,
+  });
+
+  editorProxy.on('error', (err, _req, res) => {
+    console.error('[Editor Proxy] HTTP Error:', err.message);
+    if (res && 'writeHead' in res) {
+      res.writeHead(502, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Editor proxy error', message: err.message }));
+    }
+  });
+
+  // WebSocket proxy events for debugging
+  editorProxy.on('proxyReqWs', (proxyReq, req, socket) => {
+    console.log('[Editor Proxy] WS request to:', proxyReq.path);
+  });
+
+  editorProxy.on('open', (proxySocket) => {
+    console.log('[Editor Proxy] WS connection opened');
+  });
+
+  editorProxy.on('close', (res, socket, head) => {
+    console.log('[Editor Proxy] WS connection closed');
+  });
 
   // WebSocket terminal handler
   wss.on('connection', async (ws, req) => {
@@ -53,9 +95,11 @@ export function createServer() {
     const urlSessionName = url.searchParams.get('session');
     const sessionName = urlSessionName || generateSessionName(project || 'unknown');
 
-    // Validate project whitelist
-    if (!project || !config.projects.whitelist.includes(project)) {
-      ws.close(1008, 'Project not whitelisted');
+    // Validate project - if whitelist is empty, allow any project
+    const hasWhitelist = config.projects.whitelist && config.projects.whitelist.length > 0;
+    const isAllowed = hasWhitelist ? config.projects.whitelist.includes(project!) : true;
+    if (!project || !isAllowed) {
+      ws.close(1008, 'Project not allowed');
       return;
     }
 
@@ -200,6 +244,65 @@ export function createServer() {
     res.json(config.projects.whitelist);
   });
 
+  // Dynamic folder listing - scans basePath for directories
+  app.get('/api/folders', async (_req, res) => {
+    try {
+      const fs = await import('fs/promises');
+      const basePath = config.projects.basePath.replace('~', process.env.HOME!);
+
+      const entries = await fs.readdir(basePath, { withFileTypes: true });
+      const folders = entries
+        .filter(entry => entry.isDirectory() && !entry.name.startsWith('.'))
+        .map(entry => entry.name)
+        .sort();
+
+      res.json(folders);
+    } catch (err) {
+      console.error('Failed to list folders:', err);
+      res.status(500).json({ error: 'Failed to list folders' });
+    }
+  });
+
+  // Clone a git repository
+  app.post('/api/clone', async (req, res) => {
+    const { repoUrl, projectName } = req.body;
+
+    if (!repoUrl) {
+      return res.status(400).json({ error: 'Missing repoUrl' });
+    }
+
+    try {
+      const result = await cloneRepo(repoUrl, config.projects.basePath, projectName);
+
+      if (result.success) {
+        res.json({
+          success: true,
+          projectName: result.projectName,
+          path: result.path,
+        });
+      } else {
+        res.status(400).json({
+          success: false,
+          error: result.error,
+          projectName: result.projectName,
+        });
+      }
+    } catch (err) {
+      console.error('Clone error:', err);
+      res.status(500).json({ error: 'Internal server error during clone' });
+    }
+  });
+
+  // Preview what project name would be extracted from a URL
+  app.get('/api/clone/preview', (req, res) => {
+    const url = req.query.url as string;
+    if (!url) {
+      return res.status(400).json({ error: 'Missing url parameter' });
+    }
+    const projectName = extractProjectName(url);
+    res.json({ projectName });
+  });
+
   // Receive status updates from Claude Code hooks
   app.post('/api/hooks/status', (req, res) => {
     const { event, session_id, tmux_session, project, notification_type, stop_reason, tool_name, timestamp } = req.body;
@@ -270,26 +373,26 @@ export function createServer() {
       };
     };
 
-    // Priority 1: Store by tmux session name (most reliable for matching)
+    // Priority 1: Store by tmux session name (REQUIRED for per-session status)
     if (tmux_session) {
       const existing = tmuxSessionStatus.get(tmux_session);
       tmuxSessionStatus.set(tmux_session, createHookData(existing));
+    } else {
+      // Warning: tmux_session is required for proper per-session status tracking
+      console.warn(`[Hook] WARNING: Missing tmux_session for ${event} (session_id=${session_id}, project=${project})`);
     }
 
-    // Priority 2: Store by Claude session_id (backup)
+    // Priority 2: Store by Claude session_id (backup for debugging)
     if (session_id) {
       const existing = claudeSessionStatus.get(session_id);
       claudeSessionStatus.set(session_id, createHookData(existing));
     }
 
-    // Priority 3: Store by project name (last resort, can cause conflicts with multiple sessions)
-    if (project) {
-      const existing = projectHookStatus.get(project);
-      projectHookStatus.set(project, createHookData(existing));
-    }
+    // NOTE: Removed projectHookStatus storage - it caused status sharing between sessions
+    // in the same project. Per-session tracking via tmux_session is now required.
 
-    const identifier = tmux_session || project || session_id;
-    console.log(`[Hook] ${identifier}: ${event} → ${status}${tool_name ? ` (${tool_name})` : ''}`);
+    const identifier = tmux_session || session_id || project;
+    console.log(`[Hook] ${identifier}: ${event} → ${status}${tool_name ? ` (${tool_name})` : ''}${!tmux_session ? ' (NO TMUX SESSION!)' : ''}`);
     res.json({ received: true });
   });
 
@@ -332,20 +435,9 @@ export function createServer() {
         let lastEvent: string | undefined;
         let lastStatusChange: number | undefined;
 
-        // 1. First check hook status (more reliable)
-        // Get status from both sources and use the most recent
-        const tmuxHook = tmuxSessionStatus.get(name);
-        const projectHook = projectHookStatus.get(project);
-
-        let hookData: HookStatus | undefined;
-        if (tmuxHook && projectHook) {
-          // Both exist - use the one with most recent lastStatusChange
-          hookData = (tmuxHook.lastStatusChange || 0) >= (projectHook.lastStatusChange || 0)
-            ? tmuxHook
-            : projectHook;
-        } else {
-          hookData = tmuxHook || projectHook;
-        }
+        // 1. First check hook status (per-session, most reliable)
+        // Only use tmuxSessionStatus - no project fallback to avoid status sharing
+        const hookData = tmuxSessionStatus.get(name);
 
         if (hookData && (now - hookData.lastActivity < HOOK_TTL)) {
           // Hook data is fresh, use it
@@ -374,7 +466,7 @@ export function createServer() {
 
         sessions.push({
           name,
-          project: config.projects.whitelist.includes(project) ? project : name,
+          project,  // Project is already extracted from session name
           createdAt: parseInt(created) * 1000,
           status,
           statusSource,
@@ -441,6 +533,164 @@ export function createServer() {
       res.status(404).json({ error: 'Session not found or already killed' });
     }
   });
+
+  // ========== Editor API Endpoints ==========
+
+  // Helper to check if project is allowed (whitelist empty = allow any)
+  const isProjectAllowed = (project: string): boolean => {
+    const hasWhitelist = config.projects.whitelist && config.projects.whitelist.length > 0;
+    return hasWhitelist ? config.projects.whitelist.includes(project) : true;
+  };
+
+  // Get editor status for a project
+  app.get('/api/editor/:project/status', (req, res) => {
+    const { project } = req.params;
+
+    if (!isProjectAllowed(project)) {
+      return res.status(403).json({ error: 'Project not allowed' });
+    }
+
+    res.json(getEditorStatus(project));
+  });
+
+  // Start editor for a project
+  app.post('/api/editor/:project/start', async (req, res) => {
+    const { project } = req.params;
+
+    if (!isProjectAllowed(project)) {
+      return res.status(403).json({ error: 'Project not allowed' });
+    }
+
+    // Check if editor is enabled
+    if (!typedConfig.editor?.enabled) {
+      return res.status(400).json({ error: 'Editor is disabled in config' });
+    }
+
+    try {
+      const editor = await getOrStartEditor(project);
+      res.json({
+        success: true,
+        port: editor.port,
+        startedAt: editor.startedAt,
+      });
+    } catch (err) {
+      console.error('[Editor] Failed to start:', err);
+      res.status(500).json({ error: 'Failed to start editor', message: (err as Error).message });
+    }
+  });
+
+  // Stop editor for a project
+  app.post('/api/editor/:project/stop', (req, res) => {
+    const { project } = req.params;
+
+    if (!isProjectAllowed(project)) {
+      return res.status(403).json({ error: 'Project not allowed' });
+    }
+
+    const stopped = stopEditor(project);
+    res.json({ success: stopped });
+  });
+
+  // List all running editors
+  app.get('/api/editors', (_req, res) => {
+    res.json(getAllEditors());
+  });
+
+  // ========== Editor Proxy Routes ==========
+
+  // Proxy HTTP requests to code-server
+  app.use('/editor/:project', async (req, res, _next) => {
+    const { project } = req.params;
+
+    // Validate project
+    if (!isProjectAllowed(project)) {
+      return res.status(403).json({ error: 'Project not allowed' });
+    }
+
+    // Check if editor is enabled
+    if (!typedConfig.editor?.enabled) {
+      return res.status(400).json({ error: 'Editor is disabled in config' });
+    }
+
+    try {
+      // Get or start the editor
+      const editor = await getOrStartEditor(project);
+      updateEditorActivity(project);
+
+      // Rewrite the URL to remove /editor/:project prefix
+      req.url = req.url.replace(`/editor/${project}`, '') || '/';
+
+      // Proxy to code-server
+      editorProxy.web(req, res, {
+        target: `http://127.0.0.1:${editor.port}`,
+      });
+    } catch (err) {
+      console.error('[Editor Proxy] Failed:', err);
+      res.status(502).json({ error: 'Failed to proxy to editor' });
+    }
+  });
+
+  // Handle ALL WebSocket upgrades manually (noServer mode)
+  server.on('upgrade', async (req, socket, head) => {
+    const url = new URL(req.url!, `http://${req.headers.host}`);
+
+    // Handle terminal WebSocket
+    if (url.pathname === '/terminal') {
+      wss.handleUpgrade(req, socket, head, (ws) => {
+        wss.emit('connection', ws, req);
+      });
+      return;
+    }
+
+    // Handle editor WebSocket
+    if (url.pathname.startsWith('/editor/')) {
+      const pathParts = url.pathname.split('/');
+      const project = pathParts[2];
+
+      if (!project || !isProjectAllowed(project)) {
+        socket.destroy();
+        return;
+      }
+
+      if (!typedConfig.editor?.enabled) {
+        socket.destroy();
+        return;
+      }
+
+      try {
+        const editor = await getOrStartEditor(project);
+        updateEditorActivity(project);
+
+        // Rewrite the URL - ensure path starts with /
+        const rewrittenPath = url.pathname.replace(`/editor/${project}`, '') || '/';
+        req.url = rewrittenPath + url.search;
+
+        console.log(`[Editor WS] Proxying ${url.pathname} → ${req.url} to port ${editor.port}`);
+
+        editorProxy.ws(req, socket, head, {
+          target: `http://127.0.0.1:${editor.port}`,
+        });
+      } catch (err) {
+        console.error('[Editor WS] Failed:', err);
+        socket.destroy();
+      }
+      return;
+    }
+
+    // Unknown WebSocket path - destroy
+    socket.destroy();
+  });
+
+  // Graceful shutdown handler
+  const shutdown = () => {
+    console.log('[Server] Shutting down...');
+    shutdownAllEditors();
+    server.close();
+    process.exit(0);
+  };
+
+  process.on('SIGTERM', shutdown);
+  process.on('SIGINT', shutdown);
 
   return server;
 }

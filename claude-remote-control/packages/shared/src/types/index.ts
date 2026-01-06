@@ -64,6 +64,22 @@ export interface AgentInfo {
   projects: string[];
 }
 
+// Editor types
+export interface EditorConfig {
+  enabled: boolean;
+  portRange: { start: number; end: number };
+  idleTimeout: number; // ms - shutdown after inactivity
+}
+
+export interface EditorStatus {
+  project: string;
+  running: boolean;
+  port?: number;
+  pid?: number;
+  startedAt?: number;
+  lastActivity?: number;
+}
+
 // Agent configuration
 export interface AgentConfig {
   machine: {
@@ -74,6 +90,7 @@ export interface AgentConfig {
     port: number;
     url: string; // e.g., "localhost:4678" or "mac.tailnet.ts.net:4678"
   };
+  editor?: EditorConfig;
   projects: {
     basePath: string;
     whitelist: string[];
