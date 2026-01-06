@@ -37,14 +37,16 @@ export type WSMessageToAgent =
   | { type: 'input'; data: string }
   | { type: 'resize'; cols: number; rows: number }
   | { type: 'start-claude' }
-  | { type: 'ping' };
+  | { type: 'ping' }
+  | { type: 'request-history'; lines?: number };
 
 // WebSocket message types - Agent to Client
 export type WSMessageFromAgent =
   | { type: 'output'; data: string }
   | { type: 'connected'; session: string }
   | { type: 'disconnected' }
-  | { type: 'pong' };
+  | { type: 'pong' }
+  | { type: 'history'; data: string; lines: number };
 
 // API types
 export interface RegisterMachineRequest {

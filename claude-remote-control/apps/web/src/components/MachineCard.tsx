@@ -1,7 +1,11 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
+import { Card } from '@/components/ui/card';
+import { CountBadge, type SessionStatus } from '@/components/ui/status-badge';
 import { SessionList } from './SessionList';
+import { ChevronRight, Monitor } from 'lucide-react';
+import { toast } from 'sonner';
 
 interface Machine {
   id: string;
@@ -17,7 +21,7 @@ interface SessionInfo {
   name: string;
   project: string;
   createdAt: number;
-  status: 'running' | 'waiting' | 'stopped' | 'ended' | 'idle' | 'permission';
+  status: SessionStatus;
   statusSource?: 'hook' | 'tmux';
   lastActivity?: string;
   lastEvent?: string;
@@ -133,9 +137,13 @@ export function MachineCard({ machine, onConnect }: MachineCardProps) {
 
       if (response.ok) {
         setSessions((prev) => prev.filter((s) => s.name !== sessionName));
+        toast.success('Session terminated');
+      } else {
+        toast.error('Failed to terminate session');
       }
     } catch (err) {
       console.error('Failed to kill session:', err);
+      toast.error('Could not connect to agent');
     }
   };
 
@@ -147,83 +155,48 @@ export function MachineCard({ machine, onConnect }: MachineCardProps) {
   const hooksActive = sessions.some((s) => s.statusSource === 'hook');
 
   return (
-    <div className="bg-gray-800 rounded-lg overflow-hidden border border-gray-700">
+    <Card className="overflow-hidden">
       {/* Card Header - Clickable to expand */}
       <button
         onClick={() => isOnline && setExpanded(!expanded)}
         disabled={!isOnline}
+        aria-expanded={expanded}
+        aria-controls={`machine-${machine.id}-sessions`}
+        aria-label={`${machine.name}, ${isOnline ? 'online' : 'offline'}${sessions.length > 0 ? `, ${sessions.length} sessions` : ''}`}
         className={`w-full p-4 flex items-center gap-3 text-left transition
-          ${isOnline ? 'hover:bg-gray-700/50 cursor-pointer' : 'opacity-50 cursor-not-allowed'}`}
+          ${isOnline ? 'hover:bg-accent cursor-pointer' : 'opacity-50 cursor-not-allowed'}`}
       >
         {/* Expand/Collapse Icon */}
-        <span className={`text-gray-400 transition-transform ${expanded ? 'rotate-90' : ''}`}>
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            width="20"
-            height="20"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <path d="m9 18 6-6-6-6" />
-          </svg>
-        </span>
+        <ChevronRight
+          className={`w-5 h-5 text-muted-foreground transition-transform ${expanded ? 'rotate-90' : ''}`}
+          aria-hidden="true"
+        />
 
         {/* Machine Icon */}
-        <div className="w-10 h-10 bg-gray-700 rounded-lg flex items-center justify-center">
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            width="20"
-            height="20"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            className="text-gray-400"
-          >
-            <rect width="20" height="14" x="2" y="3" rx="2" />
-            <line x1="8" x2="16" y1="21" y2="21" />
-            <line x1="12" x2="12" y1="17" y2="21" />
-          </svg>
+        <div className="w-10 h-10 bg-secondary rounded-lg flex items-center justify-center">
+          <Monitor className="w-5 h-5 text-muted-foreground" aria-hidden="true" />
         </div>
 
         {/* Machine Info */}
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
             <span className="font-semibold truncate">{machine.name}</span>
-            <span className={`w-2 h-2 rounded-full ${isOnline ? 'bg-green-500' : 'bg-red-500'}`} />
+            <span
+              className={`w-2 h-2 rounded-full ${isOnline ? 'bg-green-500' : 'bg-destructive'}`}
+              role="status"
+              aria-label={isOnline ? 'Online' : 'Offline'}
+            />
           </div>
-          <p className="text-sm text-gray-500 truncate">{agentUrl}</p>
+          <p className="text-sm text-muted-foreground truncate">{agentUrl}</p>
         </div>
 
         {/* Session Badges */}
         {isOnline && sessions.length > 0 && (
-          <div className="flex items-center gap-2">
-            {runningCount > 0 && (
-              <span className="px-2 py-0.5 bg-blue-500/20 text-blue-400 rounded text-xs font-medium">
-                {runningCount} running
-              </span>
-            )}
-            {waitingCount > 0 && (
-              <span className="px-2 py-0.5 bg-orange-500/20 text-orange-400 rounded text-xs font-medium">
-                {waitingCount} waiting
-              </span>
-            )}
-            {permissionCount > 0 && (
-              <span className="px-2 py-0.5 bg-purple-500/20 text-purple-400 rounded text-xs font-medium">
-                {permissionCount} permission
-              </span>
-            )}
-            {doneCount > 0 && (
-              <span className="px-2 py-0.5 bg-green-500/20 text-green-400 rounded text-xs font-medium">
-                {doneCount} done
-              </span>
-            )}
+          <div className="flex items-center gap-2" aria-label="Session counts">
+            <CountBadge status="running" count={runningCount} />
+            <CountBadge status="waiting" count={waitingCount} />
+            <CountBadge status="permission" count={permissionCount} />
+            <CountBadge status="stopped" count={doneCount} />
             {hooksActive ? (
               <span className="px-2 py-0.5 bg-green-500/20 text-green-400 rounded text-xs font-medium">
                 ⚡ hooks
@@ -239,7 +212,7 @@ export function MachineCard({ machine, onConnect }: MachineCardProps) {
 
       {/* Expanded Session List */}
       {expanded && isOnline && (
-        <div className="border-t border-gray-700">
+        <div id={`machine-${machine.id}-sessions`} className="border-t border-border">
           <SessionList
             sessions={sessions}
             projects={projects}
@@ -250,6 +223,6 @@ export function MachineCard({ machine, onConnect }: MachineCardProps) {
           />
         </div>
       )}
-    </div>
+    </Card>
   );
 }

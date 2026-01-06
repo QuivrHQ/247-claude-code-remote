@@ -79,6 +79,20 @@ export function createServer() {
       return;
     }
 
+    // If reconnecting to an existing session, send the scrollback history
+    if (terminal.isExistingSession()) {
+      console.log(`Reconnecting to existing session '${sessionName}', sending history...`);
+      terminal.captureHistory(10000).then((history) => {
+        if (history && ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({
+            type: 'history',
+            data: history,
+            lines: history.split('\n').length
+          }));
+        }
+      });
+    }
+
     // Forward terminal output to WebSocket
     terminal.onData((data) => {
       if (ws.readyState === WebSocket.OPEN) {
@@ -110,6 +124,17 @@ export function createServer() {
             break;
           case 'ping':
             ws.send(JSON.stringify({ type: 'pong' }));
+            break;
+          case 'request-history':
+            terminal.captureHistory(msg.lines || 10000).then((history) => {
+              if (ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({
+                  type: 'history',
+                  data: history,
+                  lines: history.split('\n').length
+                }));
+              }
+            });
             break;
         }
       } catch (err) {
