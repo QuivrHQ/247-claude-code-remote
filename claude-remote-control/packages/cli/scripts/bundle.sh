@@ -12,9 +12,13 @@ echo "Bundling 247 CLI..."
 echo "CLI dir: $CLI_DIR"
 echo "Monorepo root: $MONOREPO_ROOT"
 
-# Build agent first
-echo "Building agent..."
+# Build shared package first (agent depends on it)
+echo "Building shared package..."
 cd "$MONOREPO_ROOT"
+pnpm --filter @vibecompany/247-shared build
+
+# Build agent
+echo "Building agent..."
 pnpm --filter @vibecompany/247-agent build
 
 # Copy hooks package
