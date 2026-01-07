@@ -30,8 +30,12 @@ vi.mock('../../src/config.js', () => ({
 // Mock fs module
 vi.mock('fs', () => ({
   existsSync: vi.fn().mockReturnValue(true),
+  writeFileSync: vi.fn(),
+  mkdirSync: vi.fn(),
   default: {
     existsSync: vi.fn().mockReturnValue(true),
+    writeFileSync: vi.fn(),
+    mkdirSync: vi.fn(),
   },
 }));
 
@@ -202,9 +206,7 @@ describe('WebSocket Terminal', () => {
 
     it('rejects connection for non-whitelisted project', async () => {
       const closeCode = await new Promise<number>((resolve, reject) => {
-        const ws = new WebSocket(
-          `ws://localhost:${port}/terminal?project=not-allowed`
-        );
+        const ws = new WebSocket(`ws://localhost:${port}/terminal?project=not-allowed`);
         const timeout = setTimeout(() => reject(new Error('Timeout')), 5000);
         ws.on('close', (code) => {
           clearTimeout(timeout);
@@ -299,6 +301,55 @@ describe('WebSocket Terminal', () => {
 
       // Wait for message processing
       await new Promise((r) => setTimeout(r, 100));
+
+      // Should write claude command to terminal
+      expect(mockTerminal.write).toHaveBeenCalled();
+      ws.close();
+    });
+
+    it('handles start-claude-ralph message with minimal config', async () => {
+      const ws = await connectWS('allowed-project');
+
+      // Wait for terminal to be created
+      await new Promise((r) => setTimeout(r, 100));
+
+      ws.send(
+        JSON.stringify({
+          type: 'start-claude-ralph',
+          config: {
+            prompt: 'Build a feature with tests',
+          },
+        })
+      );
+
+      // Wait for message processing (ralph setup is async)
+      await new Promise((r) => setTimeout(r, 200));
+
+      // Should write claude command to terminal (ralph loop launches claude)
+      expect(mockTerminal.write).toHaveBeenCalled();
+      ws.close();
+    });
+
+    it('handles start-claude-ralph message with full config', async () => {
+      const ws = await connectWS('allowed-project');
+
+      // Wait for terminal to be created
+      await new Promise((r) => setTimeout(r, 100));
+
+      ws.send(
+        JSON.stringify({
+          type: 'start-claude-ralph',
+          config: {
+            prompt: 'Build a feature with tests',
+            maxIterations: 10,
+            completionPromise: 'COMPLETE',
+            useWorktree: false,
+          },
+        })
+      );
+
+      // Wait for message processing (ralph setup is async)
+      await new Promise((r) => setTimeout(r, 200));
 
       // Should write claude command to terminal
       expect(mockTerminal.write).toHaveBeenCalled();

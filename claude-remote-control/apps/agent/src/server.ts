@@ -4,6 +4,7 @@ import { WebSocketServer, WebSocket } from 'ws';
 import { createServer as createHttpServer } from 'http';
 import httpProxy from 'http-proxy';
 import { execSync } from 'child_process';
+import * as path from 'path';
 import { createTerminal } from './terminal.js';
 import {
   initEditor,
@@ -45,7 +46,12 @@ import {
   getChangesSummary,
 } from './git.js';
 import { config } from './config.js';
-import type { WSMessageToAgent, AgentConfig, WSSessionInfo, WSStatusMessageFromAgent } from '@vibecompany/247-shared';
+import type {
+  WSMessageToAgent,
+  AgentConfig,
+  WSSessionInfo,
+  WSStatusMessageFromAgent,
+} from '@vibecompany/247-shared';
 
 import type { SessionStatus, AttentionReason } from '@vibecompany/247-shared';
 
@@ -81,7 +87,9 @@ function broadcastStatusUpdate(session: WSSessionInfo) {
       ws.send(messageStr);
     }
   }
-  console.log(`[Status WS] Broadcast status update for ${session.name}: ${session.status} to ${statusSubscribers.size} subscribers`);
+  console.log(
+    `[Status WS] Broadcast status update for ${session.name}: ${session.status} to ${statusSubscribers.size} subscribers`
+  );
 }
 
 // Broadcast session removed to all subscribers
@@ -116,7 +124,18 @@ function broadcastSessionArchived(sessionName: string, session: WSSessionInfo) {
 
 // Generate human-readable session names with project prefix
 function generateSessionName(project: string): string {
-  const adjectives = ['brave', 'swift', 'calm', 'bold', 'wise', 'keen', 'fair', 'wild', 'bright', 'cool'];
+  const adjectives = [
+    'brave',
+    'swift',
+    'calm',
+    'bold',
+    'wise',
+    'keen',
+    'fair',
+    'wild',
+    'bright',
+    'cool',
+  ];
   const nouns = ['lion', 'hawk', 'wolf', 'bear', 'fox', 'owl', 'deer', 'lynx', 'eagle', 'tiger'];
   const adj = adjectives[Math.floor(Math.random() * adjectives.length)];
   const noun = nouns[Math.floor(Math.random() * nouns.length)];
@@ -134,7 +153,9 @@ function cleanupStatusMaps() {
   // Get active tmux sessions
   let activeSessions = new Set<string>();
   try {
-    const output = execSync('tmux list-sessions -F "#{session_name}" 2>/dev/null', { encoding: 'utf-8' });
+    const output = execSync('tmux list-sessions -F "#{session_name}" 2>/dev/null', {
+      encoding: 'utf-8',
+    });
     activeSessions = new Set(output.trim().split('\n').filter(Boolean));
   } catch {
     // No tmux sessions exist
@@ -143,7 +164,7 @@ function cleanupStatusMaps() {
   // Clean tmuxSessionStatus - remove if session doesn't exist OR is stale
   for (const [sessionName, status] of tmuxSessionStatus) {
     const sessionExists = activeSessions.has(sessionName);
-    const isStale = (now - status.lastActivity) > STALE_THRESHOLD;
+    const isStale = now - status.lastActivity > STALE_THRESHOLD;
 
     if (!sessionExists || isStale) {
       tmuxSessionStatus.delete(sessionName);
@@ -194,7 +215,9 @@ export async function createServer() {
   // Reconcile sessions with active tmux sessions
   let activeTmuxSessions = new Set<string>();
   try {
-    const output = execSync('tmux list-sessions -F "#{session_name}" 2>/dev/null', { encoding: 'utf-8' });
+    const output = execSync('tmux list-sessions -F "#{session_name}" 2>/dev/null', {
+      encoding: 'utf-8',
+    });
     activeTmuxSessions = new Set(output.trim().split('\n').filter(Boolean));
   } catch {
     // No tmux sessions exist
@@ -252,10 +275,7 @@ export async function createServer() {
       return;
     }
 
-    const projectPath = `${config.projects.basePath}/${project}`.replace(
-      '~',
-      process.env.HOME!
-    );
+    const projectPath = `${config.projects.basePath}/${project}`.replace('~', process.env.HOME!);
 
     console.log(`New terminal connection for project: ${project}`);
     console.log(`Project path: ${projectPath}`);
@@ -295,19 +315,24 @@ export async function createServer() {
       activeConnections.set(sessionName, new Set());
     }
     activeConnections.get(sessionName)!.add(ws);
-    console.log(`[Connections] Added connection to '${sessionName}' (total: ${activeConnections.get(sessionName)!.size})`);
+    console.log(
+      `[Connections] Added connection to '${sessionName}' (total: ${activeConnections.get(sessionName)!.size})`
+    );
 
     // If reconnecting to an existing session, send the scrollback history
     if (terminal.isExistingSession()) {
       console.log(`Reconnecting to existing session '${sessionName}', sending history...`);
-      terminal.captureHistory(10000)
+      terminal
+        .captureHistory(10000)
         .then((history) => {
           if (history && ws.readyState === WebSocket.OPEN) {
-            ws.send(JSON.stringify({
-              type: 'history',
-              data: history,
-              lines: history.split('\n').length
-            }));
+            ws.send(
+              JSON.stringify({
+                type: 'history',
+                data: history,
+                lines: history.split('\n').length,
+              })
+            );
           }
         })
         .catch((err) => {
@@ -360,16 +385,20 @@ export async function createServer() {
         createdAt,
         lastActivity: undefined,
         environmentId: environmentId || undefined,
-        environment: envMeta ? {
-          id: envMeta.id,
-          name: envMeta.name,
-          provider: envMeta.provider,
-          icon: envMeta.icon,
-          isDefault: envMeta.isDefault,
-        } : undefined,
+        environment: envMeta
+          ? {
+              id: envMeta.id,
+              name: envMeta.name,
+              provider: envMeta.provider,
+              icon: envMeta.icon,
+              isDefault: envMeta.isDefault,
+            }
+          : undefined,
       });
 
-      console.log(`[Session] New session '${sessionName}' created and broadcast to ${statusSubscribers.size} subscribers`);
+      console.log(
+        `[Session] New session '${sessionName}' created and broadcast to ${statusSubscribers.size} subscribers`
+      );
     }
 
     // Forward terminal output to WebSocket - store handler for cleanup
@@ -423,18 +452,81 @@ export async function createServer() {
           case 'start-claude':
             terminal.write('claude\r');
             break;
+          case 'start-claude-ralph':
+            // Create ralph loop config file and start claude
+            (async () => {
+              const fsSync = await import('fs');
+              const ralphConfig = msg.config;
+              const claudeDir = path.join(projectPath, '.claude');
+              const ralphStateFile = path.join(claudeDir, 'ralph-loop.local.md');
+
+              // Ensure .claude directory exists
+              if (!fsSync.existsSync(claudeDir)) {
+                fsSync.mkdirSync(claudeDir, { recursive: true });
+              }
+
+              // Create ralph loop state file
+              const ralphState = `---
+iteration: 1
+maxIterations: ${ralphConfig.maxIterations || 'unlimited'}
+completionPromise: ${ralphConfig.completionPromise || 'none'}
+useWorktree: ${ralphConfig.useWorktree || false}
+active: true
+createdAt: ${new Date().toISOString()}
+---
+
+# Ralph Loop Task
+
+${ralphConfig.prompt}
+
+---
+*This file is auto-generated by 247 Dashboard. Do not edit manually.*
+`;
+              fsSync.writeFileSync(ralphStateFile, ralphState);
+              console.log(`[Ralph] Created ralph loop state: ${ralphStateFile}`);
+
+              // If worktree requested, create it first
+              if (ralphConfig.useWorktree) {
+                const branchName = `ralph-${sessionName}-${Date.now()}`;
+                terminal.write(
+                  `git worktree add -b ${branchName} ../ralph-${branchName} 2>/dev/null || echo "Worktree setup skipped"\r`
+                );
+                terminal.write(`cd ../ralph-${branchName} && `);
+              }
+
+              // Start claude with ralph loop command using correct syntax
+              const args: string[] = [];
+              if (ralphConfig.maxIterations) {
+                args.push(`--max-iterations ${ralphConfig.maxIterations}`);
+              }
+              if (ralphConfig.completionPromise) {
+                args.push(`--completion-promise "${ralphConfig.completionPromise}"`);
+              }
+
+              // Use the ralph-loop slash command format
+              const ralphPromptEscaped = ralphConfig.prompt
+                .replace(/"/g, '\\"')
+                .replace(/\n/g, ' ');
+              terminal.write(
+                `claude -p '/ralph-loop:ralph-loop "${ralphPromptEscaped}" ${args.join(' ')}'\r`
+              );
+            })();
+            break;
           case 'ping':
             ws.send(JSON.stringify({ type: 'pong' }));
             break;
           case 'request-history':
-            terminal.captureHistory(msg.lines || 10000)
+            terminal
+              .captureHistory(msg.lines || 10000)
               .then((history) => {
                 if (ws.readyState === WebSocket.OPEN) {
-                  ws.send(JSON.stringify({
-                    type: 'history',
-                    data: history,
-                    lines: history.split('\n').length
-                  }));
+                  ws.send(
+                    JSON.stringify({
+                      type: 'history',
+                      data: history,
+                      lines: history.split('\n').length,
+                    })
+                  );
                 }
               })
               .catch((err) => {
@@ -465,7 +557,9 @@ export async function createServer() {
       const connections = activeConnections.get(sessionName);
       if (connections) {
         connections.delete(ws);
-        console.log(`[Connections] Removed connection from '${sessionName}' (remaining: ${connections.size})`);
+        console.log(
+          `[Connections] Removed connection from '${sessionName}' (remaining: ${connections.size})`
+        );
         if (connections.size === 0) {
           activeConnections.delete(sessionName);
         }
@@ -490,8 +584,8 @@ export async function createServer() {
 
       const entries = await fs.readdir(basePath, { withFileTypes: true });
       const folders = entries
-        .filter(entry => entry.isDirectory() && !entry.name.startsWith('.'))
-        .map(entry => entry.name)
+        .filter((entry) => entry.isDirectory() && !entry.name.startsWith('.'))
+        .map((entry) => entry.name)
         .sort();
 
       res.json(folders);
@@ -575,7 +669,13 @@ export async function createServer() {
     }
 
     try {
-      const env = createEnvironment({ name, provider, icon, isDefault, variables: variables ?? {} });
+      const env = createEnvironment({
+        name,
+        provider,
+        icon,
+        isDefault,
+        variables: variables ?? {},
+      });
       // Return metadata only (not the actual secrets)
       res.status(201).json({
         id: env.id,
@@ -597,7 +697,13 @@ export async function createServer() {
   app.put('/api/environments/:id', (req, res) => {
     const { name, provider, icon, isDefault, variables } = req.body;
 
-    const updated = updateEnvironment(req.params.id, { name, provider, icon, isDefault, variables });
+    const updated = updateEnvironment(req.params.id, {
+      name,
+      provider,
+      icon,
+      isDefault,
+      variables,
+    });
     if (!updated) {
       return res.status(404).json({ error: 'Environment not found' });
     }
@@ -627,7 +733,8 @@ export async function createServer() {
   // Receive status updates from Claude Code hooks
   // The hook script now sends pre-mapped status, making this endpoint simpler
   app.post('/api/hooks/status', (req, res) => {
-    const { event, status, attention_reason, session_id, tmux_session, project, timestamp } = req.body;
+    const { event, status, attention_reason, session_id, tmux_session, project, timestamp } =
+      req.body;
 
     if (!event) {
       return res.status(400).json({ error: 'Missing event' });
@@ -638,7 +745,12 @@ export async function createServer() {
     const receivedStatus: SessionStatus = validStatuses.includes(status) ? status : 'working';
 
     // Validate attention_reason if provided
-    const validReasons: AttentionReason[] = ['permission', 'input', 'plan_approval', 'task_complete'];
+    const validReasons: AttentionReason[] = [
+      'permission',
+      'input',
+      'plan_approval',
+      'task_complete',
+    ];
     const receivedReason: AttentionReason | undefined =
       attention_reason && validReasons.includes(attention_reason) ? attention_reason : undefined;
 
@@ -667,7 +779,7 @@ export async function createServer() {
         attentionReason: receivedReason,
         lastEvent: event,
         lastActivity: timestamp || now,
-        lastStatusChange: statusChanged ? now : existing?.lastStatusChange ?? now,
+        lastStatusChange: statusChanged ? now : (existing?.lastStatusChange ?? now),
         environmentId: getSessionEnvironment(tmux_session),
       });
 
@@ -690,19 +802,25 @@ export async function createServer() {
         createdAt: dbSession.created_at, // Use stable createdAt from DB, not current timestamp
         lastActivity: undefined,
         environmentId: envId,
-        environment: envMeta ? {
-          id: envMeta.id,
-          name: envMeta.name,
-          provider: envMeta.provider,
-          icon: envMeta.icon,
-          isDefault: envMeta.isDefault,
-        } : undefined,
+        environment: envMeta
+          ? {
+              id: envMeta.id,
+              name: envMeta.name,
+              provider: envMeta.provider,
+              icon: envMeta.icon,
+              isDefault: envMeta.isDefault,
+            }
+          : undefined,
       });
 
-      console.log(`[Hook] ${tmux_session}: ${event} → ${receivedStatus}${receivedReason ? ` (${receivedReason})` : ''}`);
+      console.log(
+        `[Hook] ${tmux_session}: ${event} → ${receivedStatus}${receivedReason ? ` (${receivedReason})` : ''}`
+      );
     } else {
       // Warning: tmux_session is required for proper per-session status tracking
-      console.warn(`[Hook] WARNING: Missing tmux_session for ${event} (session_id=${session_id}, project=${project})`);
+      console.warn(
+        `[Hook] WARNING: Missing tmux_session for ${event} (session_id=${session_id}, project=${project})`
+      );
     }
 
     res.json({ received: true });
@@ -760,13 +878,15 @@ export async function createServer() {
           lastEvent,
           lastStatusChange,
           environmentId: envId,
-          environment: envMeta ? {
-            id: envMeta.id,
-            name: envMeta.name,
-            provider: envMeta.provider,
-            icon: envMeta.icon,
-            isDefault: envMeta.isDefault,
-          } : undefined,
+          environment: envMeta
+            ? {
+                id: envMeta.id,
+                name: envMeta.name,
+                provider: envMeta.provider,
+                icon: envMeta.icon,
+                isDefault: envMeta.isDefault,
+              }
+            : undefined,
         });
       }
 
@@ -796,11 +916,13 @@ export async function createServer() {
 
       // Split into lines and take last 15 non-empty lines for display
       const allLines = stdout.split('\n');
-      const lines = allLines.slice(-16, -1).filter(line => line.trim() !== '' || allLines.indexOf(line) > allLines.length - 5);
+      const lines = allLines
+        .slice(-16, -1)
+        .filter((line) => line.trim() !== '' || allLines.indexOf(line) > allLines.length - 5);
 
       res.json({
         lines: lines.length > 0 ? lines : ['(empty terminal)'],
-        timestamp: Date.now()
+        timestamp: Date.now(),
       });
     } catch {
       res.status(404).json({ error: 'Session not found' });
@@ -884,13 +1006,15 @@ export async function createServer() {
       lastStatusChange: archivedSession.last_status_change,
       archivedAt: archivedSession.archived_at ?? undefined,
       environmentId: envId,
-      environment: envMeta ? {
-        id: envMeta.id,
-        name: envMeta.name,
-        provider: envMeta.provider,
-        icon: envMeta.icon,
-        isDefault: envMeta.isDefault,
-      } : undefined,
+      environment: envMeta
+        ? {
+            id: envMeta.id,
+            name: envMeta.name,
+            provider: envMeta.provider,
+            icon: envMeta.icon,
+            isDefault: envMeta.isDefault,
+          }
+        : undefined,
     };
 
     broadcastSessionArchived(sessionName, archivedInfo);
@@ -921,13 +1045,15 @@ export async function createServer() {
         lastStatusChange: session.last_status_change,
         archivedAt: session.archived_at ?? undefined,
         environmentId: envId,
-        environment: envMeta ? {
-          id: envMeta.id,
-          name: envMeta.name,
-          provider: envMeta.provider,
-          icon: envMeta.icon,
-          isDefault: envMeta.isDefault,
-        } : undefined,
+        environment: envMeta
+          ? {
+              id: envMeta.id,
+              name: envMeta.name,
+              provider: envMeta.provider,
+              icon: envMeta.icon,
+              isDefault: envMeta.isDefault,
+            }
+          : undefined,
       };
     });
 

@@ -2,14 +2,14 @@
 
 import { useState, useCallback } from 'react';
 import dynamic from 'next/dynamic';
-import { ArrowLeft, WifiOff } from 'lucide-react';
+import { ArrowLeft, WifiOff, RefreshCw } from 'lucide-react';
 import { FileExplorer } from './FileExplorer';
 
-const Terminal = dynamic(() => import('./Terminal').then(mod => mod.Terminal), {
+const Terminal = dynamic(() => import('./Terminal').then((mod) => mod.Terminal), {
   ssr: false,
   loading: () => (
-    <div className="flex-1 flex items-center justify-center bg-[#0d0d14]">
-      <div className="w-6 h-6 rounded-full border-2 border-orange-500/30 border-t-orange-500 animate-spin" />
+    <div className="flex flex-1 items-center justify-center bg-[#0d0d14]">
+      <div className="h-6 w-6 animate-spin rounded-full border-2 border-orange-500/30 border-t-orange-500" />
     </div>
   ),
 });
@@ -17,6 +17,7 @@ import { EditorTerminalTabs, type ActiveTab } from './EditorTerminalTabs';
 import { StatusBadge, type SessionStatus } from './ui/status-badge';
 import { type SessionInfo } from '@/lib/notifications';
 import { cn } from '@/lib/utils';
+import type { RalphLoopConfig } from '@vibecompany/247-shared';
 
 interface SessionViewProps {
   sessionName: string;
@@ -24,6 +25,7 @@ interface SessionViewProps {
   agentUrl: string;
   sessionInfo?: SessionInfo;
   environmentId?: string;
+  ralphConfig?: RalphLoopConfig;
   onBack: () => void;
   onSessionCreated?: (sessionName: string) => void;
 }
@@ -34,6 +36,7 @@ export function SessionView({
   agentUrl,
   sessionInfo,
   environmentId,
+  ralphConfig,
   onBack,
   onSessionCreated,
 }: SessionViewProps) {
@@ -52,7 +55,7 @@ export function SessionView({
   );
 
   return (
-    <div className="flex-1 flex flex-col overflow-hidden">
+    <div className="flex flex-1 flex-col overflow-hidden">
       {/* Header */}
       <div
         className={cn(
@@ -66,12 +69,12 @@ export function SessionView({
           <button
             onClick={onBack}
             className={cn(
-              'flex items-center gap-2 px-3 py-1.5 rounded-lg',
-              'text-white/50 hover:text-white hover:bg-white/5',
-              'transition-all group'
+              'flex items-center gap-2 rounded-lg px-3 py-1.5',
+              'text-white/50 hover:bg-white/5 hover:text-white',
+              'group transition-all'
             )}
           >
-            <ArrowLeft className="w-4 h-4 group-hover:-translate-x-0.5 transition-transform" />
+            <ArrowLeft className="h-4 w-4 transition-transform group-hover:-translate-x-0.5" />
             <span className="text-sm font-medium">Back</span>
           </button>
 
@@ -80,16 +83,20 @@ export function SessionView({
           {/* Session name */}
           <div className="flex items-center gap-3">
             {sessionInfo && (
-              <StatusBadge
-                status={sessionInfo.status as SessionStatus}
-                size="md"
-                showTooltip
-              />
+              <StatusBadge status={sessionInfo.status as SessionStatus} size="md" showTooltip />
             )}
             <div>
-              <h1 className="text-base font-semibold text-white font-mono">
-                {isNewSession ? 'New Session' : displayName}
-              </h1>
+              <div className="flex items-center gap-2">
+                <h1 className="font-mono text-base font-semibold text-white">
+                  {isNewSession ? 'New Session' : displayName}
+                </h1>
+                {ralphConfig && (
+                  <span className="flex items-center gap-1 rounded-full bg-purple-500/20 px-2 py-0.5 text-xs font-medium text-purple-400">
+                    <RefreshCw className="h-3 w-3" />
+                    Ralph Loop
+                  </span>
+                )}
+              </div>
               <p className="text-xs text-white/40">{project}</p>
             </div>
           </div>
@@ -100,14 +107,14 @@ export function SessionView({
           {isConnected ? (
             <div className="flex items-center gap-2">
               <span className="relative flex h-2 w-2">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+                <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
               </span>
               <span className="text-xs text-emerald-400">Connected</span>
             </div>
           ) : (
             <div className="flex items-center gap-2">
-              <WifiOff className="w-3 h-3 text-red-400" />
+              <WifiOff className="h-3 w-3 text-red-400" />
               <span className="text-xs text-red-400">Disconnected</span>
             </div>
           )}
@@ -126,6 +133,7 @@ export function SessionView({
             project={project}
             sessionName={isNewSession ? undefined : sessionName}
             environmentId={environmentId}
+            ralphConfig={ralphConfig}
             onConnectionChange={setIsConnected}
             onSessionCreated={handleSessionCreated}
             claudeStatus={sessionInfo?.status}

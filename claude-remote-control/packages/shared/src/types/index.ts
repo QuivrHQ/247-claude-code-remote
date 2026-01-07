@@ -32,11 +32,20 @@ export interface User {
   createdAt: Date;
 }
 
+// Ralph Loop configuration
+export interface RalphLoopConfig {
+  prompt: string;
+  maxIterations?: number;
+  completionPromise?: string;
+  useWorktree?: boolean; // Create isolated git worktree for this loop
+}
+
 // WebSocket message types - Client to Agent (Terminal)
 export type WSMessageToAgent =
   | { type: 'input'; data: string }
   | { type: 'resize'; cols: number; rows: number }
   | { type: 'start-claude' }
+  | { type: 'start-claude-ralph'; config: RalphLoopConfig }
   | { type: 'ping' }
   | { type: 'request-history'; lines?: number };
 

@@ -37,11 +37,14 @@ interface LocalMachine {
   };
 }
 
+import type { RalphLoopConfig } from '@vibecompany/247-shared';
+
 interface SelectedSession {
   machineId: string;
   sessionName: string;
   project: string;
   environmentId?: string;
+  ralphConfig?: RalphLoopConfig;
 }
 
 type ViewTab = 'environments' | 'guide';
@@ -178,7 +181,7 @@ function HomeContent() {
 
   // Start new session
   const handleStartSession = useCallback(
-    (machineId: string, project: string, environmentId?: string) => {
+    (machineId: string, project: string, environmentId?: string, ralphConfig?: RalphLoopConfig) => {
       // Create a new session placeholder name
       const newSessionName = `${project}--new`;
       setSelectedSession({
@@ -186,6 +189,7 @@ function HomeContent() {
         sessionName: newSessionName,
         project,
         environmentId,
+        ralphConfig,
       });
       setNewSessionOpen(false);
 
@@ -493,6 +497,7 @@ function HomeContent() {
               agentUrl={getAgentUrl()}
               sessionInfo={getSelectedSessionInfo()}
               environmentId={selectedSession.environmentId}
+              ralphConfig={selectedSession.ralphConfig}
               onBack={() => {
                 setSelectedSession(null);
                 clearSessionFromUrl();

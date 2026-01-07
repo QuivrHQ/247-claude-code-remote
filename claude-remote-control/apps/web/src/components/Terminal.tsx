@@ -9,12 +9,14 @@ import { CanvasAddon } from '@xterm/addon-canvas';
 import '@xterm/xterm/css/xterm.css';
 import { Search, ChevronUp, ChevronDown, X, ArrowDown, Sparkles, Copy, Check } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import type { RalphLoopConfig } from '@vibecompany/247-shared';
 
 interface TerminalProps {
   agentUrl: string;
   project: string;
   sessionName?: string;
   environmentId?: string;
+  ralphConfig?: RalphLoopConfig;
   onConnectionChange?: (connected: boolean) => void;
   onSessionCreated?: (sessionName: string) => void;
   claudeStatus?: 'init' | 'working' | 'needs_attention' | 'idle';
@@ -46,6 +48,7 @@ export function Terminal({
   project,
   sessionName,
   environmentId,
+  ralphConfig,
   onConnectionChange,
   onSessionCreated,
   claudeStatus,
@@ -314,6 +317,33 @@ export function Terminal({
         if (onSessionCreated && effectiveSessionName) {
           onSessionCreated(effectiveSessionName);
         }
+
+        // Auto-start Ralph Loop if config provided
+        if (ralphConfig) {
+          currentTerm.write('\x1b[38;5;141m🔄 Starting Ralph Loop...\x1b[0m\r\n');
+          currentTerm.write(
+            '\x1b[38;5;245m   Prompt: ' +
+              ralphConfig.prompt.substring(0, 50) +
+              (ralphConfig.prompt.length > 50 ? '...' : '') +
+              '\x1b[0m\r\n'
+          );
+          if (ralphConfig.maxIterations) {
+            currentTerm.write(
+              '\x1b[38;5;245m   Max iterations: ' + ralphConfig.maxIterations + '\x1b[0m\r\n'
+            );
+          }
+          if (ralphConfig.completionPromise) {
+            currentTerm.write(
+              '\x1b[38;5;245m   Completion promise: ' +
+                ralphConfig.completionPromise +
+                '\x1b[0m\r\n'
+            );
+          }
+          currentTerm.write('\r\n');
+
+          // Send ralph loop config to agent
+          currentWs.send(JSON.stringify({ type: 'start-claude-ralph', config: ralphConfig }));
+        }
       };
 
       currentWs.onmessage = (event) => {
@@ -411,7 +441,7 @@ export function Terminal({
         searchAddonRef.current = null;
       }
     };
-  }, [agentUrl, project, effectiveSessionName, environmentId]);
+  }, [agentUrl, project, effectiveSessionName, environmentId, ralphConfig]);
 
   // Search effect
   useEffect(() => {

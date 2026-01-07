@@ -16,6 +16,7 @@ import type {
   StatusSource,
   EnvironmentProvider,
   EnvironmentIcon,
+  RalphLoopConfig,
 } from '../src/types/index.js';
 
 // ============================================================================
@@ -39,11 +40,36 @@ function isWSMessageToAgent(msg: unknown): msg is WSMessageToAgent {
     case 'start-claude':
     case 'ping':
       return true;
+    case 'start-claude-ralph':
+      return isValidRalphLoopConfig(obj.config);
     case 'request-history':
       return obj.lines === undefined || typeof obj.lines === 'number';
     default:
       return false;
   }
+}
+
+/**
+ * Type guard for RalphLoopConfig
+ */
+function isValidRalphLoopConfig(config: unknown): config is RalphLoopConfig {
+  if (typeof config !== 'object' || config === null) return false;
+  const obj = config as Record<string, unknown>;
+
+  // prompt is required
+  if (typeof obj.prompt !== 'string' || obj.prompt.trim() === '') return false;
+
+  // maxIterations is optional but must be number if present
+  if (obj.maxIterations !== undefined && typeof obj.maxIterations !== 'number') return false;
+
+  // completionPromise is optional but must be string if present
+  if (obj.completionPromise !== undefined && typeof obj.completionPromise !== 'string')
+    return false;
+
+  // useWorktree is optional but must be boolean if present
+  if (obj.useWorktree !== undefined && typeof obj.useWorktree !== 'boolean') return false;
+
+  return true;
 }
 
 /**
@@ -219,6 +245,79 @@ describe('WebSocket Protocol - Terminal Channel', () => {
       it('accepts extra properties (forward compatibility)', () => {
         const msg = { type: 'start-claude', model: 'opus' };
         expect(isWSMessageToAgent(msg)).toBe(true);
+      });
+    });
+
+    describe('start-claude-ralph message', () => {
+      it('validates correct start-claude-ralph with minimal config', () => {
+        const msg = {
+          type: 'start-claude-ralph',
+          config: { prompt: 'Build a feature' },
+        };
+        expect(isWSMessageToAgent(msg)).toBe(true);
+      });
+
+      it('validates start-claude-ralph with full config', () => {
+        const msg = {
+          type: 'start-claude-ralph',
+          config: {
+            prompt: 'Build a feature with tests',
+            maxIterations: 10,
+            completionPromise: 'COMPLETE',
+            useWorktree: true,
+          },
+        };
+        expect(isWSMessageToAgent(msg)).toBe(true);
+      });
+
+      it('rejects start-claude-ralph without config', () => {
+        const msg = { type: 'start-claude-ralph' };
+        expect(isWSMessageToAgent(msg)).toBe(false);
+      });
+
+      it('rejects start-claude-ralph with null config', () => {
+        const msg = { type: 'start-claude-ralph', config: null };
+        expect(isWSMessageToAgent(msg)).toBe(false);
+      });
+
+      it('rejects start-claude-ralph with empty prompt', () => {
+        const msg = {
+          type: 'start-claude-ralph',
+          config: { prompt: '' },
+        };
+        expect(isWSMessageToAgent(msg)).toBe(false);
+      });
+
+      it('rejects start-claude-ralph with whitespace-only prompt', () => {
+        const msg = {
+          type: 'start-claude-ralph',
+          config: { prompt: '   ' },
+        };
+        expect(isWSMessageToAgent(msg)).toBe(false);
+      });
+
+      it('rejects start-claude-ralph with invalid maxIterations', () => {
+        const msg = {
+          type: 'start-claude-ralph',
+          config: { prompt: 'test', maxIterations: '10' },
+        };
+        expect(isWSMessageToAgent(msg)).toBe(false);
+      });
+
+      it('rejects start-claude-ralph with invalid completionPromise', () => {
+        const msg = {
+          type: 'start-claude-ralph',
+          config: { prompt: 'test', completionPromise: 123 },
+        };
+        expect(isWSMessageToAgent(msg)).toBe(false);
+      });
+
+      it('rejects start-claude-ralph with invalid useWorktree', () => {
+        const msg = {
+          type: 'start-claude-ralph',
+          config: { prompt: 'test', useWorktree: 'yes' },
+        };
+        expect(isWSMessageToAgent(msg)).toBe(false);
       });
     });
 
@@ -585,9 +684,23 @@ describe('Protocol Compatibility', () => {
 
   it('verifies all message types are covered', () => {
     // WSMessageToAgent types
-    const toAgentTypes = ['input', 'resize', 'start-claude', 'ping', 'request-history'];
+    const toAgentTypes = [
+      'input',
+      'resize',
+      'start-claude',
+      'start-claude-ralph',
+      'ping',
+      'request-history',
+    ];
     toAgentTypes.forEach((type) => {
-      expect(['input', 'resize', 'start-claude', 'ping', 'request-history']).toContain(type);
+      expect([
+        'input',
+        'resize',
+        'start-claude',
+        'start-claude-ralph',
+        'ping',
+        'request-history',
+      ]).toContain(type);
     });
 
     // WSMessageFromAgent types
