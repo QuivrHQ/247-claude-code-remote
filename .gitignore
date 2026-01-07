@@ -1,2 +1,3 @@
 claude-remote-control/apps/agent/environments.json
 .playwright-mcp/
+.claude/ralph-loop.local.md

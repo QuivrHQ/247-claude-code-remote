@@ -99,6 +99,7 @@ const createMockTerminal = () => {
     detach: vi.fn(),
     captureHistory: vi.fn().mockResolvedValue('$ echo hello\nhello\n$ '),
     isExistingSession: vi.fn().mockReturnValue(false),
+    onReady: vi.fn((cb: () => void) => cb()), // Mock terminal is always ready
     _dataCallbacks: [] as ((data: string) => void)[],
     _exitCallbacks: [] as ((info: { exitCode: number }) => void)[],
     onData: vi.fn((cb) => terminal._dataCallbacks.push(cb)),
@@ -353,6 +354,49 @@ describe('WebSocket Terminal', () => {
 
       // Should write claude command to terminal
       expect(mockTerminal.write).toHaveBeenCalled();
+      ws.close();
+    });
+
+    it('ignores duplicate start-claude-ralph messages for same session', async () => {
+      const ws = await connectWS('allowed-project');
+
+      // Wait for terminal to be created
+      await new Promise((r) => setTimeout(r, 100));
+
+      // Send first ralph loop message
+      ws.send(
+        JSON.stringify({
+          type: 'start-claude-ralph',
+          config: {
+            prompt: 'First prompt',
+          },
+        })
+      );
+
+      // Wait for message processing
+      await new Promise((r) => setTimeout(r, 100));
+
+      // Clear mock to count only subsequent calls
+      mockTerminal.write.mockClear();
+
+      // Send duplicate ralph loop message
+      ws.send(
+        JSON.stringify({
+          type: 'start-claude-ralph',
+          config: {
+            prompt: 'Second prompt - should be ignored',
+          },
+        })
+      );
+
+      // Wait for message processing
+      await new Promise((r) => setTimeout(r, 200));
+
+      // Should NOT write the second command (deduplicated)
+      const claudeWriteCalls = mockTerminal.write.mock.calls.filter((call: string[]) =>
+        call[0]?.includes('claude -p')
+      );
+      expect(claudeWriteCalls.length).toBe(0);
       ws.close();
     });
 

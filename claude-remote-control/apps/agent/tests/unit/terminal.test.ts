@@ -41,7 +41,14 @@ vi.mock('child_process', () => ({
     }
     throw new Error('Command not mocked');
   }),
-  exec: vi.fn(),
+  exec: vi.fn(
+    (cmd: string, callback?: (error: Error | null, stdout: string, stderr: string) => void) => {
+      // If callback provided, call it asynchronously
+      if (callback) {
+        setImmediate(() => callback(null, '', ''));
+      }
+    }
+  ),
 }));
 
 // Mock promisify to return our async mock
@@ -213,8 +220,81 @@ describe('Terminal', () => {
 
       // Verify exec was called with the clear sequence
       expect(exec).toHaveBeenCalledWith(
-        expect.stringMatching(/send-keys.*export.*printf.*\\033\[1A.*\\033\[2K/)
+        expect.stringMatching(/send-keys.*export.*printf.*\\033\[1A.*\\033\[2K/),
+        expect.any(Function)
       );
+    });
+
+    it('onReady fires immediately for existing sessions', async () => {
+      // Session exists
+      execSyncResponses['has-session'] = '';
+
+      vi.resetModules();
+      const { createTerminal } = await import('../../src/terminal.js');
+      const terminal = createTerminal('/tmp/test', 'existing-ready-test');
+
+      const readyCallback = vi.fn();
+      terminal.onReady(readyCallback);
+
+      // Should fire immediately since session already exists
+      expect(readyCallback).toHaveBeenCalledTimes(1);
+    });
+
+    it('onReady fires after init for new sessions', async () => {
+      execSyncResponses['has-session'] = new Error('not found');
+
+      vi.resetModules();
+      const { createTerminal } = await import('../../src/terminal.js');
+      const terminal = createTerminal('/tmp/test', 'new-ready-test');
+
+      const readyCallback = vi.fn();
+      terminal.onReady(readyCallback);
+
+      // Should NOT fire immediately
+      expect(readyCallback).not.toHaveBeenCalled();
+
+      // Wait for setTimeout (100ms) + exec callback
+      await new Promise((r) => setTimeout(r, 150));
+
+      // Should now have fired
+      expect(readyCallback).toHaveBeenCalledTimes(1);
+    });
+
+    it('onReady fires multiple callbacks for new sessions', async () => {
+      execSyncResponses['has-session'] = new Error('not found');
+
+      vi.resetModules();
+      const { createTerminal } = await import('../../src/terminal.js');
+      const terminal = createTerminal('/tmp/test', 'multi-ready-test');
+
+      const callback1 = vi.fn();
+      const callback2 = vi.fn();
+      terminal.onReady(callback1);
+      terminal.onReady(callback2);
+
+      // Wait for init to complete
+      await new Promise((r) => setTimeout(r, 150));
+
+      expect(callback1).toHaveBeenCalledTimes(1);
+      expect(callback2).toHaveBeenCalledTimes(1);
+    });
+
+    it('onReady fires immediately if called after terminal is ready', async () => {
+      execSyncResponses['has-session'] = new Error('not found');
+
+      vi.resetModules();
+      const { createTerminal } = await import('../../src/terminal.js');
+      const terminal = createTerminal('/tmp/test', 'late-ready-test');
+
+      // Wait for init to complete
+      await new Promise((r) => setTimeout(r, 150));
+
+      // Now call onReady after terminal is ready
+      const lateCallback = vi.fn();
+      terminal.onReady(lateCallback);
+
+      // Should fire immediately since terminal is already ready
+      expect(lateCallback).toHaveBeenCalledTimes(1);
     });
   });
 });

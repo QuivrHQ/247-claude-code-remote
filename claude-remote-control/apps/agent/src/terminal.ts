@@ -13,6 +13,7 @@ export interface Terminal {
   detach(): void;
   captureHistory(lines?: number): Promise<string>;
   isExistingSession(): boolean;
+  onReady(callback: () => void): void;
 }
 
 export function createTerminal(
@@ -32,7 +33,9 @@ export function createTerminal(
   }
 
   if (Object.keys(customEnvVars).length > 0) {
-    console.log(`[Terminal] Custom env vars for injection: ${Object.keys(customEnvVars).join(', ')}`);
+    console.log(
+      `[Terminal] Custom env vars for injection: ${Object.keys(customEnvVars).join(', ')}`
+    );
   }
 
   // Use tmux for session persistence
@@ -77,8 +80,20 @@ export function createTerminal(
 
   // Debug: log when shell exits
   shell.onExit(({ exitCode, signal }) => {
-    console.log(`[Terminal] Shell exited: code=${exitCode}, signal=${signal}, session='${sessionName}'`);
+    console.log(
+      `[Terminal] Shell exited: code=${exitCode}, signal=${signal}, session='${sessionName}'`
+    );
   });
+
+  // Track terminal readiness state for onReady callback
+  let isReady = existingSession; // Existing sessions are ready immediately
+  const readyCallbacks: (() => void)[] = [];
+
+  const fireReadyCallbacks = () => {
+    isReady = true;
+    readyCallbacks.forEach((cb) => cb());
+    readyCallbacks.length = 0; // Clear the array
+  };
 
   // Configure tmux options and inject environment variables
   if (!existingSession) {
@@ -91,23 +106,32 @@ export function createTerminal(
       const baseExport = `export CLAUDE_TMUX_SESSION="${sessionName}"`;
 
       // Add custom environment variables if present (filter out empty values)
-      const nonEmptyVars = Object.entries(customEnvVars).filter(([, value]) => value && value.trim() !== '');
-      const allExports = nonEmptyVars.length > 0
-        ? `${baseExport}; ${nonEmptyVars
-            .map(([key, value]) => `export ${key}="${value.replace(/"/g, '\\"')}"`)
-            .join('; ')}`
-        : baseExport;
+      const nonEmptyVars = Object.entries(customEnvVars).filter(
+        ([, value]) => value && value.trim() !== ''
+      );
+      const allExports =
+        nonEmptyVars.length > 0
+          ? `${baseExport}; ${nonEmptyVars
+              .map(([key, value]) => `export ${key}="${value.replace(/"/g, '\\"')}"`)
+              .join('; ')}`
+          : baseExport;
 
-      console.log(`[Terminal] Injecting CLAUDE_TMUX_SESSION and ${nonEmptyVars.length} custom vars into NEW session '${sessionName}'`);
+      console.log(
+        `[Terminal] Injecting CLAUDE_TMUX_SESSION and ${nonEmptyVars.length} custom vars into NEW session '${sessionName}'`
+      );
       // Séquences ANSI pour effacer les lignes après exécution
       // \033[1A = remonter d'une ligne, \033[2K = effacer la ligne
       // On efface 2 lignes: la commande tapée + le prompt précédent
       const clearSequence = `printf '\\033[1A\\033[2K\\033[1A\\033[2K'`;
-      exec(`tmux send-keys -t "${sessionName}" "${allExports}; ${clearSequence}" C-m`);
+      exec(`tmux send-keys -t "${sessionName}" "${allExports}; ${clearSequence}" C-m`, () => {
+        // Fire ready callbacks after init commands are sent
+        fireReadyCallbacks();
+      });
     }, 100);
   } else {
     // For existing sessions, just ensure mouse is enabled
     // Environment variables were already injected when the session was created
+    // isReady is already true for existing sessions (set above)
     setTimeout(() => {
       exec(`tmux set-option -t "${sessionName}" mouse on`);
     }, 100);
@@ -124,6 +148,13 @@ export function createTerminal(
       shell.write('\x02d');
     },
     isExistingSession: () => existingSession,
+    onReady: (callback: () => void) => {
+      if (isReady) {
+        callback();
+      } else {
+        readyCallbacks.push(callback);
+      }
+    },
     captureHistory: async (lines = 10000): Promise<string> => {
       try {
         // Capture scrollback buffer from tmux
