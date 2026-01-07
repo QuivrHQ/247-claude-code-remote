@@ -11,6 +11,10 @@ import { Search, ChevronUp, ChevronDown, X, ArrowDown, Sparkles, Copy, Check } f
 import { cn } from '@/lib/utils';
 import type { RalphLoopConfig } from '@vibecompany/247-shared';
 
+// Reconnection constants
+const WS_RECONNECT_BASE_DELAY = 1000; // 1 second
+const WS_RECONNECT_MAX_DELAY = 30000; // 30 seconds
+
 interface TerminalProps {
   agentUrl: string;
   project: string;
@@ -60,6 +64,9 @@ export function Terminal({
   const [searchVisible, setSearchVisible] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [copied, setCopied] = useState(false);
+  const [connectionState, setConnectionState] = useState<
+    'connected' | 'disconnected' | 'reconnecting'
+  >('disconnected');
 
   const wsRef = useRef<WebSocket | null>(null);
   const xtermRef = useRef<XTerm | null>(null);
@@ -67,6 +74,12 @@ export function Terminal({
   const searchAddonRef = useRef<SearchAddon | null>(null);
   const isSelectingRef = useRef(false);
   const isPastingRef = useRef(false);
+
+  // Reconnection tracking refs
+  const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const reconnectDelayRef = useRef<number>(WS_RECONNECT_BASE_DELAY);
+  const intentionalCloseRef = useRef<boolean>(false);
+  const isReconnectRef = useRef<boolean>(false);
 
   // Generate session name ONCE on first render, persisted across re-mounts
   const generatedSessionRef = useRef<string | null>(null);
@@ -321,7 +334,17 @@ export function Terminal({
       currentWs.onopen = () => {
         if (cancelled) return;
         setConnected(true);
-        currentTerm.write('\x1b[38;5;245m┌─ Connected to ' + agentUrl + ' ─┐\x1b[0m\r\n\r\n');
+        setConnectionState('connected');
+
+        // Reset reconnect delay on successful connection
+        reconnectDelayRef.current = WS_RECONNECT_BASE_DELAY;
+
+        // Only show connection message on initial connect, not reconnect
+        if (!isReconnectRef.current) {
+          currentTerm.write('\x1b[38;5;245m┌─ Connected to ' + agentUrl + ' ─┐\x1b[0m\r\n\r\n');
+        } else {
+          currentTerm.write('\x1b[38;5;245m┌─ Reconnected ─┐\x1b[0m\r\n');
+        }
 
         currentWs.send(
           JSON.stringify({
@@ -370,6 +393,8 @@ export function Terminal({
           const msg = JSON.parse(event.data);
           if (msg.type === 'pong') return;
           if (msg.type === 'history') {
+            // Clear terminal before writing history to avoid duplicates on reconnect
+            currentTerm.clear();
             currentTerm.write(msg.data);
             currentTerm.scrollToBottom();
             return;
@@ -382,7 +407,47 @@ export function Terminal({
       currentWs.onclose = () => {
         if (cancelled) return;
         setConnected(false);
+
+        // Don't attempt reconnection if intentionally closed (unmount, navigation)
+        if (intentionalCloseRef.current) {
+          setConnectionState('disconnected');
+          currentTerm.write('\r\n\x1b[38;5;245m└─ Disconnected ─┘\x1b[0m\r\n');
+          return;
+        }
+
+        setConnectionState('disconnected');
         currentTerm.write('\r\n\x1b[38;5;245m└─ Disconnected ─┘\x1b[0m\r\n');
+
+        // Schedule reconnection with exponential backoff
+        const currentDelay = reconnectDelayRef.current;
+        const nextDelay = Math.min(currentDelay * 2, WS_RECONNECT_MAX_DELAY);
+        reconnectDelayRef.current = nextDelay;
+
+        console.log(`[Terminal] WebSocket closed, reconnecting in ${currentDelay}ms...`);
+
+        reconnectTimeoutRef.current = setTimeout(() => {
+          if (cancelled || intentionalCloseRef.current) return;
+
+          setConnectionState('reconnecting');
+          isReconnectRef.current = true;
+
+          // Create new WebSocket connection
+          const wsProtocol = agentUrl.includes('localhost') ? 'ws' : 'wss';
+          let wsUrl = `${wsProtocol}://${agentUrl}/terminal?project=${encodeURIComponent(project)}&session=${encodeURIComponent(effectiveSessionName)}`;
+          if (environmentId) {
+            wsUrl += `&environment=${encodeURIComponent(environmentId)}`;
+          }
+
+          const newWs = new WebSocket(wsUrl);
+          ws = newWs;
+          wsRef.current = newWs;
+
+          // Reattach handlers to new WebSocket
+          newWs.onopen = currentWs.onopen;
+          newWs.onmessage = currentWs.onmessage;
+          newWs.onclose = currentWs.onclose;
+          newWs.onerror = currentWs.onerror;
+        }, currentDelay);
       };
 
       currentWs.onerror = (err) => {
@@ -419,6 +484,19 @@ export function Terminal({
     return () => {
       cancelled = true;
       clearTimeout(connectTimeout);
+
+      // Mark as intentional close BEFORE closing WebSocket to prevent reconnection
+      intentionalCloseRef.current = true;
+
+      // Clear any pending reconnection timeout
+      if (reconnectTimeoutRef.current) {
+        clearTimeout(reconnectTimeoutRef.current);
+        reconnectTimeoutRef.current = null;
+      }
+
+      // Reset reconnection state for next mount
+      reconnectDelayRef.current = WS_RECONNECT_BASE_DELAY;
+      isReconnectRef.current = false;
 
       if (handleResize) {
         window.removeEventListener('resize', handleResize);
@@ -495,6 +573,14 @@ export function Terminal({
             {effectiveSessionName.split('--')[1] || 'new session'}
           </span>
         </div>
+
+        {/* Connection Status Indicator */}
+        {connectionState === 'reconnecting' && (
+          <div className="flex items-center gap-1.5">
+            <div className="h-2 w-2 animate-pulse rounded-full bg-amber-500" />
+            <span className="text-xs text-amber-400/60">Reconnecting...</span>
+          </div>
+        )}
 
         <div className="flex-1" />
 
