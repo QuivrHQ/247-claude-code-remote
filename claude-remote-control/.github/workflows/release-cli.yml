@@ -66,11 +66,17 @@ jobs:
           git push origin main
           git push origin v${{ env.NEW_VERSION }}
 
-      # For tag push: extract version from tag
+      # For tag push: extract version from tag and update package.json
       - name: Get version from tag
         if: github.event_name == 'push'
         run: |
           echo "NEW_VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_ENV
+
+      - name: Update package.json version
+        if: github.event_name == 'push'
+        working-directory: packages/cli
+        run: |
+          npm version ${{ env.NEW_VERSION }} --no-git-tag-version --allow-same-version
 
       - name: Publish to npm
         working-directory: packages/cli
