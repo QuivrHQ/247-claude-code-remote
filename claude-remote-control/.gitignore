@@ -34,3 +34,5 @@ coverage/
 
 # SQLite database
 apps/agent/data/
+.vercel
+.env*.local
