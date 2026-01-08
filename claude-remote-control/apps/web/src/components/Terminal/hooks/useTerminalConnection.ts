@@ -224,53 +224,87 @@ export function useTerminalConnection({
       // Touch scroll handler for mobile - xterm.js canvas doesn't support native touch scroll
       // We need to attach to the xterm-screen element which contains the canvas
       // See: https://github.com/xtermjs/xterm.js/issues/5377
-      const xtermScreen = term.element?.querySelector('.xterm-screen') as HTMLElement | null;
-      if (isMobile && xtermScreen) {
-        let lastTouchY: number | null = null;
+      if (isMobile && term.element) {
         const currentTermForTouch = term; // Capture for closure
 
-        handleTouchStart = (e: TouchEvent) => {
-          if (e.touches.length > 0) {
-            lastTouchY = e.touches[0].clientY;
-          }
-        };
+        // Wait for .xterm-screen to be available (xterm creates it async after CanvasAddon)
+        const setupTouchScroll = () => {
+          if (cancelled) return;
 
-        handleTouchMove = (e: TouchEvent) => {
-          if (lastTouchY === null || e.touches.length === 0) return;
-
-          // Always prevent default to stop browser scroll
-          e.preventDefault();
-
-          const currentY = e.touches[0].clientY;
-          const deltaY = currentY - lastTouchY;
-
-          // deltaY positive = finger moved down = scroll UP (see older content)
-          // deltaY negative = finger moved up = scroll DOWN (see newer content)
-          // scrollLines(positive) scrolls DOWN, so we negate deltaY
-          const scrollAmount = -Math.round(deltaY / 15); // ~15px per line for smoother scroll
-
-          if (scrollAmount !== 0) {
-            currentTermForTouch.scrollLines(scrollAmount);
+          const xtermScreen = currentTermForTouch.element?.querySelector(
+            '.xterm-screen'
+          ) as HTMLElement | null;
+          if (!xtermScreen) {
+            // Retry after a short delay - xterm.js may still be initializing
+            setTimeout(setupTouchScroll, 50);
+            return;
           }
 
-          lastTouchY = currentY;
+          console.log('[Terminal] Setting up touch scroll on .xterm-screen');
+
+          // CRITICAL: Apply touch-action directly to the target element
+          // CSS touch-action is NOT inherited, so it must be on the actual touch target
+          xtermScreen.style.touchAction = 'none';
+          xtermScreen.style.userSelect = 'none';
+          (
+            xtermScreen.style as CSSStyleDeclaration & { webkitUserSelect?: string }
+          ).webkitUserSelect = 'none';
+
+          // Also apply to canvas children if present
+          const canvases = xtermScreen.querySelectorAll('canvas');
+          canvases.forEach((canvas) => {
+            (canvas as HTMLElement).style.touchAction = 'none';
+          });
+
+          let lastTouchY: number | null = null;
+
+          handleTouchStart = (e: TouchEvent) => {
+            if (e.touches.length > 0) {
+              lastTouchY = e.touches[0].clientY;
+            }
+          };
+
+          handleTouchMove = (e: TouchEvent) => {
+            if (lastTouchY === null || e.touches.length === 0) return;
+
+            // Always prevent default to stop browser scroll
+            e.preventDefault();
+            e.stopPropagation();
+
+            const currentY = e.touches[0].clientY;
+            const deltaY = currentY - lastTouchY;
+
+            // deltaY positive = finger moved down = scroll UP (see older content)
+            // deltaY negative = finger moved up = scroll DOWN (see newer content)
+            // scrollLines(positive) scrolls DOWN, so we negate deltaY
+            const scrollAmount = -Math.round(deltaY / 15); // ~15px per line for smoother scroll
+
+            if (scrollAmount !== 0) {
+              currentTermForTouch.scrollLines(scrollAmount);
+            }
+
+            lastTouchY = currentY;
+          };
+
+          handleTouchEnd = () => {
+            lastTouchY = null;
+          };
+
+          handleTouchCancel = () => {
+            lastTouchY = null;
+          };
+
+          xtermScreen.addEventListener('touchstart', handleTouchStart, { passive: true });
+          xtermScreen.addEventListener('touchmove', handleTouchMove, { passive: false });
+          xtermScreen.addEventListener('touchend', handleTouchEnd);
+          xtermScreen.addEventListener('touchcancel', handleTouchCancel);
+
+          // Store reference for cleanup
+          touchElement = xtermScreen;
         };
 
-        handleTouchEnd = () => {
-          lastTouchY = null;
-        };
-
-        handleTouchCancel = () => {
-          lastTouchY = null;
-        };
-
-        xtermScreen.addEventListener('touchstart', handleTouchStart, { passive: true });
-        xtermScreen.addEventListener('touchmove', handleTouchMove, { passive: false });
-        xtermScreen.addEventListener('touchend', handleTouchEnd);
-        xtermScreen.addEventListener('touchcancel', handleTouchCancel);
-
-        // Store reference for cleanup
-        touchElement = xtermScreen;
+        // Start trying to set up touch scroll
+        setupTouchScroll();
       }
 
       // WebSocket connection
