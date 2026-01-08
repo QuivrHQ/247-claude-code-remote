@@ -101,7 +101,7 @@ pnpm --filter @vibecompany/247-web test -- --coverage
 pnpm --filter @vibecompany/247-agent test -- --watch
 ```
 
-### Test File Structure
+### Test File Structure.
 
 ```
 apps/agent/tests/
