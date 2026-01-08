@@ -286,13 +286,16 @@ export function useTerminalConnection({
             const currentY = e.touches[0].clientY;
             const deltaY = currentY - lastTouchY;
 
-            // deltaY positive = finger moved down = scroll UP (see older content)
-            // deltaY negative = finger moved up = scroll DOWN (see newer content)
-            // scrollLines(positive) scrolls DOWN, so we negate deltaY
-            const scrollAmount = -Math.round(deltaY / 15); // ~15px per line for smoother scroll
+            // Natural scroll behavior (like iOS):
+            // - Swipe UP (finger moves up, deltaY negative) = see OLDER content = scrollLines(negative)
+            // - Swipe DOWN (finger moves down, deltaY positive) = see NEWER content = scrollLines(positive)
+            // scrollLines(positive) scrolls DOWN, scrollLines(negative) scrolls UP
+            // So we use deltaY directly (no negation needed)
+            const scrollAmount = Math.round(deltaY / 15); // ~15px per line for smoother scroll
 
             if (scrollAmount !== 0) {
               currentTermForTouch.scrollLines(scrollAmount);
+              console.log('[Terminal] scrollLines:', scrollAmount);
             }
 
             lastTouchY = currentY;
