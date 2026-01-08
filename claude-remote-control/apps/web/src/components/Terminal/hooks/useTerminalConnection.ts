@@ -294,8 +294,18 @@ export function useTerminalConnection({
             const scrollAmount = Math.round(deltaY / 15); // ~15px per line for smoother scroll
 
             if (scrollAmount !== 0) {
+              const buffer = currentTermForTouch.buffer.active;
+              console.log('[Terminal] BEFORE scroll:', {
+                baseY: buffer.baseY,
+                viewportY: buffer.viewportY,
+                scrollAmount,
+              });
+
               currentTermForTouch.scrollLines(scrollAmount);
-              console.log('[Terminal] scrollLines:', scrollAmount);
+
+              console.log('[Terminal] AFTER scroll:', {
+                viewportY: buffer.viewportY,
+              });
             }
 
             lastTouchY = currentY;

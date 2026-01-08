@@ -1,13 +1,16 @@
 'use client';
 
 import { useState } from 'react';
-import { HomeSidebar, type ViewTab } from '@/components/HomeSidebar';
-import { DashboardContent } from '@/components/DashboardContent';
+import { Zap } from 'lucide-react';
+import { HomeSidebar } from '@/components/HomeSidebar';
 import { SessionView } from '@/components/SessionView';
 import { NewSessionModal } from '@/components/NewSessionModal';
 import { AgentConnectionSettings } from '@/components/AgentConnectionSettings';
-import { MobileSidebarDrawer } from '@/components/MobileSidebarDrawer';
+import { MobileStatusStrip } from '@/components/mobile';
 import { InstallBanner } from '@/components/InstallBanner';
+import { SlideOverPanel } from '@/components/ui/SlideOverPanel';
+import { ConnectionGuide } from '@/components/ConnectionGuide';
+import { EnvironmentsList } from '@/components/EnvironmentsList';
 import { LoadingView } from './LoadingView';
 import { NoConnectionView } from './NoConnectionView';
 import { Header } from './Header';
@@ -17,8 +20,6 @@ import { useViewportHeight } from '@/hooks/useViewportHeight';
 
 export function HomeContent() {
   const isMobile = useIsMobile();
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [viewTab, setViewTab] = useState<ViewTab>('terminal');
 
   // Set CSS variable for viewport height (handles mobile keyboard)
   useViewportHeight();
@@ -30,8 +31,6 @@ export function HomeContent() {
     setConnectionModalOpen,
     newSessionOpen,
     setNewSessionOpen,
-    activeTab,
-    setActiveTab,
     selectedSession,
     setSelectedSession,
     isFullscreen,
@@ -51,6 +50,10 @@ export function HomeContent() {
     clearSessionFromUrl,
   } = useHomeState();
 
+  // Slide-over panel states
+  const [guideOpen, setGuideOpen] = useState(false);
+  const [environmentsOpen, setEnvironmentsOpen] = useState(false);
+
   if (loading) {
     return <LoadingView />;
   }
@@ -65,23 +68,27 @@ export function HomeContent() {
     );
   }
 
-  // Handler for menu button in session view
+  // Handler for menu button in session view (desktop only - goes back to session list)
   const handleMenuClick = () => {
-    if (isMobile) {
-      // On mobile: open sidebar drawer
-      setMobileMenuOpen(true);
-    } else {
-      // On desktop: go back to session list
-      setSelectedSession(null);
-      clearSessionFromUrl();
-    }
+    setSelectedSession(null);
+    clearSessionFromUrl();
   };
 
   // Connected state - Split View Layout
   return (
     <main className="h-screen-safe flex flex-col overflow-hidden bg-[#0a0a10]">
-      {/* Header - hidden when a session is selected (minimalist design) */}
-      {!selectedSession && (
+      {/* Mobile Status Strip - always visible on mobile when connected */}
+      {isMobile && (
+        <MobileStatusStrip
+          sessions={allSessions}
+          currentSession={selectedSession}
+          onSelectSession={handleSelectSession}
+          onNewSession={() => setNewSessionOpen(true)}
+        />
+      )}
+
+      {/* Header - always visible on desktop */}
+      {!isMobile && (
         <Header
           agentUrl={agentConnection.url}
           sessionCount={allSessions.length}
@@ -91,35 +98,11 @@ export function HomeContent() {
           onConnectionSettingsClick={() => setConnectionModalOpen(true)}
           onToggleFullscreen={() => setIsFullscreen((prev) => !prev)}
           onNewSession={() => setNewSessionOpen(true)}
-          isMobile={isMobile}
-          onMobileMenuClick={() => setMobileMenuOpen(true)}
+          onOpenGuide={() => setGuideOpen(true)}
+          onOpenEnvironments={() => setEnvironmentsOpen(true)}
+          isMobile={false}
+          onMobileMenuClick={() => {}}
         />
-      )}
-
-      {/* Mobile Sidebar Drawer */}
-      {isMobile && (
-        <MobileSidebarDrawer
-          isOpen={mobileMenuOpen}
-          onClose={() => setMobileMenuOpen(false)}
-          title={`${allSessions.length} Session${allSessions.length !== 1 ? 's' : ''}`}
-        >
-          <HomeSidebar
-            sessions={allSessions}
-            archivedSessions={getArchivedSessions()}
-            selectedSession={selectedSession}
-            onSelectSession={handleSelectSession}
-            onNewSession={() => {
-              setMobileMenuOpen(false);
-              setNewSessionOpen(true);
-            }}
-            onSessionKilled={handleSessionKilled}
-            onSessionArchived={handleSessionArchived}
-            isMobileDrawer={true}
-            onMobileSessionSelect={() => setMobileMenuOpen(false)}
-            activeTab={viewTab}
-            onTabChange={setViewTab}
-          />
-        </MobileSidebarDrawer>
       )}
 
       {/* Main Split View */}
@@ -131,11 +114,9 @@ export function HomeContent() {
             archivedSessions={getArchivedSessions()}
             selectedSession={selectedSession}
             onSelectSession={handleSelectSession}
-            onNewSession={() => setNewSessionOpen(true)}
+            onDeselectSession={handleMenuClick}
             onSessionKilled={handleSessionKilled}
             onSessionArchived={handleSessionArchived}
-            activeTab={viewTab}
-            onTabChange={setViewTab}
           />
         )}
 
@@ -151,25 +132,18 @@ export function HomeContent() {
               ralphConfig={selectedSession.ralphConfig}
               onMenuClick={handleMenuClick}
               onSessionCreated={handleSessionCreated}
-              activeTab={viewTab}
               isMobile={isMobile}
             />
           ) : (
-            <DashboardContent
-              machines={currentMachine ? [currentMachine] : []}
-              activeTab={activeTab}
-              onTabChange={setActiveTab}
-              onSelectSession={(machineId, sessionName) => {
-                const session = allSessions.find(
-                  (s) => s.machineId === machineId && s.name === sessionName
-                );
-                if (session) {
-                  handleSelectSession(machineId, sessionName, session.project);
-                }
-              }}
-              onNewSession={() => setNewSessionOpen(true)}
-              isMobile={isMobile}
-            />
+            // Empty state when no session selected
+            <div className="flex flex-1 items-center justify-center">
+              <div className="text-center">
+                <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl border border-orange-500/10 bg-orange-500/5">
+                  <Zap className="h-8 w-8 text-orange-500/30" />
+                </div>
+                <p className="text-sm text-white/40">Select a session or create a new one</p>
+              </div>
+            </div>
           )}
         </div>
       </div>
@@ -188,6 +162,20 @@ export function HomeContent() {
         machines={currentMachine ? [currentMachine] : []}
         onStartSession={handleStartSession}
       />
+
+      {/* Guide Slide-Over Panel */}
+      <SlideOverPanel open={guideOpen} onClose={() => setGuideOpen(false)} title="Connection Guide">
+        <ConnectionGuide />
+      </SlideOverPanel>
+
+      {/* Environments Slide-Over Panel */}
+      <SlideOverPanel
+        open={environmentsOpen}
+        onClose={() => setEnvironmentsOpen(false)}
+        title="Environments"
+      >
+        <EnvironmentsList machines={currentMachine ? [currentMachine] : []} />
+      </SlideOverPanel>
 
       {/* PWA Install Banner - only on mobile */}
       {isMobile && <InstallBanner />}

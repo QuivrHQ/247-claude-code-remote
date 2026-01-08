@@ -170,12 +170,12 @@ export function AgentConnectionSettings({
           />
 
           {/* Modal */}
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center sm:p-4">
             <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 10 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 10 }}
-              className="w-full max-w-lg overflow-hidden rounded-2xl border border-white/10 bg-[#0a0a10] shadow-2xl ring-1 ring-white/10"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 20 }}
+              className="flex max-h-[90vh] w-full flex-col overflow-hidden rounded-t-2xl border border-white/10 bg-[#0a0a10] shadow-2xl ring-1 ring-white/10 sm:max-w-lg sm:rounded-2xl"
             >
               {/* Header */}
               <div className="flex items-center justify-between border-b border-white/5 px-6 py-4">
@@ -191,8 +191,8 @@ export function AgentConnectionSettings({
                 </button>
               </div>
 
-              {/* Presets */}
-              <div className="space-y-4 p-6">
+              {/* Presets - scrollable on mobile */}
+              <div className="flex-1 space-y-4 overflow-y-auto p-4 sm:p-6">
                 <div className="grid gap-3">
                   {PRESETS.map((preset) => {
                     const Icon = preset.icon;
@@ -440,13 +440,15 @@ export function AgentConnectionSettings({
                 )}
               </div>
 
-              {/* Footer */}
-              <div className="flex items-center justify-between border-t border-white/5 bg-white/5 px-6 py-4">
-                <p className="text-xs text-white/30">Connection saved locally in your browser</p>
-                <div className="flex gap-3">
+              {/* Footer - safe area for iOS */}
+              <div className="flex shrink-0 flex-col gap-3 border-t border-white/5 bg-white/5 p-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:flex-row sm:items-center sm:justify-between sm:px-6 sm:pb-4">
+                <p className="hidden text-xs text-white/30 sm:block">
+                  Connection saved locally in your browser
+                </p>
+                <div className="flex flex-col-reverse gap-2 sm:flex-row sm:gap-3">
                   <button
                     onClick={() => onOpenChange(false)}
-                    className="rounded-lg px-4 py-2 text-sm font-medium text-white/60 transition-all hover:bg-white/5 hover:text-white"
+                    className="rounded-lg px-4 py-2.5 text-sm font-medium text-white/60 transition-all hover:bg-white/5 hover:text-white sm:py-2"
                   >
                     Cancel
                   </button>
@@ -454,7 +456,7 @@ export function AgentConnectionSettings({
                     onClick={handleSave}
                     disabled={!displayUrl}
                     className={cn(
-                      'flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-all',
+                      'flex items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium transition-all sm:py-2',
                       saved
                         ? 'bg-emerald-500 text-white'
                         : 'bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-lg shadow-orange-500/20 hover:from-orange-400 hover:to-amber-400',

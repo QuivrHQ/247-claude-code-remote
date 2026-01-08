@@ -10,6 +10,8 @@ import {
   Minimize2,
   Zap,
   Menu,
+  HelpCircle,
+  Settings,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { SelectedSession } from './types';
@@ -27,6 +29,10 @@ interface HeaderProps {
   isMobile?: boolean;
   /** Callback to open mobile menu */
   onMobileMenuClick?: () => void;
+  /** Callback to open Guide panel */
+  onOpenGuide?: () => void;
+  /** Callback to open Environments panel */
+  onOpenEnvironments?: () => void;
 }
 
 export function Header({
@@ -40,6 +46,8 @@ export function Header({
   onNewSession,
   isMobile = false,
   onMobileMenuClick,
+  onOpenGuide,
+  onOpenEnvironments,
 }: HeaderProps) {
   if (isFullscreen && selectedSession) {
     return null;
@@ -145,6 +153,28 @@ export function Header({
 
           {/* Actions */}
           <div className="flex items-center gap-2">
+            {/* Guide button - desktop only */}
+            {!isMobile && onOpenGuide && (
+              <button
+                onClick={onOpenGuide}
+                className="rounded-lg p-2 text-white/40 transition-colors hover:bg-white/5 hover:text-white"
+                title="Connection Guide"
+              >
+                <HelpCircle className="h-4 w-4" />
+              </button>
+            )}
+
+            {/* Environments button - desktop only */}
+            {!isMobile && onOpenEnvironments && (
+              <button
+                onClick={onOpenEnvironments}
+                className="rounded-lg p-2 text-white/40 transition-colors hover:bg-white/5 hover:text-white"
+                title="Environments"
+              >
+                <Settings className="h-4 w-4" />
+              </button>
+            )}
+
             <button
               onClick={onConnectionSettingsClick}
               className={cn(

@@ -18,6 +18,4 @@ export interface SelectedSession {
   ralphConfig?: RalphLoopConfig;
 }
 
-export type ViewTab = 'environments' | 'guide';
-
 export const DEFAULT_MACHINE_ID = 'local-agent';

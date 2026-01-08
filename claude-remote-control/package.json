@@ -22,6 +22,9 @@
     "test:unit": "turbo test:unit",
     "test:integration": "turbo test:integration",
     "test:coverage": "turbo test -- --coverage",
+    "test:duplication": "vitest run tests/duplication",
+    "duplication": "jscpd",
+    "duplication:check": "jscpd --exitCode 1",
     "dev:web": "pnpm --filter @vibecompany/247-web dev",
     "dev:agent": "pnpm --filter @vibecompany/247-agent dev",
     "prepare": "echo 'Husky hooks configured at repo root'"
@@ -34,6 +37,7 @@
     "eslint-plugin-react": "^7.37.4",
     "eslint-plugin-react-hooks": "^5.1.0",
     "husky": "^9.1.7",
+    "jscpd": "^4.0.5",
     "lint-staged": "^15.4.3",
     "prettier": "^3.4.2",
     "prettier-plugin-tailwindcss": "^0.6.11",

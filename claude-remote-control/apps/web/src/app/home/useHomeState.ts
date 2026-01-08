@@ -5,7 +5,7 @@ import { useSearchParams, useRouter } from 'next/navigation';
 import { useSessionPolling } from '@/contexts/SessionPollingContext';
 import { loadAgentConnection, saveAgentConnection } from '@/components/AgentConnectionSettings';
 import type { RalphLoopConfig } from '@vibecompany/247-shared';
-import type { LocalMachine, SelectedSession, ViewTab } from './types';
+import type { LocalMachine, SelectedSession } from './types';
 import { DEFAULT_MACHINE_ID } from './types';
 
 export function useHomeState() {
@@ -22,7 +22,6 @@ export function useHomeState() {
   const [loading, setLoading] = useState(true);
   const [connectionModalOpen, setConnectionModalOpen] = useState(false);
   const [newSessionOpen, setNewSessionOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState<ViewTab | null>(null);
   const [selectedSession, setSelectedSession] = useState<SelectedSession | null>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
 
@@ -229,8 +228,6 @@ export function useHomeState() {
     setConnectionModalOpen,
     newSessionOpen,
     setNewSessionOpen,
-    activeTab,
-    setActiveTab,
     selectedSession,
     setSelectedSession,
     isFullscreen,

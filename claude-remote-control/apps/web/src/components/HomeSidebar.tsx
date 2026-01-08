@@ -2,24 +2,10 @@
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import {
-  ChevronLeft,
-  ChevronRight,
-  ChevronDown,
-  Plus,
-  Search,
-  Zap,
-  Keyboard,
-  X,
-  Archive,
-  Download,
-  Share,
-  TerminalSquare,
-  FolderOpen,
-} from 'lucide-react';
+import { ChevronDown, Search, Zap, Keyboard, X, Archive, Download, Share } from 'lucide-react';
 import { toast } from 'sonner';
-import { SessionCard } from './SessionCard';
 import { SessionPreviewPopover } from './SessionPreviewPopover';
+import { ControlPanelHeader, SessionModule } from './desktop';
 import { type SessionWithMachine } from '@/contexts/SessionPollingContext';
 import { type SessionInfo } from '@/lib/notifications';
 import { cn, buildApiUrl } from '@/lib/utils';
@@ -31,24 +17,18 @@ interface SelectedSession {
   project: string;
 }
 
-export type ViewTab = 'terminal' | 'editor';
-
 interface HomeSidebarProps {
   sessions: SessionWithMachine[];
   archivedSessions: SessionWithMachine[];
   selectedSession: SelectedSession | null;
   onSelectSession: (machineId: string, sessionName: string, project: string) => void;
-  onNewSession: () => void;
+  onDeselectSession?: () => void;
   onSessionKilled?: (machineId: string, sessionName: string) => void;
   onSessionArchived?: (machineId: string, sessionName: string) => void;
   /** Whether this is rendered in mobile drawer mode */
   isMobileDrawer?: boolean;
   /** Callback when a session is selected in mobile mode (to close drawer) */
   onMobileSessionSelect?: () => void;
-  /** Active view tab (terminal/editor) - shown when session selected */
-  activeTab?: ViewTab;
-  /** Callback when tab changes */
-  onTabChange?: (tab: ViewTab) => void;
 }
 
 type FilterType = 'all' | 'active' | 'waiting' | 'done';
@@ -58,13 +38,11 @@ export function HomeSidebar({
   archivedSessions,
   selectedSession,
   onSelectSession,
-  onNewSession,
+  onDeselectSession: _onDeselectSession,
   onSessionKilled,
   onSessionArchived,
   isMobileDrawer = false,
   onMobileSessionSelect,
-  activeTab = 'terminal',
-  onTabChange,
 }: HomeSidebarProps) {
   // Don't allow collapse in mobile drawer mode
   const [isCollapsed, setIsCollapsed] = useState(false);
@@ -200,12 +178,6 @@ export function HomeSidebar({
         }
       }
 
-      // Cmd/Ctrl + N for new session
-      if ((e.metaKey || e.ctrlKey) && e.key === 'n') {
-        e.preventDefault();
-        onNewSession();
-      }
-
       // Option + [ and ] to navigate sessions
       if (e.altKey && !e.metaKey && !e.ctrlKey && (e.code === 'BracketLeft' || e.key === '[')) {
         e.preventDefault();
@@ -238,7 +210,7 @@ export function HomeSidebar({
         }
       }
     },
-    [filteredSessions, selectedSession, onSelectSession, onNewSession]
+    [filteredSessions, selectedSession, onSelectSession]
   );
 
   useEffect(() => {
@@ -286,66 +258,15 @@ export function HomeSidebar({
           !isMobileDrawer && 'bg-gradient-to-b from-[#0d0d14] to-[#0a0a10]'
         )}
       >
-        {/* Header - hidden in mobile drawer mode (drawer has its own header) */}
+        {/* Control Panel Header - hidden in mobile drawer mode */}
         {!isMobileDrawer && (
-          <div className="flex items-center justify-between border-b border-white/5 p-3">
-            {!effectiveCollapsed && (
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                className="flex items-center gap-2"
-              >
-                <div className="h-2 w-2 animate-pulse rounded-full bg-emerald-400" />
-                <span className="text-sm font-medium text-white/70">
-                  {sessions.length} session{sessions.length !== 1 ? 's' : ''}
-                </span>
-              </motion.div>
-            )}
-            <button
-              onClick={() => setIsCollapsed(!isCollapsed)}
-              className="rounded-lg p-1.5 text-white/50 transition-colors hover:bg-white/5 hover:text-white/80"
-            >
-              {effectiveCollapsed ? (
-                <ChevronRight className="h-4 w-4" />
-              ) : (
-                <ChevronLeft className="h-4 w-4" />
-              )}
-            </button>
-          </div>
-        )}
-
-        {/* View Tabs - shown when a session is selected */}
-        {selectedSession && !effectiveCollapsed && (
-          <div className="border-b border-white/5 p-2">
-            <div className="flex gap-1 rounded-lg bg-white/5 p-1">
-              <button
-                onClick={() => onTabChange?.('terminal')}
-                className={cn(
-                  'flex flex-1 items-center justify-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-all',
-                  isMobileDrawer && 'min-h-[40px]',
-                  activeTab === 'terminal'
-                    ? 'bg-white/10 text-white'
-                    : 'text-white/50 hover:text-white/70'
-                )}
-              >
-                <TerminalSquare className="h-4 w-4" />
-                <span>Terminal</span>
-              </button>
-              <button
-                onClick={() => onTabChange?.('editor')}
-                className={cn(
-                  'flex flex-1 items-center justify-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-all',
-                  isMobileDrawer && 'min-h-[40px]',
-                  activeTab === 'editor'
-                    ? 'bg-white/10 text-white'
-                    : 'text-white/50 hover:text-white/70'
-                )}
-              >
-                <FolderOpen className="h-4 w-4" />
-                <span>Files</span>
-              </button>
-            </div>
-          </div>
+          <ControlPanelHeader
+            activeSessions={statusCounts.active}
+            waitingSessions={statusCounts.waiting}
+            idleSessions={statusCounts.done}
+            isCollapsed={effectiveCollapsed}
+            onToggleCollapse={() => setIsCollapsed(!isCollapsed)}
+          />
         )}
 
         {/* Search & Filters */}
@@ -399,26 +320,6 @@ export function HomeSidebar({
           )}
         </AnimatePresence>
 
-        {/* New Session Button */}
-        <div className={cn('p-3', effectiveCollapsed && 'px-2')}>
-          <button
-            onClick={onNewSession}
-            className={cn(
-              'flex w-full items-center justify-center gap-2 rounded-lg py-2.5 text-sm font-medium transition-all',
-              'bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-400 hover:to-amber-400',
-              'text-white shadow-lg shadow-orange-500/20 hover:shadow-orange-500/30',
-              'active:scale-[0.98]',
-              // Mobile: larger touch target
-              isMobileDrawer && 'min-h-[48px] text-base',
-              effectiveCollapsed && 'px-0'
-            )}
-            title={effectiveCollapsed ? 'New Session (⌘N)' : undefined}
-          >
-            <Plus className="h-4 w-4" />
-            {!effectiveCollapsed && <span>New Session</span>}
-          </button>
-        </div>
-
         {/* Sessions List */}
         <div
           className={cn(
@@ -438,7 +339,7 @@ export function HomeSidebar({
                 exit={{ opacity: 0, x: -20 }}
                 transition={{ duration: 0.15, delay: index * 0.02 }}
               >
-                <SessionCard
+                <SessionModule
                   session={session as SessionInfo}
                   isActive={session.name === selectedSession?.sessionName}
                   isCollapsed={effectiveCollapsed}
@@ -450,7 +351,6 @@ export function HomeSidebar({
                   onArchive={() => handleArchiveSession(session)}
                   onMouseEnter={(e) => handleSessionHover(session, e)}
                   onMouseLeave={() => handleSessionHover(null)}
-                  isMobile={isMobileDrawer}
                 />
               </motion.div>
             ))}
@@ -623,12 +523,10 @@ export function HomeSidebar({
               </div>
 
               <div className="space-y-4">
-                <ShortcutRow keys={['⌘', 'N']} description="Create new session" />
+                <ShortcutRow keys={['⌘', 'K']} description="New session" />
                 <ShortcutRow keys={['⌥', '1-9']} description="Switch to session 1-9" />
                 <ShortcutRow keys={['⌥', '[']} description="Previous session" />
                 <ShortcutRow keys={['⌥', ']']} description="Next session" />
-                <ShortcutRow keys={['⌥', 'T']} description="Terminal tab" />
-                <ShortcutRow keys={['⌥', 'E']} description="Editor tab" />
                 <ShortcutRow keys={['?']} description="Show this help" />
               </div>
             </motion.div>

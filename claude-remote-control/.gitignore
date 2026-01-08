@@ -28,6 +28,7 @@ Thumbs.db
 
 # Testing
 coverage/
+.jscpd-report/
 
 # Misc
 *.tsbuildinfo

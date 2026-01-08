@@ -1,0 +1,21 @@
+{
+  "threshold": 5,
+  "reporters": ["console", "json"],
+  "ignore": [
+    "**/node_modules/**",
+    "**/dist/**",
+    "**/.next/**",
+    "**/coverage/**",
+    "**/tests/**",
+    "**/*.test.ts",
+    "**/*.d.ts",
+    "**/pnpm-lock.yaml"
+  ],
+  "format": ["typescript", "tsx", "javascript"],
+  "minLines": 6,
+  "minTokens": 50,
+  "absolute": false,
+  "gitignore": true,
+  "path": ["apps/agent/src", "apps/web/src", "packages/shared/src"],
+  "output": ".jscpd-report"
+}
