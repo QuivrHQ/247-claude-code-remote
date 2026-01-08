@@ -112,6 +112,8 @@ export function useTerminalConnection({
     let handlePaste: ((e: ClipboardEvent) => void) | null = null;
     let handleTouchStart: ((e: TouchEvent) => void) | null = null;
     let handleTouchMove: ((e: TouchEvent) => void) | null = null;
+    let handleTouchEnd: (() => void) | null = null;
+    let handleTouchCancel: (() => void) | null = null;
     let termElement: HTMLElement | null = null;
     let touchElement: HTMLElement | null = null;
     let resizeObserver: ResizeObserver | null = null;
@@ -221,32 +223,52 @@ export function useTerminalConnection({
 
       // Touch scroll handler for mobile - xterm.js canvas doesn't support native touch scroll
       // We need to attach to the xterm-screen element which contains the canvas
+      // See: https://github.com/xtermjs/xterm.js/issues/5377
       const xtermScreen = term.element?.querySelector('.xterm-screen') as HTMLElement | null;
       if (isMobile && xtermScreen) {
-        let touchStartY = 0;
-        let touchStartX = 0;
+        let lastTouchY: number | null = null;
         const currentTermForTouch = term; // Capture for closure
 
         handleTouchStart = (e: TouchEvent) => {
-          touchStartY = e.touches[0].clientY;
-          touchStartX = e.touches[0].clientX;
+          if (e.touches.length > 0) {
+            lastTouchY = e.touches[0].clientY;
+          }
         };
 
         handleTouchMove = (e: TouchEvent) => {
-          const deltaY = touchStartY - e.touches[0].clientY;
-          const deltaX = Math.abs(touchStartX - e.touches[0].clientX);
+          if (lastTouchY === null || e.touches.length === 0) return;
 
-          // Only scroll if vertical movement > horizontal (not horizontal swipe)
-          if (Math.abs(deltaY) > deltaX && Math.abs(deltaY) > 10) {
-            e.preventDefault();
-            const lines = Math.round(deltaY / 20); // ~20px per line
-            currentTermForTouch.scrollLines(lines);
-            touchStartY = e.touches[0].clientY;
+          // Always prevent default to stop browser scroll
+          e.preventDefault();
+
+          const currentY = e.touches[0].clientY;
+          const deltaY = currentY - lastTouchY;
+
+          // deltaY positive = finger moved down = scroll UP (see older content)
+          // deltaY negative = finger moved up = scroll DOWN (see newer content)
+          // scrollLines(positive) scrolls DOWN, so we negate deltaY
+          const scrollAmount = -Math.round(deltaY / 15); // ~15px per line for smoother scroll
+
+          if (scrollAmount !== 0) {
+            currentTermForTouch.scrollLines(scrollAmount);
           }
+
+          lastTouchY = currentY;
+        };
+
+        handleTouchEnd = () => {
+          lastTouchY = null;
+        };
+
+        handleTouchCancel = () => {
+          lastTouchY = null;
         };
 
         xtermScreen.addEventListener('touchstart', handleTouchStart, { passive: true });
         xtermScreen.addEventListener('touchmove', handleTouchMove, { passive: false });
+        xtermScreen.addEventListener('touchend', handleTouchEnd);
+        xtermScreen.addEventListener('touchcancel', handleTouchCancel);
+
         // Store reference for cleanup
         touchElement = xtermScreen;
       }
@@ -558,6 +580,12 @@ export function useTerminalConnection({
       }
       if (touchElement && handleTouchMove) {
         touchElement.removeEventListener('touchmove', handleTouchMove);
+      }
+      if (touchElement && handleTouchEnd) {
+        touchElement.removeEventListener('touchend', handleTouchEnd);
+      }
+      if (touchElement && handleTouchCancel) {
+        touchElement.removeEventListener('touchcancel', handleTouchCancel);
       }
       if (resizeObserver) {
         resizeObserver.disconnect();

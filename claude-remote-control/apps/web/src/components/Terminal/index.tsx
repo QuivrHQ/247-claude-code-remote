@@ -116,7 +116,12 @@ export function Terminal({
 
       {/* Terminal container - NO padding! FitAddon reads offsetHeight which includes padding,
           but xterm renders inside padding box, causing dimension mismatch */}
-      <div ref={terminalRef} className="min-h-0 w-full flex-1 overflow-hidden bg-[#0a0a10]" />
+      {/* touch-action: none is CRITICAL for mobile - prevents browser from intercepting touch events */}
+      <div
+        ref={terminalRef}
+        className="min-h-0 w-full flex-1 overflow-hidden bg-[#0a0a10]"
+        style={isMobile ? { touchAction: 'none' } : undefined}
+      />
 
       <ScrollToBottomButton visible={!isAtBottom} onClick={scrollToBottom} />
 
