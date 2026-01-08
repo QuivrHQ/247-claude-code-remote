@@ -1,4 +1,5 @@
 import { readFileSync, writeFileSync } from 'fs';
+import { execSync } from 'child_process';
 
 /**
  * All package.json files that need version updates
@@ -17,9 +18,23 @@ export const PACKAGE_FILES = [
 const CLI_INDEX_PATH = 'packages/cli/src/index.ts';
 
 /**
- * Get current version from root package.json
+ * Get current version from the last git tag (preferred) or root package.json
  */
 export function getCurrentVersion(): string {
+  // Try to get version from last git tag first
+  try {
+    const tag = execSync('git describe --tags --abbrev=0 2>/dev/null', {
+      encoding: 'utf-8',
+    }).trim();
+    if (tag) {
+      // Remove 'v' prefix if present
+      return tag.replace(/^v/, '');
+    }
+  } catch {
+    // No tags found, fall back to package.json
+  }
+
+  // Fallback to package.json
   const rootPkg = JSON.parse(readFileSync('package.json', 'utf-8'));
   return rootPkg.version;
 }
