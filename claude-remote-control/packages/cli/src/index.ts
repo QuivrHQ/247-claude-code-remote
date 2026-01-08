@@ -18,7 +18,7 @@ const program = new Command();
 program
   .name('247')
   .description('247 - Access Claude Code from anywhere 24/7\nby The Vibe Company')
-  .version('0.6.1')
+  .version('0.7.0')
   .option('-P, --profile <name>', 'Use a specific profile (dev, prod, etc.)');
 
 // Add commands
