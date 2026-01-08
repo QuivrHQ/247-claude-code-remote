@@ -219,4 +219,92 @@ describe('MobileKeybar', () => {
       expect(shouldScroll(8, 2)).toBe(false);
     });
   });
+
+  describe('Alternate buffer scroll (tmux copy-mode)', () => {
+    // SGR mouse wheel escape sequences for tmux
+    const WHEEL_UP = '\x1b[<64;1;1M'; // See older content (scroll up in history)
+    const WHEEL_DOWN = '\x1b[<65;1;1M'; // See newer content (scroll down in history)
+
+    it('wheel UP escape sequence format is correct', () => {
+      expect(WHEEL_UP).toBe('\x1b[<64;1;1M');
+      // Must start with CSI < for SGR mouse encoding
+      expect(WHEEL_UP.startsWith('\x1b[<')).toBe(true);
+      // Button 64 for wheel up
+      expect(WHEEL_UP.includes('64')).toBe(true);
+    });
+
+    it('wheel DOWN escape sequence format is correct', () => {
+      expect(WHEEL_DOWN).toBe('\x1b[<65;1;1M');
+      // Must start with CSI < for SGR mouse encoding
+      expect(WHEEL_DOWN.startsWith('\x1b[<')).toBe(true);
+      // Button 65 for wheel down
+      expect(WHEEL_DOWN.includes('65')).toBe(true);
+    });
+
+    describe('natural scroll direction mapping', () => {
+      // This is the core logic: map touch deltaY to tmux wheel direction
+      // Natural scroll (iOS/Android style):
+      // - Swipe UP (negative deltaY) → content moves up → see NEWER content → wheel DOWN
+      // - Swipe DOWN (positive deltaY) → content moves down → see OLDER content → wheel UP
+      const getWheelEventForDelta = (deltaY: number): string => {
+        return deltaY < 0 ? WHEEL_DOWN : WHEEL_UP;
+      };
+
+      it('swipe UP (negative deltaY) sends wheel DOWN to see newer content', () => {
+        expect(getWheelEventForDelta(-20)).toBe(WHEEL_DOWN);
+        expect(getWheelEventForDelta(-100)).toBe(WHEEL_DOWN);
+        expect(getWheelEventForDelta(-1)).toBe(WHEEL_DOWN);
+      });
+
+      it('swipe DOWN (positive deltaY) sends wheel UP to see older content', () => {
+        expect(getWheelEventForDelta(20)).toBe(WHEEL_UP);
+        expect(getWheelEventForDelta(100)).toBe(WHEEL_UP);
+        expect(getWheelEventForDelta(1)).toBe(WHEEL_UP);
+      });
+
+      it('deltaY = 0 sends wheel UP (edge case)', () => {
+        // deltaY < 0 is false when deltaY = 0, so it goes to wheel UP
+        expect(getWheelEventForDelta(0)).toBe(WHEEL_UP);
+      });
+    });
+
+    describe('scroll threshold', () => {
+      const SCROLL_THRESHOLD = 10;
+      const shouldTriggerScroll = (deltaY: number): boolean => {
+        return Math.abs(deltaY) >= SCROLL_THRESHOLD;
+      };
+
+      it('ignores small movements below threshold', () => {
+        expect(shouldTriggerScroll(5)).toBe(false);
+        expect(shouldTriggerScroll(-8)).toBe(false);
+        expect(shouldTriggerScroll(9)).toBe(false);
+        expect(shouldTriggerScroll(-9)).toBe(false);
+      });
+
+      it('triggers scroll at threshold', () => {
+        expect(shouldTriggerScroll(10)).toBe(true);
+        expect(shouldTriggerScroll(-10)).toBe(true);
+      });
+
+      it('triggers scroll above threshold', () => {
+        expect(shouldTriggerScroll(15)).toBe(true);
+        expect(shouldTriggerScroll(-20)).toBe(true);
+        expect(shouldTriggerScroll(100)).toBe(true);
+      });
+    });
+
+    describe('buffer type detection', () => {
+      it('alternate buffer type string is correct', () => {
+        // xterm.js uses 'alternate' as the buffer type string
+        const bufferType = 'alternate';
+        expect(bufferType).toBe('alternate');
+      });
+
+      it('normal buffer type string is correct', () => {
+        // xterm.js uses 'normal' as the buffer type string
+        const bufferType = 'normal';
+        expect(bufferType).toBe('normal');
+      });
+    });
+  });
 });

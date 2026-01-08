@@ -286,54 +286,44 @@ export function useTerminalConnection({
             const currentY = e.touches[0].clientY;
             const deltaY = currentY - lastTouchY;
 
-            // Natural scroll behavior (like iOS):
-            // - Swipe UP (finger moves up, deltaY negative) = see OLDER content
-            // - Swipe DOWN (finger moves down, deltaY positive) = see NEWER content
-            const scrollAmount = Math.round(deltaY / 15); // ~15px per line for smoother scroll
-
-            if (scrollAmount !== 0) {
-              const buffer = currentTermForTouch.buffer.active;
-
-              // Check if we're in alternate buffer (fullscreen apps like Claude Code, vim, etc.)
-              // Alternate buffer has NO scrollback - baseY is always 0
-              // In this case, we send mouse wheel escape sequences to tmux instead
-              const isAlternateBuffer = buffer.type === 'alternate';
-
-              console.log('[Terminal] Touch scroll:', {
-                baseY: buffer.baseY,
-                viewportY: buffer.viewportY,
-                scrollAmount,
-                bufferType: buffer.type,
-                isAlternateBuffer,
-              });
-
-              if (isAlternateBuffer && wsRef.current?.readyState === WebSocket.OPEN) {
-                // Fullscreen app mode: send mouse wheel escape sequences to PTY
-                // tmux with 'mouse on' will intercept these and enter copy-mode
-                // SGR mouse encoding: CSI < button ; x ; y M
-                // Button 64 = scroll up (wheel up), Button 65 = scroll down (wheel down)
-                // Natural scroll: swipe up (deltaY < 0) = see older content = wheel up
-                const wheelEvent =
-                  scrollAmount < 0
-                    ? '\x1b[<64;1;1M' // Wheel up (see older content)
-                    : '\x1b[<65;1;1M'; // Wheel down (see newer content)
-
-                // Send multiple wheel events based on scroll magnitude for smoother scrolling
-                const numEvents = Math.min(Math.abs(scrollAmount), 5); // Cap at 5 to avoid flooding
-                for (let i = 0; i < numEvents; i++) {
-                  wsRef.current.send(JSON.stringify({ type: 'input', data: wheelEvent }));
-                }
-              } else {
-                // Normal buffer: use xterm.js local scroll
-                currentTermForTouch.scrollLines(scrollAmount);
-              }
-
-              console.log('[Terminal] After scroll:', {
-                viewportY: buffer.viewportY,
-              });
+            // Minimum threshold to avoid micro-movements causing jitter
+            if (Math.abs(deltaY) < 10) {
+              return;
             }
 
-            lastTouchY = currentY;
+            const buffer = currentTermForTouch.buffer.active;
+
+            // Check if we're in alternate buffer (fullscreen apps like Claude Code, vim, etc.)
+            // Alternate buffer has NO scrollback - baseY is always 0
+            // In this case, we send mouse wheel escape sequences to tmux instead
+            const isAlternateBuffer = buffer.type === 'alternate';
+
+            if (isAlternateBuffer && wsRef.current?.readyState === WebSocket.OPEN) {
+              // Fullscreen app mode: send mouse wheel escape sequences to PTY
+              // tmux with 'mouse on' will intercept these and enter copy-mode
+              // SGR mouse encoding: CSI < button ; x ; y M
+              // Button 64 = wheel UP (see older), Button 65 = wheel DOWN (see newer)
+              //
+              // Natural scroll (iOS/Android style):
+              // - Swipe UP (deltaY < 0) → content moves up → see NEWER content → wheel DOWN (65)
+              // - Swipe DOWN (deltaY > 0) → content moves down → see OLDER content → wheel UP (64)
+              const wheelEvent =
+                deltaY < 0
+                  ? '\x1b[<65;1;1M' // Wheel DOWN (swipe up = see newer)
+                  : '\x1b[<64;1;1M'; // Wheel UP (swipe down = see older)
+
+              // Send ONE event per touchmove for smooth scrolling
+              // (touchmove fires frequently, no need to multiply events)
+              wsRef.current.send(JSON.stringify({ type: 'input', data: wheelEvent }));
+              lastTouchY = currentY;
+            } else if (!isAlternateBuffer) {
+              // Normal buffer: use xterm.js local scroll
+              const scrollAmount = Math.round(deltaY / 15);
+              if (scrollAmount !== 0) {
+                currentTermForTouch.scrollLines(scrollAmount);
+                lastTouchY = currentY;
+              }
+            }
           };
 
           handleTouchEnd = () => {

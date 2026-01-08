@@ -216,3 +216,45 @@ if (config.completionPromise && config.completionPromise.trim()) {
   args.push(`--completion-promise ${config.completionPromise.trim()}`);
 }
 ```
+
+## Mobile Touch Scroll in tmux
+
+### Alternate Buffer Detection
+
+Les apps fullscreen (Claude Code, vim, htop) utilisent le **alternate screen buffer** qui n'a PAS de scrollback.
+Dans ce cas, `term.scrollLines()` ne fait rien car `baseY` est toujours 0.
+
+**Solution**: Détecter le buffer alternatif et envoyer des escape sequences mouse wheel à tmux:
+
+```typescript
+const isAlternateBuffer = term.buffer.active.type === 'alternate';
+
+if (isAlternateBuffer) {
+  // Envoyer wheel events au PTY - tmux intercepte et entre en copy-mode
+  // SGR mouse encoding: CSI < button ; x ; y M
+  // Button 64 = wheel UP (voir ancien), Button 65 = wheel DOWN (voir récent)
+  const wheelUp = '\x1b[<64;1;1M';
+  const wheelDown = '\x1b[<65;1;1M';
+}
+```
+
+### Natural Scroll Direction (IMPORTANT)
+
+Mobile utilise le "natural scroll" (style iOS/Android):
+- **Swipe UP** (doigt monte, deltaY < 0) → contenu monte → voir contenu **RÉCENT** → envoyer wheel DOWN (65)
+- **Swipe DOWN** (doigt descend, deltaY > 0) → contenu descend → voir contenu **ANCIEN** → envoyer wheel UP (64)
+
+**Ne pas confondre**: La direction du swipe est OPPOSÉE à la direction du wheel event!
+
+```typescript
+// Natural scroll mapping
+const wheelEvent = deltaY < 0
+  ? '\x1b[<65;1;1M'  // Swipe UP → wheel DOWN (see newer)
+  : '\x1b[<64;1;1M'; // Swipe DOWN → wheel UP (see older)
+```
+
+### Performance Tips
+
+- Envoyer UN SEUL événement par touchmove (pas de boucle)
+- Seuil minimum de 10px pour éviter les micro-mouvements
+- `touchmove` est déjà appelé fréquemment par le navigateur
