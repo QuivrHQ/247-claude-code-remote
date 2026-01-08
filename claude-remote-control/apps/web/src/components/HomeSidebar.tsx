@@ -474,16 +474,21 @@ export function HomeSidebar({
           </div>
         )}
 
-        {/* Keyboard shortcut hint - hidden on mobile */}
+        {/* Keyboard shortcut hint + version - hidden on mobile */}
         {!effectiveCollapsed && !isMobileDrawer && (
           <div className="border-t border-white/5 p-3">
-            <button
-              onClick={() => setShowShortcuts(true)}
-              className="flex items-center gap-2 text-xs text-white/30 transition-colors hover:text-white/50"
-            >
-              <Keyboard className="h-3.5 w-3.5" />
-              <span>Press ? for shortcuts</span>
-            </button>
+            <div className="flex items-center justify-between">
+              <button
+                onClick={() => setShowShortcuts(true)}
+                className="flex items-center gap-2 text-xs text-white/30 transition-colors hover:text-white/50"
+              >
+                <Keyboard className="h-3.5 w-3.5" />
+                <span>Press ? for shortcuts</span>
+              </button>
+              <span className="text-[10px] text-white/20">
+                v{process.env.NEXT_PUBLIC_APP_VERSION}
+              </span>
+            </div>
           </div>
         )}
       </motion.aside>
