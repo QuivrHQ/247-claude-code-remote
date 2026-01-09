@@ -42,8 +42,14 @@ export function startHeartbeatMonitor(): void {
       const timeSinceLastBeat = now - lastBeat;
       const status = tmuxSessionStatus.get(sessionName);
 
-      // Only transition if currently "working" and timeout exceeded
-      if (timeSinceLastBeat > HEARTBEAT_TIMEOUT_MS && status?.status === 'working') {
+      // Only transition if currently "working", timeout exceeded, AND session has never been working
+      // This prevents false idle states during long operations (file reads, agent calls)
+      // Once a session has received a heartbeat (hasBeenWorking=true), it should never go back to idle
+      if (
+        timeSinceLastBeat > HEARTBEAT_TIMEOUT_MS &&
+        status?.status === 'working' &&
+        !status?.hasBeenWorking
+      ) {
         const newStatus = {
           ...status,
           status: 'idle' as const,

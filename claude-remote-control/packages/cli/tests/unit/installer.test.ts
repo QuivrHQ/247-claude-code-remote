@@ -24,6 +24,11 @@ vi.mock('../../src/lib/paths.js', () => ({
   ensureDirectories: vi.fn(),
 }));
 
+// Mock os module
+vi.mock('os', () => ({
+  homedir: () => '/mock/home',
+}));
+
 // Mock fs module
 vi.mock('fs', () => ({
   existsSync: vi.fn(),
@@ -32,6 +37,7 @@ vi.mock('fs', () => ({
   symlinkSync: vi.fn(),
   unlinkSync: vi.fn(),
   readFileSync: vi.fn(),
+  writeFileSync: vi.fn(),
   readdirSync: vi.fn(),
   lstatSync: vi.fn(),
   rmSync: vi.fn(),
@@ -44,22 +50,25 @@ describe('CLI Hooks Installer', () => {
   });
 
   describe('getHooksStatus', () => {
-    it('returns not installed if plugin.json missing', async () => {
-      const { existsSync } = await import('fs');
+    it('returns not installed if plugin.json missing and no settings hooks', async () => {
+      const { existsSync, readFileSync } = await import('fs');
       vi.mocked(existsSync).mockReturnValue(false);
+      vi.mocked(readFileSync).mockReturnValue('{}');
 
       const { getHooksStatus } = await import('../../src/hooks/installer.js');
       const status = getHooksStatus();
 
       expect(status.installed).toBe(false);
       expect(status.path).toBe('/mock/.claude-plugins/247-hooks');
+      expect(status.settingsHooksFound).toBe(false);
     });
 
-    it('returns installed status', async () => {
-      const { existsSync, lstatSync } = await import('fs');
+    it('returns installed if plugin directory exists', async () => {
+      const { existsSync, lstatSync, readFileSync } = await import('fs');
 
       vi.mocked(existsSync).mockReturnValue(true);
       vi.mocked(lstatSync).mockReturnValue({ isSymbolicLink: () => false } as any);
+      vi.mocked(readFileSync).mockReturnValue('{}');
 
       const { getHooksStatus } = await import('../../src/hooks/installer.js');
       const status = getHooksStatus();
@@ -68,11 +77,36 @@ describe('CLI Hooks Installer', () => {
       expect(status.isSymlink).toBe(false);
     });
 
+    it('returns installed if settings.json has old hooks', async () => {
+      const { existsSync, readFileSync } = await import('fs');
+
+      vi.mocked(existsSync).mockImplementation((path: any) => {
+        // Plugin dir doesn't exist, but settings.json does
+        if (path.includes('247-hooks')) return false;
+        if (path.includes('settings.json')) return true;
+        return false;
+      });
+      vi.mocked(readFileSync).mockReturnValue(
+        JSON.stringify({
+          hooks: {
+            Stop: [{ hooks: [{ command: 'bash /some/path/notify-status.sh' }] }],
+          },
+        })
+      );
+
+      const { getHooksStatus } = await import('../../src/hooks/installer.js');
+      const status = getHooksStatus();
+
+      expect(status.installed).toBe(true);
+      expect(status.settingsHooksFound).toBe(true);
+    });
+
     it('detects symlink installation', async () => {
-      const { existsSync, lstatSync } = await import('fs');
+      const { existsSync, lstatSync, readFileSync } = await import('fs');
 
       vi.mocked(existsSync).mockReturnValue(true);
       vi.mocked(lstatSync).mockReturnValue({ isSymbolicLink: () => true } as any);
+      vi.mocked(readFileSync).mockReturnValue('{}');
 
       const { getHooksStatus } = await import('../../src/hooks/installer.js');
       const status = getHooksStatus();
@@ -83,8 +117,9 @@ describe('CLI Hooks Installer', () => {
 
   describe('uninstallHooks', () => {
     it('returns success if already uninstalled', async () => {
-      const { existsSync } = await import('fs');
+      const { existsSync, readFileSync } = await import('fs');
       vi.mocked(existsSync).mockReturnValue(false);
+      vi.mocked(readFileSync).mockReturnValue('{}');
 
       const { uninstallHooks } = await import('../../src/hooks/installer.js');
       const result = uninstallHooks();
@@ -93,10 +128,15 @@ describe('CLI Hooks Installer', () => {
     });
 
     it('removes symlink installation', async () => {
-      const { existsSync, lstatSync, unlinkSync } = await import('fs');
+      const { existsSync, lstatSync, unlinkSync, readFileSync } = await import('fs');
 
-      vi.mocked(existsSync).mockReturnValue(true);
+      vi.mocked(existsSync).mockImplementation((path: any) => {
+        if (path.includes('247-hooks')) return true;
+        if (path.includes('settings.json')) return true;
+        return false;
+      });
       vi.mocked(lstatSync).mockReturnValue({ isSymbolicLink: () => true } as any);
+      vi.mocked(readFileSync).mockReturnValue('{}'); // No old hooks in settings
 
       const { uninstallHooks } = await import('../../src/hooks/installer.js');
       const result = uninstallHooks();
@@ -106,10 +146,15 @@ describe('CLI Hooks Installer', () => {
     });
 
     it('removes directory installation', async () => {
-      const { existsSync, lstatSync, rmSync } = await import('fs');
+      const { existsSync, lstatSync, rmSync, readFileSync } = await import('fs');
 
-      vi.mocked(existsSync).mockReturnValue(true);
+      vi.mocked(existsSync).mockImplementation((path: any) => {
+        if (path.includes('247-hooks')) return true;
+        if (path.includes('settings.json')) return true;
+        return false;
+      });
       vi.mocked(lstatSync).mockReturnValue({ isSymbolicLink: () => false } as any);
+      vi.mocked(readFileSync).mockReturnValue('{}'); // No old hooks in settings
 
       const { uninstallHooks } = await import('../../src/hooks/installer.js');
       const result = uninstallHooks();
@@ -121,20 +166,55 @@ describe('CLI Hooks Installer', () => {
       });
     });
 
-    it('returns error on failure', async () => {
-      const { existsSync, lstatSync, rmSync } = await import('fs');
+    it('removes old hooks from settings.json', async () => {
+      const { existsSync, readFileSync, writeFileSync } = await import('fs');
 
-      vi.mocked(existsSync).mockReturnValue(true);
+      const oldSettings = {
+        statusLine: { type: 'command', command: 'bash ~/.247/statusline.sh' },
+        hooks: {
+          Stop: [{ hooks: [{ command: 'bash /path/notify-status.sh' }] }],
+        },
+      };
+
+      vi.mocked(existsSync).mockImplementation((path: any) => {
+        if (path.includes('247-hooks')) return false; // No plugin dir
+        if (path.includes('settings.json')) return true;
+        return false;
+      });
+      vi.mocked(readFileSync).mockReturnValue(JSON.stringify(oldSettings));
+
+      const { uninstallHooks } = await import('../../src/hooks/installer.js');
+      const result = uninstallHooks();
+
+      expect(result.success).toBe(true);
+      expect(writeFileSync).toHaveBeenCalled();
+
+      // Check that hooks were removed but statusLine was kept
+      const writtenContent = vi.mocked(writeFileSync).mock.calls[0][1] as string;
+      const parsed = JSON.parse(writtenContent);
+      expect(parsed.hooks).toBeUndefined();
+      expect(parsed.statusLine).toBeDefined();
+    });
+
+    it('returns error on plugin dir removal failure', async () => {
+      const { existsSync, lstatSync, rmSync, readFileSync } = await import('fs');
+
+      vi.mocked(existsSync).mockImplementation((path: any) => {
+        if (path.includes('247-hooks')) return true;
+        if (path.includes('settings.json')) return true;
+        return false;
+      });
       vi.mocked(lstatSync).mockReturnValue({ isSymbolicLink: () => false } as any);
       vi.mocked(rmSync).mockImplementation(() => {
         throw new Error('Permission denied');
       });
+      vi.mocked(readFileSync).mockReturnValue('{}');
 
       const { uninstallHooks } = await import('../../src/hooks/installer.js');
       const result = uninstallHooks();
 
       expect(result.success).toBe(false);
-      expect(result.error).toBe('Permission denied');
+      expect(result.error).toContain('Permission denied');
     });
   });
 });

@@ -43,9 +43,14 @@ hooksCommand
 
       if (result.success) {
         spinner.succeed('Old hooks removed successfully');
-        console.log(chalk.dim(`\nRemoved: ${status.path}`));
+        if (status.settingsHooksFound) {
+          console.log(chalk.dim('\nCleaned: ~/.claude/settings.json (removed deprecated hooks)'));
+        }
+        if (status.path) {
+          console.log(chalk.dim(`Cleaned: ${status.path}`));
+        }
         console.log(
-          chalk.dim('The new statusLine system is automatically configured by the agent.\n')
+          chalk.dim('\nThe new statusLine system is automatically configured by the agent.\n')
         );
       } else {
         spinner.fail(`Failed to remove hooks: ${result.error}`);
@@ -69,7 +74,12 @@ hooksCommand
     const status = getHooksStatus();
     if (status.installed) {
       console.log(chalk.yellow('⚠️  Old hooks still installed'));
-      console.log(chalk.dim(`  Path: ${status.path}`));
+      if (status.settingsHooksFound) {
+        console.log(chalk.dim('  Found in: ~/.claude/settings.json'));
+      }
+      if (status.path) {
+        console.log(chalk.dim(`  Found in: ${status.path}`));
+      }
       console.log(chalk.dim('  Run "247 hooks uninstall" to clean up.\n'));
     } else {
       console.log(chalk.green('✓ No old hooks installed\n'));

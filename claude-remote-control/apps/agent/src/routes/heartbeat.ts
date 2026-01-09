@@ -97,6 +97,7 @@ router.post('/', (req, res) => {
 
   const hookData: HookStatus = {
     status: 'working',
+    hasBeenWorking: true, // Mark session as having worked - prevents idle regression
     lastEvent: 'Heartbeat',
     lastActivity: now,
     lastStatusChange: statusChanged ? now : existing?.lastStatusChange || now,

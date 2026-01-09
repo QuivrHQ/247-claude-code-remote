@@ -11,6 +11,9 @@ const CLAUDE_SETTINGS_PATH = join(homedir(), '.claude', 'settings.json');
 const STATUSLINE_DIR = join(homedir(), '.247');
 const STATUSLINE_SCRIPT_PATH = join(STATUSLINE_DIR, 'statusline.sh');
 
+// Pattern to detect old 247 hooks that need cleanup
+const OLD_HOOK_PATTERN = /notify-status\.sh|packages\/hooks/;
+
 /**
  * Ensure statusLine is configured for 247 integration.
  * Called at agent startup.
@@ -58,8 +61,24 @@ exit 0
 }
 
 /**
+ * Remove old 247 hooks from settings.json.
+ * These hooks used the deprecated notify-status.sh script.
+ */
+function cleanupOldHooks(settings: Record<string, unknown>): boolean {
+  if (!settings.hooks) return false;
+
+  const hooksJson = JSON.stringify(settings.hooks);
+  if (!OLD_HOOK_PATTERN.test(hooksJson)) return false;
+
+  // Remove the old hooks
+  delete settings.hooks;
+  console.log('[Setup] Removed deprecated hooks from settings.json');
+  return true;
+}
+
+/**
  * Configure Claude settings.json to use our statusLine script.
- * Respects existing custom configurations.
+ * Also cleans up deprecated hooks if found.
  */
 function ensureClaudeSettings(): void {
   const claudeDir = join(homedir(), '.claude');
@@ -79,17 +98,26 @@ function ensureClaudeSettings(): void {
     }
   }
 
+  // Clean up old hooks if present
+  const hooksRemoved = cleanupOldHooks(settings);
+
   const expectedCommand = `bash ${STATUSLINE_SCRIPT_PATH}`;
 
   // Check if already configured correctly
   const currentStatusLine = settings.statusLine as { command?: string } | undefined;
-  if (currentStatusLine?.command === expectedCommand) {
+  const statusLineConfigured = currentStatusLine?.command === expectedCommand;
+
+  if (statusLineConfigured && !hooksRemoved) {
     console.log('[Setup] StatusLine already configured');
     return;
   }
 
   // Don't overwrite if user has a custom statusLine that's not ours
   if (currentStatusLine?.command && !currentStatusLine.command.includes('.247/statusline.sh')) {
+    // Still save if we removed hooks
+    if (hooksRemoved) {
+      writeFileSync(CLAUDE_SETTINGS_PATH, JSON.stringify(settings, null, 2));
+    }
     console.log('[Setup] User has custom statusLine, skipping configuration');
     return;
   }

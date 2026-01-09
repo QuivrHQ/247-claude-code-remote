@@ -18,6 +18,7 @@ import * as historyDb from './db/history.js';
 // Store session status from Claude Code statusLine/hooks
 export interface HookStatus {
   status: SessionStatus;
+  hasBeenWorking?: boolean; // Track if session has ever been working - prevents idle regression
   attentionReason?: AttentionReason;
   lastEvent: string;
   lastActivity: number;
