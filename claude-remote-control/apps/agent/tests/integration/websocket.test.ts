@@ -89,6 +89,50 @@ vi.mock('../../src/db/history.js', () => ({
   cleanupOldHistory: vi.fn().mockReturnValue(0),
 }));
 
+// Mock tasks database
+vi.mock('../../src/db/tasks.js', () => ({
+  createTask: vi.fn(),
+  getTask: vi.fn().mockReturnValue(null),
+  getAllTasks: vi.fn().mockReturnValue([]),
+  getTasksByStatus: vi.fn().mockReturnValue([]),
+  getNextRunnableTask: vi.fn().mockReturnValue(null),
+  updateTaskStatus: vi.fn(),
+  deleteTask: vi.fn().mockReturnValue(true),
+  getDependentTasks: vi.fn().mockReturnValue([]),
+  propagateSkip: vi.fn().mockReturnValue([]),
+  incrementTaskRetry: vi.fn().mockReturnValue(1),
+  linkTaskToSession: vi.fn(),
+  pauseAllTasks: vi.fn().mockReturnValue(0),
+  resumeAllTasks: vi.fn().mockReturnValue(0),
+  createTaskBatch: vi.fn().mockReturnValue([]),
+  createTemplate: vi.fn(),
+  getTemplate: vi.fn().mockReturnValue(null),
+  getAllTemplates: vi.fn().mockReturnValue([]),
+  deleteTemplate: vi.fn().mockReturnValue(true),
+  instantiateTemplate: vi.fn().mockReturnValue([]),
+  getTaskHistory: vi.fn().mockReturnValue([]),
+  getReadyTasks: vi.fn().mockReturnValue([]),
+  reorderTask: vi.fn().mockReturnValue(true),
+}));
+
+// Mock task queue service
+vi.mock('../../src/services/task-queue.js', () => ({
+  startTaskQueueExecutor: vi.fn(),
+  stopTaskQueueExecutor: vi.fn(),
+  retryTask: vi.fn().mockReturnValue(null),
+  skipTask: vi.fn().mockReturnValue([]),
+  stopAllTasks: vi.fn(),
+  resumeQueue: vi.fn(),
+  pauseQueue: vi.fn(),
+  unpauseQueue: vi.fn(),
+  isQueuePausedState: vi.fn().mockReturnValue(false),
+  getFailedTaskAwaitingDecision: vi.fn().mockReturnValue(null),
+  broadcastTaskList: vi.fn(),
+  notifyTaskCreated: vi.fn(),
+  notifyTaskUpdated: vi.fn(),
+  notifyTaskRemoved: vi.fn(),
+}));
+
 // Create shared mock terminal
 let mockTerminal: any;
 const createMockTerminal = () => {

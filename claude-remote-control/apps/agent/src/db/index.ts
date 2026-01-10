@@ -103,6 +103,9 @@ function runMigrations(database: Database.Database): void {
     if (currentVersion < 6) {
       migrateToV6(database);
     }
+    if (currentVersion < 7) {
+      migrateToV7(database);
+    }
 
     // Record the new version
     database
@@ -291,6 +294,86 @@ function migrateToV6(database: Database.Database): void {
       console.log(`[DB] v6 migration: Adding ${col.name} column to sessions`);
       database.exec(col.sql);
     }
+  }
+}
+
+/**
+ * Migration to v7: Add task queue tables
+ */
+function migrateToV7(database: Database.Database): void {
+  // Check if tasks table exists
+  const tasksExists = database
+    .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='tasks'")
+    .get();
+
+  if (!tasksExists) {
+    console.log('[DB] v7 migration: Creating tasks table');
+    database.exec(`
+      CREATE TABLE IF NOT EXISTS tasks (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        prompt TEXT NOT NULL,
+        project TEXT NOT NULL,
+        mode TEXT NOT NULL DEFAULT 'interactive',
+        status TEXT NOT NULL DEFAULT 'pending',
+        position INTEGER NOT NULL,
+        depends_on TEXT NOT NULL DEFAULT '[]',
+        session_name TEXT,
+        use_worktree INTEGER NOT NULL DEFAULT 0,
+        environment_id TEXT,
+        error TEXT,
+        retry_count INTEGER NOT NULL DEFAULT 0,
+        created_at INTEGER NOT NULL,
+        started_at INTEGER,
+        completed_at INTEGER
+      );
+      CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status);
+      CREATE INDEX IF NOT EXISTS idx_tasks_position ON tasks(position);
+      CREATE INDEX IF NOT EXISTS idx_tasks_project ON tasks(project);
+      CREATE INDEX IF NOT EXISTS idx_tasks_session ON tasks(session_name);
+    `);
+  }
+
+  // Check if task_templates table exists
+  const templatesExists = database
+    .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='task_templates'")
+    .get();
+
+  if (!templatesExists) {
+    console.log('[DB] v7 migration: Creating task_templates table');
+    database.exec(`
+      CREATE TABLE IF NOT EXISTS task_templates (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL UNIQUE,
+        description TEXT,
+        steps TEXT NOT NULL,
+        variables TEXT,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_templates_name ON task_templates(name);
+    `);
+  }
+
+  // Check if task_history table exists
+  const historyExists = database
+    .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='task_history'")
+    .get();
+
+  if (!historyExists) {
+    console.log('[DB] v7 migration: Creating task_history table');
+    database.exec(`
+      CREATE TABLE IF NOT EXISTS task_history (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        task_id TEXT NOT NULL,
+        status TEXT NOT NULL,
+        event TEXT NOT NULL,
+        details TEXT,
+        timestamp INTEGER NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_task_history_task ON task_history(task_id);
+      CREATE INDEX IF NOT EXISTS idx_task_history_timestamp ON task_history(timestamp);
+    `);
   }
 }
 

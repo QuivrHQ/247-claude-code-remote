@@ -39,8 +39,42 @@ vi.mock('../../src/db/schema.js', () => ({
       created_at INTEGER NOT NULL,
       updated_at INTEGER NOT NULL
     );
+    CREATE TABLE IF NOT EXISTS tasks (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      prompt TEXT NOT NULL,
+      project TEXT NOT NULL,
+      mode TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'pending',
+      depends_on TEXT DEFAULT '[]',
+      session_name TEXT,
+      error TEXT,
+      retry_count INTEGER DEFAULT 0,
+      position INTEGER NOT NULL DEFAULT 0,
+      use_worktree INTEGER DEFAULT 0,
+      worktree_path TEXT,
+      branch_name TEXT,
+      created_at INTEGER NOT NULL,
+      started_at INTEGER,
+      completed_at INTEGER
+    );
+    CREATE TABLE IF NOT EXISTS task_templates (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      description TEXT,
+      steps TEXT NOT NULL,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS task_history (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      task_id TEXT NOT NULL,
+      old_status TEXT,
+      new_status TEXT NOT NULL,
+      timestamp INTEGER NOT NULL
+    );
   `,
-  SCHEMA_VERSION: 3,
+  SCHEMA_VERSION: 7,
   RETENTION_CONFIG: {
     activeSessionMaxAge: 24 * 60 * 60 * 1000,
     archivedSessionMaxAge: 30 * 24 * 60 * 60 * 1000,
@@ -119,7 +153,7 @@ describe('Database Index', () => {
         .prepare('SELECT version FROM schema_version ORDER BY version DESC LIMIT 1')
         .get() as { version: number };
 
-      expect(version.version).toBe(3);
+      expect(version.version).toBe(7);
     });
   });
 

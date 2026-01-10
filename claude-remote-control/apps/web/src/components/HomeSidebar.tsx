@@ -7,6 +7,7 @@ import { toast } from 'sonner';
 import { SessionPreviewPopover } from './SessionPreviewPopover';
 import { ControlPanelHeader, SessionModule } from './desktop';
 import { CreatePRModal } from './CreatePRModal';
+import { TaskQueuePanel, TaskCreator, FailureDialog, useTaskQueue } from './TaskQueue';
 import { type SessionWithMachine } from '@/contexts/SessionPollingContext';
 import { type SessionInfo } from '@/lib/notifications';
 import { cn, buildApiUrl } from '@/lib/utils';
@@ -59,6 +60,31 @@ export function HomeSidebar({
   const [historyCollapsed, setHistoryCollapsed] = useState(true);
   const [prModalOpen, setPrModalOpen] = useState(false);
   const [prModalSession, setPrModalSession] = useState<SessionWithMachine | null>(null);
+  const [taskCreatorOpen, setTaskCreatorOpen] = useState(false);
+
+  // Get the first agent URL from sessions for task queue
+  const agentUrl = sessions[0]?.agentUrl || null;
+
+  // Task queue hook
+  const taskQueue = useTaskQueue(agentUrl);
+
+  // Get unique projects from sessions
+  const projects = useMemo(() => {
+    const projectSet = new Set(sessions.map((s) => s.project));
+    return Array.from(projectSet);
+  }, [sessions]);
+
+  // Get failed task for dialog
+  const failedTask = useMemo(() => {
+    if (!taskQueue.awaitingDecision) return null;
+    return taskQueue.tasks.find((t) => t.id === taskQueue.awaitingDecision) || null;
+  }, [taskQueue.awaitingDecision, taskQueue.tasks]);
+
+  // Get dependent tasks for failed task
+  const dependentTasks = useMemo(() => {
+    if (!failedTask) return [];
+    return taskQueue.tasks.filter((t) => t.dependsOn.includes(failedTask.id));
+  }, [failedTask, taskQueue.tasks]);
 
   // Kill session handler
   const handleKillSession = useCallback(
@@ -349,6 +375,21 @@ export function HomeSidebar({
           )}
         </AnimatePresence>
 
+        {/* Task Queue Panel */}
+        {agentUrl && (
+          <TaskQueuePanel
+            taskQueue={taskQueue}
+            onOpenCreator={() => setTaskCreatorOpen(true)}
+            onViewSession={(sessionName) => {
+              const session = sessions.find((s) => s.name === sessionName);
+              if (session) {
+                handleSessionSelect(session.machineId, session.name, session.project);
+              }
+            }}
+            isCollapsed={effectiveCollapsed}
+          />
+        )}
+
         {/* Sessions List */}
         <div
           className={cn(
@@ -576,6 +617,36 @@ export function HomeSidebar({
         onOpenChange={setPrModalOpen}
         session={prModalSession as SessionInfo | null}
         agentUrl={prModalSession?.agentUrl || ''}
+      />
+
+      {/* Task Creator Modal */}
+      <TaskCreator
+        isOpen={taskCreatorOpen}
+        onClose={() => setTaskCreatorOpen(false)}
+        onCreateTask={taskQueue.createTask}
+        onCreateBatch={taskQueue.createTaskBatch}
+        projects={projects}
+        defaultProject={sessions[0]?.project}
+      />
+
+      {/* Task Failure Dialog */}
+      <FailureDialog
+        isOpen={!!taskQueue.awaitingDecision}
+        failedTask={failedTask}
+        dependentTasks={dependentTasks}
+        onRetry={() => {
+          if (taskQueue.awaitingDecision) {
+            taskQueue.retryTask(taskQueue.awaitingDecision);
+          }
+        }}
+        onSkip={() => {
+          if (taskQueue.awaitingDecision) {
+            taskQueue.skipTask(taskQueue.awaitingDecision);
+          }
+        }}
+        onStopAll={() => {
+          taskQueue.stopAll();
+        }}
       />
     </>
   );

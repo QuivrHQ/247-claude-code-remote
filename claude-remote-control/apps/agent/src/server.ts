@@ -25,10 +25,14 @@ import {
   createStopRoutes,
   createEditorRoutes,
   createFilesRoutes,
+  createTaskRoutes,
   isProjectAllowed,
   updateEditorActivity,
   getOrStartEditor,
 } from './routes/index.js';
+
+// Task queue executor
+import { startTaskQueueExecutor, stopTaskQueueExecutor } from './services/task-queue.js';
 
 // StatusLine setup and heartbeat monitor
 import { ensureStatusLineConfigured } from './setup-statusline.js';
@@ -92,6 +96,10 @@ export async function createServer() {
   app.use('/api/stop', createStopRoutes());
   app.use('/api/editor', createEditorRoutes());
   app.use('/api/files', createFilesRoutes());
+  app.use('/api/tasks', createTaskRoutes());
+
+  // Start task queue executor
+  startTaskQueueExecutor();
 
   // Editor proxy middleware
   app.use('/editor/:project', async (req, res) => {
@@ -165,6 +173,7 @@ export async function createServer() {
   const shutdown = () => {
     console.log('[Server] Shutting down...');
     stopHeartbeatMonitor();
+    stopTaskQueueExecutor();
     shutdownAllEditors();
     closeDatabase();
     server.close();

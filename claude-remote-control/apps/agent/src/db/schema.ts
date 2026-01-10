@@ -1,4 +1,10 @@
-import type { SessionStatus, AttentionReason, EnvironmentProvider } from '247-shared';
+import type {
+  SessionStatus,
+  AttentionReason,
+  EnvironmentProvider,
+  TaskExecutionMode,
+  TaskStatus,
+} from '247-shared';
 
 // ============================================================================
 // Database Row Types
@@ -63,6 +69,45 @@ export interface DbSchemaVersion {
   applied_at: number;
 }
 
+// Task queue types (v7)
+export interface DbTask {
+  id: string;
+  name: string;
+  prompt: string;
+  project: string;
+  mode: TaskExecutionMode;
+  status: TaskStatus;
+  position: number;
+  depends_on: string; // JSON array of task IDs
+  session_name: string | null;
+  use_worktree: number; // SQLite boolean
+  environment_id: string | null;
+  error: string | null;
+  retry_count: number;
+  created_at: number;
+  started_at: number | null;
+  completed_at: number | null;
+}
+
+export interface DbTaskTemplate {
+  id: string;
+  name: string;
+  description: string | null;
+  steps: string; // JSON array of TaskTemplateStep
+  variables: string | null; // JSON array of variable definitions
+  created_at: number;
+  updated_at: number;
+}
+
+export interface DbTaskHistory {
+  id: number;
+  task_id: string;
+  status: TaskStatus;
+  event: string; // 'created', 'started', 'completed', 'failed', 'retried', 'skipped'
+  details: string | null; // JSON
+  timestamp: number;
+}
+
 // ============================================================================
 // Input Types for Operations
 // ============================================================================
@@ -103,7 +148,7 @@ export interface UpsertEnvironmentInput {
 // SQL Schema Definitions
 // ============================================================================
 
-export const SCHEMA_VERSION = 6;
+export const SCHEMA_VERSION = 7;
 
 export const CREATE_TABLES_SQL = `
 -- Sessions: current state of terminal sessions
@@ -179,6 +224,57 @@ CREATE TABLE IF NOT EXISTS schema_version (
   version INTEGER PRIMARY KEY,
   applied_at INTEGER NOT NULL
 );
+
+-- Task queue (v7)
+CREATE TABLE IF NOT EXISTS tasks (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  prompt TEXT NOT NULL,
+  project TEXT NOT NULL,
+  mode TEXT NOT NULL DEFAULT 'interactive',
+  status TEXT NOT NULL DEFAULT 'pending',
+  position INTEGER NOT NULL,
+  depends_on TEXT NOT NULL DEFAULT '[]',
+  session_name TEXT,
+  use_worktree INTEGER NOT NULL DEFAULT 0,
+  environment_id TEXT,
+  error TEXT,
+  retry_count INTEGER NOT NULL DEFAULT 0,
+  created_at INTEGER NOT NULL,
+  started_at INTEGER,
+  completed_at INTEGER
+);
+
+CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status);
+CREATE INDEX IF NOT EXISTS idx_tasks_position ON tasks(position);
+CREATE INDEX IF NOT EXISTS idx_tasks_project ON tasks(project);
+CREATE INDEX IF NOT EXISTS idx_tasks_session ON tasks(session_name);
+
+-- Task templates (v7)
+CREATE TABLE IF NOT EXISTS task_templates (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL UNIQUE,
+  description TEXT,
+  steps TEXT NOT NULL,
+  variables TEXT,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_templates_name ON task_templates(name);
+
+-- Task history (v7)
+CREATE TABLE IF NOT EXISTS task_history (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  task_id TEXT NOT NULL,
+  status TEXT NOT NULL,
+  event TEXT NOT NULL,
+  details TEXT,
+  timestamp INTEGER NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_task_history_task ON task_history(task_id);
+CREATE INDEX IF NOT EXISTS idx_task_history_timestamp ON task_history(timestamp);
 `;
 
 // ============================================================================

@@ -330,3 +330,191 @@ export interface AgentConfig {
     apiKey: string;
   };
 }
+
+// ============================================================================
+// Task Queue System Types
+// ============================================================================
+
+/**
+ * Execution mode for a task
+ * - 'print': Non-interactive, background execution (claude -p "prompt")
+ * - 'interactive': Normal Claude session with permission prompts
+ * - 'trust': Auto-accept all permissions (--dangerously-skip-permissions)
+ */
+export type TaskExecutionMode = 'print' | 'interactive' | 'trust';
+
+/**
+ * Task lifecycle status
+ *
+ * State transitions:
+ *   pending -> ready -> running -> completed | failed | skipped
+ *                    -> paused (user stopped queue)
+ *
+ * pending: Initial state, waiting for dependencies
+ * ready: Dependencies satisfied, waiting for execution slot
+ * running: Currently executing
+ * completed: Successfully finished
+ * failed: Terminated with error (awaiting user decision)
+ * skipped: User chose to skip after failure (or dependency was skipped)
+ * paused: User stopped the queue
+ */
+export type TaskStatus =
+  | 'pending'
+  | 'ready'
+  | 'running'
+  | 'completed'
+  | 'failed'
+  | 'skipped'
+  | 'paused';
+
+/**
+ * Task definition for the queue
+ */
+export interface Task {
+  /** Unique task identifier */
+  id: string;
+
+  /** Human-readable task name */
+  name: string;
+
+  /** Full prompt/instruction for Claude */
+  prompt: string;
+
+  /** Project to execute in */
+  project: string;
+
+  /** Execution mode */
+  mode: TaskExecutionMode;
+
+  /** Current status */
+  status: TaskStatus;
+
+  /** Position in queue (0-indexed) */
+  position: number;
+
+  /** IDs of tasks that must complete before this one */
+  dependsOn: string[];
+
+  /** Session name created for this task (set when running) */
+  sessionName?: string;
+
+  /** Use git worktree for isolation */
+  useWorktree: boolean;
+
+  /** Environment ID to use */
+  environmentId?: string;
+
+  /** Error message if failed */
+  error?: string;
+
+  /** Retry count */
+  retryCount: number;
+
+  /** Timestamps */
+  createdAt: number;
+  startedAt?: number;
+  completedAt?: number;
+}
+
+/**
+ * Template step definition (without runtime state)
+ */
+export interface TaskTemplateStep {
+  /** Step name */
+  name: string;
+
+  /** Prompt template (can contain {variable} placeholders) */
+  prompt: string;
+
+  /** Execution mode */
+  mode: TaskExecutionMode;
+
+  /** Step index this depends on (0-indexed), undefined = depends on previous */
+  dependsOnStep?: number;
+
+  /** Use worktree for this step */
+  useWorktree?: boolean;
+}
+
+/**
+ * Reusable task template
+ */
+export interface TaskTemplate {
+  /** Unique template identifier */
+  id: string;
+
+  /** Template name */
+  name: string;
+
+  /** Description */
+  description?: string;
+
+  /** Template steps */
+  steps: TaskTemplateStep[];
+
+  /** Variables that can be substituted in prompts */
+  variables?: {
+    name: string;
+    description: string;
+    defaultValue?: string;
+  }[];
+
+  /** Timestamps */
+  createdAt: number;
+  updatedAt: number;
+}
+
+// ============================================================================
+// Task Queue API Types
+// ============================================================================
+
+/** Request to create a new task */
+export interface CreateTaskRequest {
+  name: string;
+  prompt: string;
+  project: string;
+  mode?: TaskExecutionMode;
+  dependsOn?: string[];
+  useWorktree?: boolean;
+  environmentId?: string;
+  position?: number; // Insert at position, default append
+}
+
+/** Request to create multiple tasks */
+export interface CreateTaskBatchRequest {
+  tasks: CreateTaskRequest[];
+}
+
+/** Request to instantiate a template */
+export interface InstantiateTemplateRequest {
+  templateId: string;
+  project: string;
+  variables?: Record<string, string>;
+}
+
+/** Request to create a template */
+export interface CreateTemplateRequest {
+  name: string;
+  description?: string;
+  steps: TaskTemplateStep[];
+  variables?: {
+    name: string;
+    description: string;
+    defaultValue?: string;
+  }[];
+}
+
+// ============================================================================
+// Task Queue WebSocket Messages
+// ============================================================================
+
+/** Task queue updates sent to clients via status channel */
+export type WSTaskQueueMessage =
+  | { type: 'task-created'; task: Task }
+  | { type: 'task-updated'; task: Task }
+  | { type: 'task-removed'; taskId: string }
+  | { type: 'task-failed'; task: Task; awaitingDecision: boolean }
+  | { type: 'task-skipped'; task: Task; propagatedSkips: string[] }
+  | { type: 'tasks-list'; tasks: Task[] }
+  | { type: 'queue-paused' }
+  | { type: 'queue-resumed' };

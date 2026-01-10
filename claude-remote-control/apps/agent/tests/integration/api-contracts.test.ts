@@ -120,6 +120,94 @@ vi.mock('../../src/editor.js', () => ({
   shutdownAllEditors: vi.fn(),
 }));
 
+// Mock database modules
+vi.mock('../../src/db/index.js', () => ({
+  initDatabase: vi.fn().mockReturnValue({}),
+  closeDatabase: vi.fn(),
+  migrateEnvironmentsFromJson: vi.fn().mockReturnValue(false),
+  getDatabaseStats: vi.fn().mockReturnValue({ sessions: 0, history: 0, environments: 0 }),
+  RETENTION_CONFIG: {
+    sessionMaxAge: 24 * 60 * 60 * 1000,
+    historyMaxAge: 7 * 24 * 60 * 60 * 1000,
+    cleanupInterval: 60 * 60 * 1000,
+  },
+}));
+
+vi.mock('../../src/db/sessions.js', () => ({
+  getAllSessions: vi.fn().mockReturnValue([]),
+  getSession: vi.fn().mockReturnValue(null),
+  upsertSession: vi.fn(),
+  deleteSession: vi.fn().mockReturnValue(true),
+  cleanupStaleSessions: vi.fn().mockReturnValue(0),
+  reconcileWithTmux: vi.fn(),
+  toHookStatus: vi.fn().mockReturnValue({}),
+  clearSessionEnvironmentId: vi.fn(),
+}));
+
+vi.mock('../../src/db/history.js', () => ({
+  recordStatusChange: vi.fn(),
+  getSessionHistory: vi.fn().mockReturnValue([]),
+  cleanupOldHistory: vi.fn().mockReturnValue(0),
+}));
+
+vi.mock('../../src/db/environments.js', () => ({
+  getEnvironmentsMetadata: vi.fn().mockReturnValue([]),
+  getEnvironmentMetadata: vi.fn().mockReturnValue(undefined),
+  getEnvironment: vi.fn().mockReturnValue(undefined),
+  createEnvironment: vi.fn().mockReturnValue({ id: 'test-env' }),
+  updateEnvironment: vi.fn().mockReturnValue(null),
+  deleteEnvironment: vi.fn().mockReturnValue(false),
+  getEnvironmentVariables: vi.fn().mockReturnValue({}),
+  setSessionEnvironment: vi.fn(),
+  getSessionEnvironment: vi.fn().mockReturnValue(undefined),
+  clearSessionEnvironment: vi.fn(),
+  ensureDefaultEnvironment: vi.fn(),
+}));
+
+// Mock tasks database
+vi.mock('../../src/db/tasks.js', () => ({
+  createTask: vi.fn(),
+  getTask: vi.fn().mockReturnValue(null),
+  getAllTasks: vi.fn().mockReturnValue([]),
+  getTasksByStatus: vi.fn().mockReturnValue([]),
+  getNextRunnableTask: vi.fn().mockReturnValue(null),
+  updateTaskStatus: vi.fn(),
+  deleteTask: vi.fn().mockReturnValue(true),
+  getDependentTasks: vi.fn().mockReturnValue([]),
+  propagateSkip: vi.fn().mockReturnValue([]),
+  incrementTaskRetry: vi.fn().mockReturnValue(1),
+  linkTaskToSession: vi.fn(),
+  pauseAllTasks: vi.fn().mockReturnValue(0),
+  resumeAllTasks: vi.fn().mockReturnValue(0),
+  createTaskBatch: vi.fn().mockReturnValue([]),
+  createTemplate: vi.fn(),
+  getTemplate: vi.fn().mockReturnValue(null),
+  getAllTemplates: vi.fn().mockReturnValue([]),
+  deleteTemplate: vi.fn().mockReturnValue(true),
+  instantiateTemplate: vi.fn().mockReturnValue([]),
+  getTaskHistory: vi.fn().mockReturnValue([]),
+  getReadyTasks: vi.fn().mockReturnValue([]),
+  reorderTask: vi.fn().mockReturnValue(true),
+}));
+
+// Mock task queue service
+vi.mock('../../src/services/task-queue.js', () => ({
+  startTaskQueueExecutor: vi.fn(),
+  stopTaskQueueExecutor: vi.fn(),
+  retryTask: vi.fn().mockReturnValue(null),
+  skipTask: vi.fn().mockReturnValue([]),
+  stopAllTasks: vi.fn(),
+  resumeQueue: vi.fn(),
+  pauseQueue: vi.fn(),
+  unpauseQueue: vi.fn(),
+  isQueuePausedState: vi.fn().mockReturnValue(false),
+  getFailedTaskAwaitingDecision: vi.fn().mockReturnValue(null),
+  broadcastTaskList: vi.fn(),
+  notifyTaskCreated: vi.fn(),
+  notifyTaskUpdated: vi.fn(),
+  notifyTaskRemoved: vi.fn(),
+}));
+
 // ============================================================================
 // Type Guards for Response Validation
 // ============================================================================

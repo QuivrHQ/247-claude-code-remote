@@ -15,3 +15,4 @@ export {
   getOrStartEditor,
 } from './editor.js';
 export { createFilesRoutes } from './files.js';
+export { createTaskRoutes } from './tasks.js';
