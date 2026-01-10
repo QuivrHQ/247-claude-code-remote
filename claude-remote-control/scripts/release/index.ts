@@ -83,19 +83,15 @@ async function main() {
     process.exit(1);
   }
 
-  // Check branch
+  // Check branch - releases MUST be done from main
   const branch = getCurrentBranch();
-  const warnings: string[] = [];
+  if (branch !== 'main' && branch !== 'master') {
+    preflight.fail(`Releases must be done from 'main' branch. Current branch: '${branch}'`);
+    process.exit(1);
+  }
 
   if (hasUncommitted) {
-    warnings.push('uncommitted changes');
-  }
-  if (branch !== 'main' && branch !== 'master') {
-    warnings.push(`on branch '${branch}'`);
-  }
-
-  if (warnings.length > 0) {
-    preflight.warn(`Pre-flight: ${warnings.join(', ')}`);
+    preflight.warn('Pre-flight: uncommitted changes');
   } else {
     preflight.succeed('Pre-flight checks passed');
   }
@@ -127,7 +123,9 @@ async function main() {
   console.log();
   const lastTag = getLastTag();
   console.log(
-    chalk.dim(`Analyzing commits since ${lastTag ? chalk.cyan(lastTag) : chalk.yellow('beginning')}...`)
+    chalk.dim(
+      `Analyzing commits since ${lastTag ? chalk.cyan(lastTag) : chalk.yellow('beginning')}...`
+    )
   );
   console.log();
 
@@ -258,7 +256,9 @@ async function main() {
       pushSpinner.succeed('Pushed to remote');
     } catch (_error) {
       pushSpinner.fail('Failed to push to remote');
-      console.log(chalk.yellow('  Tag created locally. Push manually with: git push && git push --tags'));
+      console.log(
+        chalk.yellow('  Tag created locally. Push manually with: git push && git push --tags')
+      );
     }
   } else {
     console.log(chalk.dim('  Skipping push (--no-push)'));
