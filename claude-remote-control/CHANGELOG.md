@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.5.0] - 2026-01-10
+
+### Features
+
+- **web**: add pull-to-refresh for mobile PWA (#3) (ba67f29)
+
+### Bug Fixes
+
+- **release**: enforce main branch for releases (4f8fdd5)
+
+### Chores
+
+- track settings.local.json in git (1b59ea8)
+
 ## [1.4.1] - 2026-01-10
 
 ### Bug Fixes
