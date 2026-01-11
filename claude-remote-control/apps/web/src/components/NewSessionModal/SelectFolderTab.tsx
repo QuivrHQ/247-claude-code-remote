@@ -1,6 +1,8 @@
 'use client';
 
+import { GitBranch } from 'lucide-react';
 import { EnvironmentSelector } from '../EnvironmentSelector';
+import { ToggleSwitch } from '../ui/toggle-switch';
 import { ProjectDropdown } from './ProjectDropdown';
 
 interface SelectFolderTabProps {
@@ -13,6 +15,8 @@ interface SelectFolderTabProps {
   onSelectEnvironment: (id: string | null) => void;
   onManageEnvironments: () => void;
   envRefreshKey: number;
+  useWorktree: boolean;
+  onUseWorktreeChange: (use: boolean) => void;
 }
 
 export function SelectFolderTab({
@@ -25,6 +29,8 @@ export function SelectFolderTab({
   onSelectEnvironment,
   onManageEnvironments,
   envRefreshKey,
+  useWorktree,
+  onUseWorktreeChange,
 }: SelectFolderTabProps) {
   return (
     <div className="space-y-5">
@@ -46,6 +52,18 @@ export function SelectFolderTab({
           selectedId={selectedEnvironment}
           onSelect={onSelectEnvironment}
           onManageClick={onManageEnvironments}
+        />
+      </div>
+
+      <div>
+        <label className="mb-3 block text-sm font-medium text-white/60">Options</label>
+        <ToggleSwitch
+          checked={useWorktree}
+          onCheckedChange={onUseWorktreeChange}
+          label="Git Worktree"
+          description="Branche isolée pour cette session"
+          icon={<GitBranch className="h-4 w-4" />}
+          accentColor="amber"
         />
       </div>
     </div>

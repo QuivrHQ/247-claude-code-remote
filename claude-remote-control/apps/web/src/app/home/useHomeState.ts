@@ -142,7 +142,13 @@ export function useHomeState() {
   );
 
   const handleStartSession = useCallback(
-    (machineId: string, project: string, environmentId?: string, ralphConfig?: RalphLoopConfig) => {
+    (
+      machineId: string,
+      project: string,
+      environmentId?: string,
+      ralphConfig?: RalphLoopConfig,
+      useWorktree?: boolean
+    ) => {
       const newSessionName = `${project}--new`;
       setSelectedSession({
         machineId,
@@ -150,6 +156,7 @@ export function useHomeState() {
         project,
         environmentId,
         ralphConfig,
+        useWorktree,
       });
       setNewSessionOpen(false);
 
@@ -157,7 +164,9 @@ export function useHomeState() {
       params.set('session', newSessionName);
       params.set('machine', machineId);
       params.set('create', 'true');
-      params.set('worktree', 'true'); // Enable worktree by default for session isolation
+      if (useWorktree) {
+        params.set('worktree', 'true');
+      }
       router.replace(`?${params.toString()}`, { scroll: false });
     },
     [searchParams, router]

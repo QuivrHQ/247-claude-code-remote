@@ -141,9 +141,7 @@ describe('URL Session Persistence', () => {
       sessionName: string,
       machineId: string
     ): Session | undefined => {
-      return sessions.find(
-        s => s.name === sessionName && s.machineId === machineId
-      );
+      return sessions.find((s) => s.name === sessionName && s.machineId === machineId);
     };
 
     const mockSessions: Session[] = [
@@ -220,6 +218,51 @@ describe('URL Session Persistence', () => {
     it('handles project names with special characters', () => {
       const name = createNewSessionName('project-v2');
       expect(name).toBe('project-v2--new');
+    });
+  });
+
+  describe('Worktree URL Parameter', () => {
+    const buildNewSessionUrl = (
+      sessionName: string,
+      machineId: string,
+      useWorktree: boolean
+    ): string => {
+      const params = new URLSearchParams();
+      params.set('session', sessionName);
+      params.set('machine', machineId);
+      params.set('create', 'true');
+      if (useWorktree) {
+        params.set('worktree', 'true');
+      }
+      return `?${params.toString()}`;
+    };
+
+    it('includes worktree param when useWorktree is true', () => {
+      const url = buildNewSessionUrl('project--new', 'local-agent', true);
+      expect(url).toContain('worktree=true');
+      expect(url).toContain('create=true');
+    });
+
+    it('excludes worktree param when useWorktree is false', () => {
+      const url = buildNewSessionUrl('project--new', 'local-agent', false);
+      expect(url).not.toContain('worktree');
+      expect(url).toContain('create=true');
+    });
+
+    it('builds URL with all required params for new session with worktree', () => {
+      const url = buildNewSessionUrl('my-project--new', 'local-agent', true);
+      expect(url).toContain('session=my-project--new');
+      expect(url).toContain('machine=local-agent');
+      expect(url).toContain('create=true');
+      expect(url).toContain('worktree=true');
+    });
+
+    it('builds URL with all required params for new session without worktree', () => {
+      const url = buildNewSessionUrl('my-project--new', 'local-agent', false);
+      expect(url).toContain('session=my-project--new');
+      expect(url).toContain('machine=local-agent');
+      expect(url).toContain('create=true');
+      expect(url).not.toContain('worktree');
     });
   });
 
