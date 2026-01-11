@@ -17,6 +17,7 @@ export interface SelectedSession {
   environmentId?: string;
   ralphConfig?: RalphLoopConfig;
   planningProjectId?: string;
+  useWorktree?: boolean;
 }
 
 export const DEFAULT_MACHINE_ID = 'local-agent';

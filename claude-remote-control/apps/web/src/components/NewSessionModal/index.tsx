@@ -32,7 +32,8 @@ interface NewSessionModalProps {
     machineId: string,
     project: string,
     environmentId?: string,
-    ralphConfig?: RalphLoopConfig
+    ralphConfig?: RalphLoopConfig,
+    useWorktree?: boolean
   ) => void;
 }
 
@@ -47,6 +48,7 @@ export function NewSessionModal({
   const [selectedEnvironment, setSelectedEnvironment] = useState<string | null>(null);
   const [envModalOpen, setEnvModalOpen] = useState(false);
   const [envRefreshKey, setEnvRefreshKey] = useState(0);
+  const [useWorktree, setUseWorktree] = useState(false);
 
   // Custom hooks
   const { folders, selectedProject, setSelectedProject, loadingFolders, addFolder } =
@@ -60,6 +62,7 @@ export function NewSessionModal({
       setSelectedMachine(null);
       setActiveTab('select');
       setSelectedEnvironment(null);
+      setUseWorktree(false);
       clone.resetCloneState();
       ralph.resetRalphState();
     }
@@ -85,11 +88,25 @@ export function NewSessionModal({
         onOpenChange(false);
       }
       if (e.key === 'Enter' && selectedMachine && selectedProject && activeTab === 'select') {
-        onStartSession(selectedMachine.id, selectedProject, selectedEnvironment || undefined);
+        onStartSession(
+          selectedMachine.id,
+          selectedProject,
+          selectedEnvironment || undefined,
+          undefined,
+          useWorktree
+        );
         onOpenChange(false);
       }
     },
-    [onOpenChange, onStartSession, selectedMachine, selectedProject, selectedEnvironment, activeTab]
+    [
+      onOpenChange,
+      onStartSession,
+      selectedMachine,
+      selectedProject,
+      selectedEnvironment,
+      activeTab,
+      useWorktree,
+    ]
   );
 
   useEffect(() => {
@@ -101,7 +118,13 @@ export function NewSessionModal({
 
   const handleStartSession = () => {
     if (selectedMachine && selectedProject) {
-      onStartSession(selectedMachine.id, selectedProject, selectedEnvironment || undefined);
+      onStartSession(
+        selectedMachine.id,
+        selectedProject,
+        selectedEnvironment || undefined,
+        undefined,
+        useWorktree
+      );
       onOpenChange(false);
     }
   };
@@ -192,6 +215,8 @@ export function NewSessionModal({
                       onSelectEnvironment={setSelectedEnvironment}
                       onManageEnvironments={() => setEnvModalOpen(true)}
                       envRefreshKey={envRefreshKey}
+                      useWorktree={useWorktree}
+                      onUseWorktreeChange={setUseWorktree}
                     />
                   )}
 
