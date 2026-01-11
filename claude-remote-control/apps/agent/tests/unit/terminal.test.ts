@@ -1,6 +1,10 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { EventEmitter } from 'events';
 
+// Force bash shell for consistent test results
+const originalShell = process.env.SHELL;
+process.env.SHELL = '/bin/bash';
+
 // Track init script writes for testing
 let writtenInitScripts: { path: string; content: string }[] = [];
 
@@ -239,7 +243,7 @@ describe('Terminal', () => {
 
       // Check script contains tmux config
       expect(script.content).toContain('tmux set-option');
-      expect(script.content).toContain('history-limit 10000');
+      expect(script.content).toContain('history-limit 50000');
       expect(script.content).toContain('mouse on');
 
       // Check script ends with interactive shell

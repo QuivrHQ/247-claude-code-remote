@@ -2,6 +2,7 @@ import * as pty from '@homebridge/node-pty-prebuilt-multiarch';
 import { exec, execSync } from 'child_process';
 import { promisify } from 'util';
 import { generateInitScript, writeInitScript, cleanupInitScript } from './lib/init-script';
+import * as path from 'path';
 
 const execAsync = promisify(exec);
 
@@ -48,8 +49,17 @@ export function createTerminal(
   if (existingSession) {
     tmuxArgs = ['attach-session', '-t', sessionName];
   } else {
+    // Extract project name from cwd (last directory component)
+    const projectName = path.basename(cwd) || 'unknown';
+
     // Generate and write init script for new sessions
-    const scriptContent = generateInitScript({ sessionName, customEnvVars });
+    // Always use bash since we launch with `bash --init-file`
+    const scriptContent = generateInitScript({
+      sessionName,
+      projectName,
+      customEnvVars,
+      shell: 'bash',
+    });
     initScriptPath = writeInitScript(sessionName, scriptContent);
     console.log(`[Terminal] Init script written to: ${initScriptPath}`);
 
