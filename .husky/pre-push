@@ -1,0 +1,1 @@
+cd claude-remote-control && pnpm test
