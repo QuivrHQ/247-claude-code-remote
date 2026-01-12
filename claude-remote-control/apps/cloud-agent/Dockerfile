@@ -20,7 +20,7 @@ RUN apt-get update && apt-get install -y \
 RUN corepack enable && corepack prepare pnpm@9.15.1 --activate
 
 # Copy monorepo files needed for build
-COPY pnpm-workspace.yaml pnpm-lock.yaml package.json ./
+COPY pnpm-workspace.yaml pnpm-lock.yaml package.json tsconfig.json ./
 COPY packages/shared ./packages/shared
 COPY apps/agent ./apps/agent
 COPY apps/cloud-agent/package.cloud.json ./apps/agent/package.json
