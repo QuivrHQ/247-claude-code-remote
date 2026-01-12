@@ -329,6 +329,9 @@ importers:
       pino-pretty:
         specifier: ^13.0.0
         version: 13.1.3
+      web-push:
+        specifier: ^3.6.7
+        version: 3.6.7
       ws:
         specifier: ^8.18.0
         version: 8.19.0
@@ -342,6 +345,9 @@ importers:
       '@types/node':
         specifier: ^22.10.5
         version: 22.19.3
+      '@types/web-push':
+        specifier: ^3.6.4
+        version: 3.6.4
       tsx:
         specifier: ^4.19.2
         version: 4.21.0

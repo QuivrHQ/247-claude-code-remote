@@ -61,7 +61,7 @@ export const flyTokens = pgTable('fly_tokens', {
   id: text('id').primaryKey(),
   userId: text('user_id').notNull(),
   accessToken: text('access_token').notNull(), // Encrypted with AES-256-GCM
-  orgId: text('org_id').notNull(),
+  orgSlug: text('org_slug').notNull(), // Fly.io org slug (used by Machines API)
   orgName: text('org_name'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),

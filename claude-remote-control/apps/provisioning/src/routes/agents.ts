@@ -46,8 +46,7 @@ async function getUserFlyToken(userId: string): Promise<{ token: string; orgSlug
   const [tokenRecord] = await db
     .select({
       accessToken: flyTokens.accessToken,
-      orgId: flyTokens.orgId,
-      orgName: flyTokens.orgName,
+      orgSlug: flyTokens.orgSlug,
     })
     .from(flyTokens)
     .where(eq(flyTokens.userId, userId))
@@ -59,8 +58,7 @@ async function getUserFlyToken(userId: string): Promise<{ token: string; orgSlug
 
   try {
     const token = decrypt(tokenRecord.accessToken, config.encryptionKey);
-    // Use orgId as slug (Fly.io accepts both)
-    return { token, orgSlug: tokenRecord.orgId };
+    return { token, orgSlug: tokenRecord.orgSlug };
   } catch (error) {
     logger.error({ userId, error }, 'Failed to decrypt Fly.io token');
     return null;

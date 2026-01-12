@@ -60,8 +60,10 @@ flyioRoutes.post('/token', async (c) => {
     return c.json({ error: 'No organizations found for this token' }, 400);
   }
 
-  // Select organization: use provided orgId or default to first personal org
-  let selectedOrg = result.organizations.find((org) => org.id === selectedOrgId);
+  // Select organization: use provided orgId/slug or default to first personal org
+  let selectedOrg = result.organizations.find(
+    (org) => org.id === selectedOrgId || org.slug === selectedOrgId
+  );
   if (!selectedOrg) {
     // Default to personal org or first org
     selectedOrg =
@@ -79,15 +81,15 @@ flyioRoutes.post('/token', async (c) => {
     id: randomUUID(),
     userId: user.id,
     accessToken: encryptedToken,
-    orgId: selectedOrg.id,
+    orgSlug: selectedOrg.slug,
     orgName: selectedOrg.name,
   });
 
-  logger.info({ userId: user.id, orgId: selectedOrg.id }, 'Fly.io token saved successfully');
+  logger.info({ userId: user.id, orgSlug: selectedOrg.slug }, 'Fly.io token saved successfully');
 
   return c.json({
     success: true,
-    orgId: selectedOrg.id,
+    orgSlug: selectedOrg.slug,
     orgName: selectedOrg.name,
     organizations: result.organizations,
   });
@@ -102,7 +104,7 @@ flyioRoutes.get('/status', async (c) => {
 
   const [tokenRecord] = await db
     .select({
-      orgId: flyTokens.orgId,
+      orgSlug: flyTokens.orgSlug,
       orgName: flyTokens.orgName,
       createdAt: flyTokens.createdAt,
     })
@@ -116,7 +118,7 @@ flyioRoutes.get('/status', async (c) => {
 
   return c.json({
     connected: true,
-    orgId: tokenRecord.orgId,
+    orgSlug: tokenRecord.orgSlug,
     orgName: tokenRecord.orgName,
     connectedAt: tokenRecord.createdAt,
   });
