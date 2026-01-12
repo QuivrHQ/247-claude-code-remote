@@ -4,9 +4,9 @@ on:
   push:
     branches: [main]
     paths:
-      - 'apps/cloud-agent/**'
-      - 'apps/agent/**'
-      - 'packages/shared/**'
+      - 'claude-remote-control/apps/cloud-agent/**'
+      - 'claude-remote-control/apps/agent/**'
+      - 'claude-remote-control/packages/shared/**'
       - '.github/workflows/cloud-agent-image.yml'
   workflow_dispatch: # Manual trigger
 
@@ -48,8 +48,8 @@ jobs:
       - name: Build and push Docker image
         uses: docker/build-push-action@v5
         with:
-          context: .
-          file: ./apps/cloud-agent/Dockerfile
+          context: ./claude-remote-control
+          file: ./claude-remote-control/apps/cloud-agent/Dockerfile
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
