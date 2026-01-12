@@ -154,6 +154,8 @@ WORKDIR /opt/247-agent
 
 # Copy standalone deployed agent from builder stage
 COPY --from=builder /deploy/agent ./
+# Copy dist folder (pnpm deploy doesn't include compiled code)
+COPY --from=builder /build/apps/agent/dist ./dist
 
 # Create agent config directory
 RUN mkdir -p /home/quivr/.247/data && \
