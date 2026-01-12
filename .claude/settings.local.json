@@ -261,7 +261,21 @@
       "Bash(git restore:*)",
       "Bash(gh pr create:*)",
       "Bash(pnpm --filter 247-agent lint:*)",
-      "Bash(npx eslint:*)"
+      "Bash(npx eslint:*)",
+      "Bash(pnpm --filter 247-provisioning typecheck:*)",
+      "Bash(pnpm --filter 247-provisioning build:*)",
+      "Bash(pnpm --filter 247-provisioning test)",
+      "Bash(fly secrets set:*)",
+      "Bash(fly deploy:*)",
+      "Bash(fly logs:*)",
+      "Bash(pnpm drizzle-kit push:*)",
+      "Bash(fly secrets list:*)",
+      "Bash(fly ssh console:*)",
+      "Bash(fly apps list:*)",
+      "Bash(fly machine start:*)",
+      "Bash(fly machines list:*)",
+      "Bash(fly scale count:*)",
+      "Bash(fly machine update:*)"
     ]
   },
   "remote": {

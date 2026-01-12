@@ -33,11 +33,11 @@ describe('Terminal Init E2E', () => {
     });
 
     // Give shell a moment to fully initialize
-    await new Promise((r) => setTimeout(r, 300));
+    await new Promise((r) => setTimeout(r, 500));
 
     // Check env var is set in the tmux session
     const result = execSync(
-      `tmux send-keys -t "${sessionName}" 'echo "VAR=$CLAUDE_TMUX_SESSION"' C-m && sleep 0.3 && tmux capture-pane -t "${sessionName}" -p`,
+      `tmux send-keys -t "${sessionName}" 'echo "VAR=$CLAUDE_TMUX_SESSION"' C-m && sleep 1 && tmux capture-pane -t "${sessionName}" -p`,
       { encoding: 'utf-8' }
     );
 

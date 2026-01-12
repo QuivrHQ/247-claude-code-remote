@@ -1,14 +1,21 @@
 import { betterAuth } from 'better-auth';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
 import { db } from './db/index.js';
+import * as schema from './db/schema.js';
 import { config } from './lib/config.js';
 
 export const auth = betterAuth({
   database: drizzleAdapter(db, {
     provider: 'pg',
+    schema: {
+      user: schema.user,
+      session: schema.session,
+      account: schema.account,
+      verification: schema.verification,
+    },
   }),
   secret: config.betterAuth.secret,
-  baseURL: config.dashboardUrl,
+  baseURL: config.apiUrl,
   trustedOrigins: [config.dashboardUrl],
   socialProviders: {
     github: {
@@ -28,6 +35,16 @@ export const auth = betterAuth({
   },
   advanced: {
     cookiePrefix: '247_',
+    crossSubDomainCookies: {
+      enabled: true,
+    },
+    defaultCookieAttributes: {
+      sameSite: 'none',
+      secure: true,
+    },
+  },
+  rateLimit: {
+    enabled: false,
   },
 });
 

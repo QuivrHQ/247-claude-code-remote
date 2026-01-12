@@ -1,5 +1,6 @@
 export interface Config {
   port: number;
+  apiUrl: string;
   dashboardUrl: string;
   databaseUrl: string;
   encryptionKey: string;
@@ -18,6 +19,7 @@ function getEnvOrDefault(key: string, defaultValue: string): string {
 
 export const config: Config = {
   port: parseInt(getEnvOrDefault('PORT', '4680'), 10),
+  apiUrl: getEnvOrDefault('API_URL', 'http://localhost:4680'),
   dashboardUrl: getEnvOrDefault('DASHBOARD_URL', 'http://localhost:3001'),
   databaseUrl: getEnvOrDefault('DATABASE_URL', 'postgres://localhost:5432/provisioning'),
   encryptionKey: getEnvOrDefault('ENCRYPTION_KEY', 'dev-encryption-key-32chars!!'),

@@ -61,7 +61,10 @@ export function FlyioLinkModal({ open, onOpenChange, onSuccess }: FlyioLinkModal
     onOpenChange(false);
   };
 
-  const isValidToken = token.trim().startsWith('fo1_') || token.trim().startsWith('fm1_');
+  const isValidToken =
+    token.trim().startsWith('fo1_') ||
+    token.trim().startsWith('fm1_') ||
+    token.trim().startsWith('fm2_');
 
   return (
     <AnimatePresence>
