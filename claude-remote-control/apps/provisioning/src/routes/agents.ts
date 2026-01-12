@@ -1,5 +1,6 @@
 import { Hono, Context } from 'hono';
 import { randomUUID } from 'crypto';
+import { readFileSync } from 'fs';
 import { eq, and } from 'drizzle-orm';
 import { auth } from '../auth.js';
 import { db } from '../db/index.js';
@@ -28,8 +29,21 @@ export const agentsRoutes = new Hono();
 // Default region for cloud agents
 const DEFAULT_REGION = 'sjc';
 
+// Get version from package.json to match cloud agent image version
+function getServiceVersion(): string {
+  try {
+    const pkg = JSON.parse(readFileSync(new URL('../../package.json', import.meta.url), 'utf-8'));
+    return pkg.version || 'latest';
+  } catch {
+    return 'latest';
+  }
+}
+
 // Docker image for cloud agent (built by GitHub Actions)
-const CLOUD_AGENT_IMAGE = 'ghcr.io/quivrhq/247-cloud-agent:latest';
+// Use versioned tags to ensure agent version matches web version
+const serviceVersion = getServiceVersion();
+const CLOUD_AGENT_IMAGE =
+  process.env.CLOUD_AGENT_IMAGE || `ghcr.io/quivrhq/247-cloud-agent:v${serviceVersion}`;
 
 /**
  * Helper to get authenticated user from request

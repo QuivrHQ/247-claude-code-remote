@@ -175,6 +175,7 @@ WORKDIR /workspace
 ENV HOME=/home/quivr
 ENV USER=quivr
 ENV NODE_ENV=production
+ENV CLOUD_AGENT=true
 
 # Expose agent WebSocket port
 EXPOSE 4678

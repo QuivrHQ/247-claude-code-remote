@@ -506,7 +506,14 @@ export function handleStatusConnection(ws: WebSocket, url?: URL): void {
   }
 
   // Check if update needed (only upgrade, never downgrade)
-  if (webVersion && !isUpdateInProgress() && needsUpdate(agentVersion, webVersion)) {
+  // Skip auto-update in cloud/Docker environments - they get updated via new image deployments
+  const isCloudAgent = process.env.CLOUD_AGENT === 'true';
+  if (
+    webVersion &&
+    !isUpdateInProgress() &&
+    !isCloudAgent &&
+    needsUpdate(agentVersion, webVersion)
+  ) {
     console.log(`[Update] Version mismatch detected: agent=${agentVersion} web=${webVersion}`);
 
     // Delay update to allow client connection to stabilize

@@ -10,6 +10,8 @@ export const PACKAGE_FILES = [
   'packages/shared/package.json',
   'apps/agent/package.json',
   'apps/web/package.json',
+  'apps/cloud-agent/package.cloud.json',
+  'apps/provisioning/package.json',
 ];
 
 /**
