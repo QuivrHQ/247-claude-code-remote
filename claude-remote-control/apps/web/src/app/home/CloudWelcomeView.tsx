@@ -2,12 +2,22 @@
 
 import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { LogOut, ChevronDown, Cloud, Rocket, ArrowRight } from 'lucide-react';
+import {
+  LogOut,
+  ChevronDown,
+  Cloud,
+  Rocket,
+  ArrowRight,
+  CheckCircle2,
+  Loader2,
+  Unplug,
+} from 'lucide-react';
 import { FlyioLinkModal } from '@/components/FlyioLinkModal';
 import {
   AgentConnectionSettings,
   type saveAgentConnection,
 } from '@/components/AgentConnectionSettings';
+import type { FlyioStatus } from '@/hooks/useFlyioStatus';
 
 interface CloudWelcomeViewProps {
   user: {
@@ -15,9 +25,13 @@ interface CloudWelcomeViewProps {
     email: string | null;
     image: string | null;
   };
+  flyioStatus: FlyioStatus | null;
+  flyioLoading?: boolean;
   onSignOut: () => void;
   onConnectionSaved: (connection: ReturnType<typeof saveAgentConnection>) => void;
   onFlyioConnected: () => void;
+  onFlyioDisconnect?: () => void;
+  onLaunchAgent?: () => void;
 }
 
 // Animation variants
@@ -43,15 +57,20 @@ const itemVariants = {
 
 export function CloudWelcomeView({
   user,
+  flyioStatus,
+  flyioLoading,
   onSignOut,
   onConnectionSaved,
   onFlyioConnected,
+  onFlyioDisconnect,
+  onLaunchAgent,
 }: CloudWelcomeViewProps) {
   const [flyioModalOpen, setFlyioModalOpen] = useState(false);
   const [localModalOpen, setLocalModalOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
 
   const displayName = user.name || user.email?.split('@')[0] || 'User';
+  const isConnected = flyioStatus?.connected === true;
 
   return (
     <main className="relative min-h-screen overflow-hidden bg-[#0a0a10] selection:bg-orange-500/20">
@@ -151,43 +170,104 @@ export function CloudWelcomeView({
             <p className="mt-3 text-lg text-white/60">One more step to launch your cloud agent.</p>
           </motion.div>
 
-          {/* Main Card - Connect Fly.io */}
+          {/* Main Card - Connect Fly.io or Launch Agent */}
           <motion.div
             variants={itemVariants}
-            className="mt-10 w-full overflow-hidden rounded-2xl border border-purple-500/20 bg-purple-500/5 p-6 shadow-lg shadow-purple-500/10"
+            className={`mt-10 w-full overflow-hidden rounded-2xl border p-6 shadow-lg ${
+              isConnected
+                ? 'border-green-500/20 bg-green-500/5 shadow-green-500/10'
+                : 'border-purple-500/20 bg-purple-500/5 shadow-purple-500/10'
+            }`}
           >
-            <div className="flex items-start gap-4">
-              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-purple-500/10">
-                <Cloud className="h-6 w-6 text-purple-400" />
+            {flyioLoading ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="h-8 w-8 animate-spin text-purple-400" />
               </div>
-              <div className="flex-1">
-                <h2 className="text-lg font-semibold text-white">Connect your Fly.io account</h2>
-                <p className="mt-1 text-sm text-white/50">
-                  Your agent will run in your own Fly.io organization. You pay Fly.io directly and
-                  maintain full control of your data.
-                </p>
-
-                <div className="mt-4 flex flex-wrap gap-3">
-                  <span className="rounded-full bg-purple-500/10 px-3 py-1 text-xs text-purple-300">
-                    ~$5/month
-                  </span>
-                  <span className="rounded-full bg-white/5 px-3 py-1 text-xs text-white/50">
-                    Scale to zero
-                  </span>
-                  <span className="rounded-full bg-white/5 px-3 py-1 text-xs text-white/50">
-                    Your infrastructure
-                  </span>
+            ) : isConnected ? (
+              /* Connected State - Show Launch Agent */
+              <div className="flex items-start gap-4">
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-green-500/10">
+                  <CheckCircle2 className="h-6 w-6 text-green-400" />
                 </div>
+                <div className="flex-1">
+                  <div className="flex items-center gap-2">
+                    <h2 className="text-lg font-semibold text-white">Fly.io Connected</h2>
+                    <span className="rounded-full bg-green-500/20 px-2 py-0.5 text-xs text-green-400">
+                      Ready
+                    </span>
+                  </div>
+                  <p className="mt-1 text-sm text-white/50">
+                    Connected to{' '}
+                    <span className="font-medium text-white/70">
+                      {flyioStatus?.orgName || 'your organization'}
+                    </span>
+                  </p>
 
-                <button
-                  onClick={() => setFlyioModalOpen(true)}
-                  className="mt-5 flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-purple-500 to-violet-500 px-4 py-3 text-sm font-medium text-white shadow-lg shadow-purple-500/25 transition-all hover:shadow-purple-500/40"
-                >
-                  Connect Fly.io
-                  <ArrowRight className="h-4 w-4" />
-                </button>
+                  <div className="mt-4 flex flex-wrap gap-3">
+                    <span className="rounded-full bg-green-500/10 px-3 py-1 text-xs text-green-300">
+                      ~$5/month
+                    </span>
+                    <span className="rounded-full bg-white/5 px-3 py-1 text-xs text-white/50">
+                      Scale to zero
+                    </span>
+                    <span className="rounded-full bg-white/5 px-3 py-1 text-xs text-white/50">
+                      Your infrastructure
+                    </span>
+                  </div>
+
+                  <button
+                    onClick={onLaunchAgent}
+                    className="mt-5 flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-green-500 to-emerald-500 px-4 py-3 text-sm font-medium text-white shadow-lg shadow-green-500/25 transition-all hover:shadow-green-500/40"
+                  >
+                    <Rocket className="h-4 w-4" />
+                    Launch Cloud Agent
+                  </button>
+
+                  {/* Disconnect option */}
+                  <button
+                    onClick={onFlyioDisconnect}
+                    className="mt-3 flex w-full items-center justify-center gap-2 text-xs text-white/40 transition-colors hover:text-white/60"
+                  >
+                    <Unplug className="h-3 w-3" />
+                    Disconnect Fly.io
+                  </button>
+                </div>
               </div>
-            </div>
+            ) : (
+              /* Not Connected - Show Connect Button */
+              <div className="flex items-start gap-4">
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-purple-500/10">
+                  <Cloud className="h-6 w-6 text-purple-400" />
+                </div>
+                <div className="flex-1">
+                  <h2 className="text-lg font-semibold text-white">Connect your Fly.io account</h2>
+                  <p className="mt-1 text-sm text-white/50">
+                    Your agent will run in your own Fly.io organization. You pay Fly.io directly and
+                    maintain full control of your data.
+                  </p>
+
+                  <div className="mt-4 flex flex-wrap gap-3">
+                    <span className="rounded-full bg-purple-500/10 px-3 py-1 text-xs text-purple-300">
+                      ~$5/month
+                    </span>
+                    <span className="rounded-full bg-white/5 px-3 py-1 text-xs text-white/50">
+                      Scale to zero
+                    </span>
+                    <span className="rounded-full bg-white/5 px-3 py-1 text-xs text-white/50">
+                      Your infrastructure
+                    </span>
+                  </div>
+
+                  <button
+                    onClick={() => setFlyioModalOpen(true)}
+                    className="mt-5 flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-purple-500 to-violet-500 px-4 py-3 text-sm font-medium text-white shadow-lg shadow-purple-500/25 transition-all hover:shadow-purple-500/40"
+                  >
+                    Connect Fly.io
+                    <ArrowRight className="h-4 w-4" />
+                  </button>
+                </div>
+              </div>
+            )}
           </motion.div>
 
           {/* Alternative - Local Agent */}

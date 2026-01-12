@@ -20,6 +20,7 @@ import { useIsMobile } from '@/hooks/useMediaQuery';
 import { useViewportHeight } from '@/hooks/useViewportHeight';
 import { usePullToRefresh } from '@/hooks/usePullToRefresh';
 import { useSessionPolling } from '@/contexts/SessionPollingContext';
+import { useFlyioStatus } from '@/hooks/useFlyioStatus';
 
 // Check if cloud auth is enabled
 const isCloudEnabled = !!process.env.NEXT_PUBLIC_PROVISIONING_URL;
@@ -37,10 +38,19 @@ const defaultAuthState = {
   signOut: async () => {},
 };
 
+const PROVISIONING_URL = process.env.NEXT_PUBLIC_PROVISIONING_URL;
+
 export function HomeContent() {
   const isMobile = useIsMobile();
   // Call useAuth unconditionally (it's a no-op when cloud is disabled via AuthProvider check)
   const auth = authModule ? authModule.useAuth() : defaultAuthState;
+
+  // Fetch Fly.io connection status when authenticated
+  const {
+    status: flyioStatus,
+    isLoading: flyioLoading,
+    refresh: refreshFlyioStatus,
+  } = useFlyioStatus(auth.isAuthenticated);
 
   // Set CSS variable for viewport height (handles mobile keyboard)
   useViewportHeight();
@@ -87,6 +97,26 @@ export function HomeContent() {
     disabled: !isMobile,
   });
 
+  // Handler for disconnecting Fly.io
+  const handleFlyioDisconnect = async () => {
+    if (!PROVISIONING_URL) return;
+    try {
+      await fetch(`${PROVISIONING_URL}/api/flyio/token`, {
+        method: 'DELETE',
+        credentials: 'include',
+      });
+      await refreshFlyioStatus();
+    } catch (error) {
+      console.error('Failed to disconnect Fly.io:', error);
+    }
+  };
+
+  // Handler for launching cloud agent (Phase 4 - not yet implemented)
+  const handleLaunchAgent = () => {
+    // TODO: Phase 4 - Deploy agent to Fly.io
+    alert('Cloud agent deployment coming soon! This feature is under development.');
+  };
+
   if (loading || auth.isLoading) {
     return <LoadingView />;
   }
@@ -97,11 +127,13 @@ export function HomeContent() {
     return (
       <CloudWelcomeView
         user={auth.user}
+        flyioStatus={flyioStatus}
+        flyioLoading={flyioLoading}
         onSignOut={auth.signOut}
         onConnectionSaved={handleConnectionSaved}
-        onFlyioConnected={() => {
-          // TODO: Handle Fly.io connection success - trigger agent deployment flow
-        }}
+        onFlyioConnected={refreshFlyioStatus}
+        onFlyioDisconnect={handleFlyioDisconnect}
+        onLaunchAgent={handleLaunchAgent}
       />
     );
   }
