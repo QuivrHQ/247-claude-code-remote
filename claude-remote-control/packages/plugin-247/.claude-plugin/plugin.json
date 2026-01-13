@@ -10,6 +10,5 @@
   "keywords": ["multi-agent", "parallel", "orchestration", "spawn", "247"],
   "commands": "./commands/",
   "skills": "./skills/",
-  "hooks": "./hooks/hooks.json",
   "mcpServers": "./.mcp.json"
 }

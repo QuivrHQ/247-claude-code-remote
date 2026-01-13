@@ -1,8 +1,4 @@
 {
-  "enabledPlugins": {
-    "vercel@claude-plugins-official": true,
-    "ralph-loop@claude-plugins-official": true
-  },
   "hooks": {
     "Stop": [
       {
@@ -15,5 +11,10 @@
         ]
       }
     ]
+  },
+  "enabledPlugins": {
+    "vercel@claude-plugins-official": true,
+    "ralph-loop@claude-plugins-official": true,
+    "247-orchestrator@247-plugins": true
   }
 }
