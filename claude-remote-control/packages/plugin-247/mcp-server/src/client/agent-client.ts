@@ -80,7 +80,7 @@ export class AgentClient {
         throw new Error(`HTTP ${response.status}: ${error}`);
       }
 
-      return response.json();
+      return response.json() as T;
     } finally {
       clearTimeout(timeoutId);
     }

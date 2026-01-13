@@ -314,7 +314,9 @@
       "Bash(CLAUDE_PROJECT_DIR=/Users/stan/Dev/BrainStorming .claude/hooks/run-tests.sh:*)",
       "Bash(pnpm:*)",
       "Bash(claude marketplace add:*)",
-      "Bash(claude marketplace list:*)"
+      "Bash(claude marketplace list:*)",
+      "Skill(247-orchestrator:spawn)",
+      "Bash(npm run build:*)"
     ]
   },
   "remote": {
