@@ -15,9 +15,9 @@ primary_region = "cdg"
 [http_service]
   internal_port = 4678
   force_https = true
-  auto_stop_machines = "stop"
+  auto_stop_machines = false
   auto_start_machines = true
-  min_machines_running = 0
+  min_machines_running = 1
 
 [checks]
   [checks.health]
