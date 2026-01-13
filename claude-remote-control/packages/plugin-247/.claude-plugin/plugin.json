@@ -5,11 +5,10 @@
   "author": {
     "name": "247 Team"
   },
-  "repository": "https://github.com/quivr/247",
+  "repository": "https://github.com/QuivrHQ/247",
   "license": "MIT",
   "keywords": ["multi-agent", "parallel", "orchestration", "spawn", "247"],
   "commands": "./commands/",
-  "agents": "./agents/",
   "skills": "./skills/",
   "hooks": "./hooks/hooks.json",
   "mcpServers": "./.mcp.json"

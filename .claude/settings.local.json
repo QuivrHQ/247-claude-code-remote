@@ -312,7 +312,9 @@
       "WebFetch(domain:www.voiceflow.com)",
       "WebFetch(domain:www.quivr.com)",
       "Bash(CLAUDE_PROJECT_DIR=/Users/stan/Dev/BrainStorming .claude/hooks/run-tests.sh:*)",
-      "Bash(pnpm:*)"
+      "Bash(pnpm:*)",
+      "Bash(claude marketplace add:*)",
+      "Bash(claude marketplace list:*)"
     ]
   },
   "remote": {
