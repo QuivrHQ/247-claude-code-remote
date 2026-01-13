@@ -44,7 +44,6 @@ interface MultiAgentHeaderProps {
   onNewSession: () => void;
   onOpenGuide?: () => void;
   onOpenEnvironments?: () => void;
-  onOpenCloudConfig?: () => void;
   isFullscreen?: boolean;
   onToggleFullscreen?: () => void;
   isMobile?: boolean;
@@ -455,7 +454,6 @@ export function MultiAgentHeader({
   onNewSession,
   onOpenGuide,
   onOpenEnvironments,
-  onOpenCloudConfig,
   isFullscreen = false,
   onToggleFullscreen,
   isMobile = false,
@@ -651,15 +649,6 @@ export function MultiAgentHeader({
                     title="Environments"
                   >
                     <Settings className="h-4 w-4" />
-                  </button>
-                )}
-                {onOpenCloudConfig && (
-                  <button
-                    onClick={onOpenCloudConfig}
-                    className="rounded-lg p-2 text-purple-400/70 transition-colors hover:bg-purple-500/10 hover:text-purple-300"
-                    title="Cloud Configuration"
-                  >
-                    <Cloud className="h-4 w-4" />
                   </button>
                 )}
                 {onToggleFullscreen && (

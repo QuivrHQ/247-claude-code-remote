@@ -303,9 +303,10 @@ export function useHomeState() {
   }, [setPollingMachines, clearSessionFromUrl]);
 
   const getAgentUrl = useCallback(() => {
-    if (!selectedSession || !agentConnection) return '';
-    return agentConnection.url;
-  }, [selectedSession, agentConnection]);
+    if (!selectedSession) return '';
+    const connection = agentConnections.find((c) => c.id === selectedSession.machineId);
+    return connection?.url || '';
+  }, [selectedSession, agentConnections]);
 
   const getSelectedSessionInfo = useCallback(() => {
     if (!selectedSession) return undefined;

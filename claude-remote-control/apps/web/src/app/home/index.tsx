@@ -321,7 +321,6 @@ export function HomeContent() {
           onNewSession={() => setNewSessionOpen(true)}
           onOpenGuide={() => setGuideOpen(true)}
           onOpenEnvironments={() => setEnvironmentsOpen(true)}
-          onOpenCloudConfig={isCloudEnabled ? () => setCloudConfigOpen(true) : undefined}
           isFullscreen={isFullscreen}
           onToggleFullscreen={() => setIsFullscreen((prev) => !prev)}
           isMobile={false}
