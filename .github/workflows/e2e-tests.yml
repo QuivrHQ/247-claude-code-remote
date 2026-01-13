@@ -4,16 +4,16 @@ on:
   push:
     branches: [main]
     paths:
-      - 'packages/cli/**'
-      - 'packages/hooks/**'
-      - 'apps/agent/**'
+      - 'claude-remote-control/packages/cli/**'
+      - 'claude-remote-control/packages/hooks/**'
+      - 'claude-remote-control/apps/agent/**'
       - '.github/workflows/e2e-tests.yml'
   pull_request:
     branches: [main]
     paths:
-      - 'packages/cli/**'
-      - 'packages/hooks/**'
-      - 'apps/agent/**'
+      - 'claude-remote-control/packages/cli/**'
+      - 'claude-remote-control/packages/hooks/**'
+      - 'claude-remote-control/apps/agent/**'
       - '.github/workflows/e2e-tests.yml'
 
 jobs:
@@ -26,6 +26,9 @@ jobs:
         node: [22]
 
     runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        working-directory: claude-remote-control
 
     steps:
       - name: Checkout code
@@ -41,6 +44,7 @@ jobs:
         with:
           node-version: ${{ matrix.node }}
           cache: 'pnpm'
+          cache-dependency-path: claude-remote-control/pnpm-lock.yaml
 
       # Install tmux (required for E2E tests)
       - name: Install tmux (Ubuntu)
@@ -76,5 +80,5 @@ jobs:
         with:
           name: e2e-logs-${{ matrix.os }}
           path: |
-            packages/cli/tests/e2e/logs/
+            claude-remote-control/packages/cli/tests/e2e/logs/
           retention-days: 7

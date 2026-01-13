@@ -1,6 +1,9 @@
 name: Deploy Provisioning Service
 
 on:
+  push:
+    tags:
+      - 'v*'
   workflow_run:
     workflows: ["Build Cloud Agent Image"]
     types: [completed]
