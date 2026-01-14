@@ -104,7 +104,31 @@ export function createSessionRoutes(): Router {
         }
       }
 
-      // Build claude command
+      // Get custom env vars from environment if specified
+      const customEnvVars: Record<string, string> = {};
+      if (environmentId) {
+        setSessionEnvironment(sessionName, environmentId);
+        // Environment variables will be loaded from the environment settings
+      }
+
+      const cwd = worktreePath || projectPath;
+
+      // Register with execution manager
+      executionManager.register(sessionName, project, worktreePath ?? null);
+
+      // Create DB entry
+      sessionsDb.upsertSession(sessionName, {
+        project,
+        status: 'init',
+        lastEvent: 'Spawned',
+        worktreePath,
+        branchName: actualBranchName,
+        spawn_prompt: prompt.substring(0, 1000), // Truncate for storage
+        parent_session: parentSession,
+        task_id: taskId,
+      });
+
+      // Terminal mode: use tmux + node-pty
       const flags: string[] = [];
       if (trustMode) {
         flags.push('--dangerously-skip-permissions');
@@ -120,33 +144,9 @@ export function createSessionRoutes(): Router {
 
       const spawnCommand = `claude ${flags.join(' ')} -p '${sanitizedPrompt}'`.trim();
 
-      // Get custom env vars from environment if specified
-      const customEnvVars: Record<string, string> = {};
-      if (environmentId) {
-        setSessionEnvironment(sessionName, environmentId);
-        // Environment variables will be loaded from the environment settings
-      }
-
-      // Create terminal with spawn command
-      const cwd = worktreePath || projectPath;
       const terminal = createTerminal(cwd, sessionName, {
         customEnvVars,
         spawnCommand,
-      });
-
-      // Register with execution manager
-      executionManager.register(sessionName, project, worktreePath ?? null);
-
-      // Create DB entry
-      sessionsDb.upsertSession(sessionName, {
-        project,
-        status: 'init',
-        lastEvent: 'Spawned',
-        worktreePath,
-        branchName: actualBranchName,
-        spawn_prompt: prompt.substring(0, 1000), // Truncate for storage
-        parent_session: parentSession,
-        task_id: taskId,
       });
 
       // Set up exit handler - read output from tee file

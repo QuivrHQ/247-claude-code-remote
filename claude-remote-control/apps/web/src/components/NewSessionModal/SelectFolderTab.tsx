@@ -57,14 +57,16 @@ export function SelectFolderTab({
 
       <div>
         <label className="mb-3 block text-sm font-medium text-white/60">Options</label>
-        <ToggleSwitch
-          checked={useWorktree}
-          onCheckedChange={onUseWorktreeChange}
-          label="Git Worktree"
-          description="Branche isolée pour cette session"
-          icon={<GitBranch className="h-4 w-4" />}
-          accentColor="amber"
-        />
+        <div className="space-y-3">
+          <ToggleSwitch
+            checked={useWorktree}
+            onCheckedChange={onUseWorktreeChange}
+            label="Git Worktree"
+            description="Branche isolée pour cette session"
+            icon={<GitBranch className="h-4 w-4" />}
+            accentColor="amber"
+          />
+        </div>
       </div>
     </div>
   );

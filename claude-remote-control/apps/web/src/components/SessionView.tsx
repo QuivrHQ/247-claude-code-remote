@@ -32,7 +32,7 @@ interface SessionViewProps {
 
 /**
  * SessionView - Minimalist session container.
- * Renders the Terminal for the selected session.
+ * Renders a Terminal with tmux session.
  */
 export function SessionView({
   sessionName,

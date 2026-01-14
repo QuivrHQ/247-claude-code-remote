@@ -160,6 +160,7 @@ export function handleTerminalConnection(ws: WebSocket, url: URL): void {
       executionManager.register(sessionName, project!, worktreePath);
     }
 
+    // Create terminal
     let terminal;
     try {
       terminal = createTerminal(terminalCwd, sessionName, {

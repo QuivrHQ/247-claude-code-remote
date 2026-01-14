@@ -284,9 +284,6 @@ export interface ArchiveSessionResponse {
   session?: WSSessionInfo;
 }
 
-// Output format for spawn sessions
-export type SpawnOutputFormat = 'terminal' | 'stream-json';
-
 // Spawn session (for orchestration)
 export interface SpawnSessionRequest {
   prompt: string; // Required - the task prompt for claude -p
@@ -299,7 +296,6 @@ export interface SpawnSessionRequest {
   timeout?: number; // Timeout in milliseconds
   trustMode?: boolean; // Use --dangerously-skip-permissions
   model?: string; // Model override (opus, sonnet, etc.)
-  outputFormat?: SpawnOutputFormat; // 'terminal' (default, tmux) or 'stream-json' (structured)
 }
 
 export interface SpawnSessionResponse {
@@ -345,128 +341,6 @@ export interface HookStatusRequest {
   tmux_session?: string;
   project?: string;
   timestamp?: string;
-}
-
-// ============================================================================
-// Stream JSON Types (--output-format stream-json)
-// ============================================================================
-
-// Base event type
-export interface StreamJsonEventBase {
-  session_id: string;
-  uuid: string;
-}
-
-// System init event - first event in stream
-export interface StreamJsonInitEvent extends StreamJsonEventBase {
-  type: 'system';
-  subtype: 'init';
-  cwd: string;
-  tools: string[];
-  mcp_servers: Array<{ name: string; status: string }>;
-  model: string;
-  permissionMode: string;
-  claude_code_version: string;
-}
-
-// Content types for assistant messages
-export interface StreamJsonTextContent {
-  type: 'text';
-  text: string;
-}
-
-export interface StreamJsonToolUseContent {
-  type: 'tool_use';
-  id: string;
-  name: string;
-  input: Record<string, unknown>;
-}
-
-export type StreamJsonContent = StreamJsonTextContent | StreamJsonToolUseContent;
-
-// Usage stats
-export interface StreamJsonUsage {
-  input_tokens: number;
-  output_tokens: number;
-  cache_creation_input_tokens?: number;
-  cache_read_input_tokens?: number;
-}
-
-// Assistant message event
-export interface StreamJsonAssistantEvent extends StreamJsonEventBase {
-  type: 'assistant';
-  message: {
-    model: string;
-    id: string;
-    role: 'assistant';
-    content: StreamJsonContent[];
-    usage: StreamJsonUsage;
-  };
-}
-
-// Tool result in user message
-export interface StreamJsonToolResult {
-  tool_use_id: string;
-  type: 'tool_result';
-  content: string;
-  is_error: boolean;
-}
-
-// User message event (tool results)
-export interface StreamJsonUserEvent extends StreamJsonEventBase {
-  type: 'user';
-  message: {
-    role: 'user';
-    content: StreamJsonToolResult[];
-  };
-  tool_use_result?: {
-    stdout?: string;
-    stderr?: string;
-  };
-}
-
-// Final result event
-export interface StreamJsonResultEvent extends StreamJsonEventBase {
-  type: 'result';
-  subtype: 'success' | 'error';
-  is_error: boolean;
-  duration_ms: number;
-  num_turns: number;
-  result: string;
-  total_cost_usd: number;
-  usage: {
-    input_tokens: number;
-    output_tokens: number;
-  };
-}
-
-// Union type for all stream events
-export type StreamJsonEvent =
-  | StreamJsonInitEvent
-  | StreamJsonAssistantEvent
-  | StreamJsonUserEvent
-  | StreamJsonResultEvent;
-
-// Simplified event for storage/display in 247
-export interface SessionEvent {
-  id: string;
-  sessionName: string;
-  timestamp: number;
-  eventType: 'init' | 'text' | 'tool_call' | 'tool_result' | 'result';
-  // For tool_call events
-  toolName?: string;
-  toolInput?: Record<string, unknown>;
-  toolId?: string;
-  // For tool_result events
-  toolOutput?: string;
-  toolError?: boolean;
-  // For text events
-  text?: string;
-  // For result events
-  success?: boolean;
-  durationMs?: number;
-  totalCostUsd?: number;
-  numTurns?: number;
 }
 
 // Provider presets for UI

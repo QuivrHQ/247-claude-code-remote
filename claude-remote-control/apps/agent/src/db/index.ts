@@ -115,6 +115,9 @@ function runMigrations(database: Database.Database): void {
     if (currentVersion < 10) {
       migrateToV10(database);
     }
+    if (currentVersion < 11) {
+      migrateToV11(database);
+    }
 
     // Record the new version
     database
@@ -236,6 +239,12 @@ function ensureRequiredColumns(database: Database.Database): void {
       console.log(`[DB] Adding missing ${col.name} column to sessions`);
       database.exec(col.sql);
     }
+  }
+
+  // v11: Stream-json mode
+  if (!sessionColumnNames.has('output_format')) {
+    console.log('[DB] Adding missing output_format column to sessions');
+    database.exec("ALTER TABLE sessions ADD COLUMN output_format TEXT DEFAULT 'terminal'");
   }
 }
 
@@ -423,6 +432,52 @@ function migrateToV10(database: Database.Database): void {
       console.log(`[DB] v10 migration: Adding ${col.name} column to sessions`);
       database.exec(col.sql);
     }
+  }
+}
+
+/**
+ * Migration to v11: Add stream-json support
+ * - Add output_format column to sessions
+ * - Create session_events table
+ */
+function migrateToV11(database: Database.Database): void {
+  // Add output_format column to sessions
+  const columns = database.pragma('table_info(sessions)') as Array<{ name: string }>;
+  const columnNames = new Set(columns.map((c) => c.name));
+
+  if (!columnNames.has('output_format')) {
+    console.log('[DB] v11 migration: Adding output_format column to sessions');
+    database.exec("ALTER TABLE sessions ADD COLUMN output_format TEXT DEFAULT 'terminal'");
+  }
+
+  // Create session_events table
+  const tableExists = database
+    .prepare(`SELECT name FROM sqlite_master WHERE type='table' AND name='session_events'`)
+    .get();
+
+  if (!tableExists) {
+    console.log('[DB] v11 migration: Creating session_events table');
+    database.exec(`
+      CREATE TABLE session_events (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        session_name TEXT NOT NULL,
+        event_type TEXT NOT NULL,
+        timestamp INTEGER NOT NULL,
+        tool_name TEXT,
+        tool_input TEXT,
+        tool_id TEXT,
+        tool_output TEXT,
+        tool_error INTEGER,
+        text_content TEXT,
+        success INTEGER,
+        duration_ms INTEGER,
+        total_cost_usd REAL,
+        num_turns INTEGER
+      );
+      CREATE INDEX idx_events_session ON session_events(session_name);
+      CREATE INDEX idx_events_timestamp ON session_events(timestamp);
+      CREATE INDEX idx_events_type ON session_events(event_type);
+    `);
   }
 }
 
