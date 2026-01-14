@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Bug Fixes
 
+- update schema version test to expect v11 (c8c199a)
+- add missing types for stream-json feature (b226d3c)
+- **provisioning**: upgrade cloud-agent VM specs to 2 CPUs and 2GB RAM (1cb301a)
+
+## [2.21.1] - 2026-01-14
+
+### Bug Fixes
+
 - **provisioning**: upgrade cloud-agent VM specs to 2 CPUs and 2GB RAM (1cb301a)
 
 ## [2.21.0] - 2026-01-14
