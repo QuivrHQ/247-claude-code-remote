@@ -10,7 +10,6 @@ import {
   type StoredAgentConnection,
   type AgentConnection,
 } from '@/components/AgentConnectionSettings';
-import type { RalphLoopConfig } from '247-shared';
 import type { LocalMachine, SelectedSession } from './types';
 import { DEFAULT_MACHINE_ID } from './types';
 
@@ -167,21 +166,13 @@ export function useHomeState() {
   );
 
   const handleStartSession = useCallback(
-    (
-      machineId: string,
-      project: string,
-      environmentId?: string,
-      ralphConfig?: RalphLoopConfig,
-      useWorktree?: boolean
-    ) => {
+    (machineId: string, project: string, environmentId?: string) => {
       const newSessionName = `${project}--new`;
       setSelectedSession({
         machineId,
         sessionName: newSessionName,
         project,
         environmentId,
-        ralphConfig,
-        useWorktree,
       });
       setNewSessionOpen(false);
 
@@ -189,11 +180,6 @@ export function useHomeState() {
       params.set('session', newSessionName);
       params.set('machine', machineId);
       params.set('create', 'true');
-      if (useWorktree) {
-        params.set('worktree', 'true');
-      } else {
-        params.delete('worktree');
-      }
       router.replace(`?${params.toString()}`, { scroll: false });
     },
     [searchParams, router]

@@ -2,7 +2,6 @@
 
 import { useState, useCallback, useRef } from 'react';
 import dynamic from 'next/dynamic';
-import type { RalphLoopConfig } from '247-shared';
 import type { SessionStatus } from './ui/status-badge';
 import { type SessionInfo } from '@/lib/notifications';
 
@@ -21,7 +20,6 @@ interface SessionViewProps {
   agentUrl: string;
   sessionInfo?: SessionInfo;
   environmentId?: string;
-  ralphConfig?: RalphLoopConfig;
   planningProjectId?: string;
   onSessionCreated?: (sessionName: string) => void;
   /** Callback when menu button is clicked (goes back on desktop) */
@@ -40,7 +38,6 @@ export function SessionView({
   agentUrl,
   sessionInfo,
   environmentId,
-  ralphConfig,
   planningProjectId,
   onSessionCreated,
   onMenuClick,
@@ -75,7 +72,6 @@ export function SessionView({
       project={project}
       sessionName={isNewSession ? undefined : sessionName}
       environmentId={environmentId}
-      ralphConfig={ralphConfig}
       planningProjectId={planningProjectId}
       onConnectionChange={setIsConnected}
       onSessionCreated={handleSessionCreated}

@@ -1,10 +1,16 @@
 /**
- * Project-related API routes: listing, cloning, folder scanning.
+ * Project-related API routes: listing and folder scanning.
  */
 
 import { Router } from 'express';
-import { cloneRepo, extractProjectName } from '../git.js';
 import { config } from '../config.js';
+
+// Helper to check if project is allowed (whitelist empty = allow any)
+export function isProjectAllowed(project: string): boolean {
+  const whitelist = config.projects.whitelist as string[];
+  const hasWhitelist = whitelist && whitelist.length > 0;
+  return hasWhitelist ? whitelist.includes(project) : true;
+}
 
 export function createProjectRoutes(): Router {
   const router = Router();
@@ -31,46 +37,6 @@ export function createProjectRoutes(): Router {
       console.error('Failed to list folders:', err);
       res.status(500).json({ error: 'Failed to list folders' });
     }
-  });
-
-  // Clone a git repository
-  router.post('/clone', async (req, res) => {
-    const { repoUrl, projectName } = req.body;
-
-    if (!repoUrl) {
-      return res.status(400).json({ error: 'Missing repoUrl' });
-    }
-
-    try {
-      const result = await cloneRepo(repoUrl, config.projects.basePath, projectName);
-
-      if (result.success) {
-        res.json({
-          success: true,
-          projectName: result.projectName,
-          path: result.path,
-        });
-      } else {
-        res.status(400).json({
-          success: false,
-          error: result.error,
-          projectName: result.projectName,
-        });
-      }
-    } catch (err) {
-      console.error('Clone error:', err);
-      res.status(500).json({ error: 'Internal server error during clone' });
-    }
-  });
-
-  // Preview what project name would be extracted from a URL
-  router.get('/clone/preview', (req, res) => {
-    const url = req.query.url as string;
-    if (!url) {
-      return res.status(400).json({ error: 'Missing url parameter' });
-    }
-    const projectName = extractProjectName(url);
-    res.json({ projectName });
   });
 
   return router;

@@ -15,6 +15,7 @@ import { RETENTION_CONFIG } from './db/index.js';
 import * as sessionsDb from './db/sessions.js';
 import * as historyDb from './db/history.js';
 import { sendPushNotification } from './push/sender.js';
+import { sendWebhookNotifications } from './push/webhook-sender.js';
 
 // Store session status from Claude Code statusLine/hooks
 export interface HookStatus {
@@ -62,11 +63,16 @@ export function broadcastStatusUpdate(session: WSSessionInfo): void {
     );
   }
 
-  // Send Web Push notification for needs_attention status
+  // Send notifications for needs_attention status
   // This reaches users even when browser is closed
   if (session.status === 'needs_attention') {
+    // Web Push notification
     sendPushNotification(session).catch((err) => {
       console.error('[Status] Failed to send push notification:', err);
+    });
+    // Webhook notifications (Telegram, Slack, Discord, etc.)
+    sendWebhookNotifications('needs_attention', session).catch((err) => {
+      console.error('[Status] Failed to send webhook notifications:', err);
     });
   }
 }

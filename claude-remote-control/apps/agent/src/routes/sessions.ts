@@ -22,7 +22,7 @@ import { executionManager, worktreeManager } from '../services/index.js';
 import { config } from '../config.js';
 import { createTerminal, readAndCleanupSpawnOutput, getSpawnOutputPath } from '../terminal.js';
 import * as fs from 'fs';
-import { isProjectAllowed } from './editor.js';
+import { isProjectAllowed } from './projects.js';
 
 export function createSessionRoutes(): Router {
   const router = Router();

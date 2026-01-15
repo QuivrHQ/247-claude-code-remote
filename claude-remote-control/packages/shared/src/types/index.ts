@@ -24,43 +24,6 @@ export interface Session {
   endedAt: Date | null;
 }
 
-// Ralph Loop configuration (original implementation)
-export interface RalphLoopConfig {
-  prompt: string;
-  maxIterations?: number;
-  completionPromise?: string;
-  useWorktree?: boolean; // Create isolated git worktree for this loop
-  trustMode?: boolean; // Auto-accept all Claude tool permissions (--dangerously-skip-permissions)
-}
-
-// Ralph Loop Prompt Builder types
-export type RalphDeliverable = 'tests' | 'readme' | 'types' | 'docs' | 'custom';
-
-export interface RalphPromptBuilder {
-  taskDescription: string;
-  successCriteria: string[];
-  deliverables: RalphDeliverable[];
-  customDeliverable?: string;
-}
-
-// Labels for deliverables
-export const RALPH_DELIVERABLE_LABELS: Record<RalphDeliverable, string> = {
-  tests: 'Unit/integration tests with >80% coverage',
-  readme: 'Updated README documentation',
-  types: 'TypeScript types and interfaces',
-  docs: 'Code comments and JSDoc',
-  custom: '', // Uses customDeliverable value
-};
-
-// Suggested success criteria for quick selection
-export const RALPH_SUCCESS_CRITERIA_SUGGESTIONS = [
-  'All tests pass',
-  'No TypeScript errors',
-  'No linter errors',
-  'Code coverage >80%',
-  'Build succeeds',
-] as const;
-
 // User types
 export interface User {
   id: string;
@@ -74,7 +37,6 @@ export type WSMessageToAgent =
   | { type: 'input'; data: string }
   | { type: 'resize'; cols: number; rows: number }
   | { type: 'start-claude' }
-  | { type: 'start-claude-ralph'; config: RalphLoopConfig }
   | { type: 'ping' }
   | { type: 'request-history'; lines?: number };
 
@@ -126,15 +88,9 @@ export interface WSSessionInfo {
   contextUsage?: number; // Context window usage percentage (0-100)
   linesAdded?: number; // Total lines of code added
   linesRemoved?: number; // Total lines of code removed
-  // Git worktree isolation
-  worktreePath?: string; // Path to worktree if session uses isolation
-  branchName?: string; // Branch name for worktree session
-  // Spawn/orchestration (for sub-sessions)
-  parentSession?: string; // Name of parent session that spawned this one
-  taskId?: string; // Group ID for related spawned sessions
-  spawnPrompt?: string; // Original prompt used to spawn this session
-  exitCode?: number; // Exit code when session completed
-  exitedAt?: number; // Timestamp when session exited
+  // TODO: Remove these fields when agent orchestration is fully cleaned up
+  worktreePath?: string;
+  branchName?: string;
 }
 
 // WebSocket message types - Client to Agent (Status channel)
@@ -147,13 +103,7 @@ export type WSStatusMessageFromAgent =
   | { type: 'session-removed'; sessionName: string }
   | { type: 'session-archived'; sessionName: string; session: WSSessionInfo }
   | { type: 'version-info'; agentVersion: string }
-  | { type: 'update-pending'; targetVersion: string; message: string }
-  // Orchestration messages (for spawned sub-sessions)
-  | { type: 'session-spawned'; session: WSSessionInfo; parentSession?: string }
-  | { type: 'session-completed'; sessionName: string; exitCode: number };
-
-// Task status for orchestration (grouping spawned sessions)
-export type TaskStatus = 'pending' | 'running' | 'needs_attention' | 'completed' | 'failed';
+  | { type: 'update-pending'; targetVersion: string; message: string };
 
 // API types
 export interface RegisterMachineRequest {
@@ -282,30 +232,6 @@ export interface ArchiveSessionResponse {
   success: boolean;
   message: string;
   session?: WSSessionInfo;
-}
-
-// Spawn session (for orchestration)
-export interface SpawnSessionRequest {
-  prompt: string; // Required - the task prompt for claude -p
-  project: string; // Required - project name from whitelist
-  parentSession?: string; // Parent session name for hierarchy tracking
-  taskId?: string; // Group ID for related spawned sessions
-  worktree?: boolean; // Create isolated git worktree
-  branchName?: string; // Custom branch name for worktree
-  environmentId?: string; // Environment to use (API keys, etc.)
-  timeout?: number; // Timeout in milliseconds
-  trustMode?: boolean; // Use --dangerously-skip-permissions
-  model?: string; // Model override (opus, sonnet, etc.)
-}
-
-export interface SpawnSessionResponse {
-  success: boolean;
-  sessionName?: string;
-  taskId?: string;
-  worktreePath?: string;
-  branchName?: string;
-  error?: string;
-  errorCode?: 'PROJECT_NOT_ALLOWED' | 'CAPACITY_EXCEEDED' | 'SPAWN_FAILED';
 }
 
 // Session output capture

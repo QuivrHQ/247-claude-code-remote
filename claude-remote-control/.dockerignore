@@ -1,0 +1,51 @@
+# Dependencies
+node_modules
+**/node_modules
+
+# Build outputs
+dist
+**/dist
+.next
+**/.next
+.turbo
+**/.turbo
+
+# Test files
+**/*.test.ts
+**/*.test.tsx
+**/tests/
+**/coverage/
+**/__tests__/
+
+# Development files
+.git
+.gitignore
+.github
+*.md
+LICENSE
+*.log
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Env files (we'll set these as secrets)
+.env
+.env.*
+!.env.example
+
+# Web app (not needed for agent container)
+apps/web
+
+# Scripts (not needed in container)
+scripts/
+
+# Misc
+*.tgz
+*.tar.gz

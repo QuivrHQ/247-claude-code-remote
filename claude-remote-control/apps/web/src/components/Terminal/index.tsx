@@ -11,14 +11,12 @@ import { useTerminalConnection, useTerminalSearch } from './hooks';
 import { useKeybarVisibility } from '@/hooks/useKeybarVisibility';
 import { MinimalSessionHeader } from '@/components/MinimalSessionHeader';
 import type { SessionStatus } from '@/components/ui/status-badge';
-import type { RalphLoopConfig } from '247-shared';
 
 interface TerminalProps {
   agentUrl: string;
   project: string;
   sessionName?: string;
   environmentId?: string;
-  ralphConfig?: RalphLoopConfig;
   planningProjectId?: string;
   onConnectionChange?: (connected: boolean) => void;
   onSessionCreated?: (sessionName: string) => void;
@@ -40,7 +38,6 @@ export function Terminal({
   project,
   sessionName,
   environmentId,
-  ralphConfig,
   planningProjectId,
   onConnectionChange,
   onSessionCreated,
@@ -85,7 +82,6 @@ export function Terminal({
     project,
     sessionName: effectiveSessionName,
     environmentId,
-    ralphConfig,
     planningProjectId,
     onSessionCreated,
     onCopySuccess: handleCopySuccess,

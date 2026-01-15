@@ -13,14 +13,6 @@ export interface AgentConfig {
     basePath: string;
     whitelist: string[];
   };
-  editor?: {
-    enabled?: boolean;
-    portRange?: {
-      start: number;
-      end: number;
-    };
-    idleTimeout?: number;
-  };
 }
 
 let cachedConfig: AgentConfig | null = null;
@@ -77,8 +69,7 @@ export function loadConfig(): AgentConfig {
   }
 
   throw new Error(
-    `No configuration found at ${configPath}\n` +
-    `Run '247 init' to create configuration.`
+    `No configuration found at ${configPath}\n` + `Run '247 init' to create configuration.`
   );
 }
 

@@ -12,60 +12,17 @@ import { InstallBanner } from '@/components/InstallBanner';
 import { SlideOverPanel } from '@/components/ui/SlideOverPanel';
 import { ConnectionGuide } from '@/components/ConnectionGuide';
 import { EnvironmentsList } from '@/components/EnvironmentsList';
-import { DeployAgentModal, type DeployedAgent } from '@/components/DeployAgentModal';
-import { CloudConfigPanel } from '@/components/CloudConfigPanel';
-import { FlyioLinkModal } from '@/components/FlyioLinkModal';
 import { MultiAgentHeader, type ConnectedAgent } from '@/components/MultiAgentHeader';
 import { LoadingView } from './LoadingView';
 import { NoConnectionView } from './NoConnectionView';
-import { CloudWelcomeView } from './CloudWelcomeView';
 import { useHomeState } from './useHomeState';
 import { useIsMobile } from '@/hooks/useMediaQuery';
 import { useViewportHeight } from '@/hooks/useViewportHeight';
 import { usePullToRefresh } from '@/hooks/usePullToRefresh';
 import { useSessionPolling } from '@/contexts/SessionPollingContext';
-import { useFlyioStatus } from '@/hooks/useFlyioStatus';
-import { useAgents, type CloudAgent } from '@/hooks/useAgents';
-
-// Check if cloud auth is enabled
-const isCloudEnabled = !!process.env.NEXT_PUBLIC_PROVISIONING_URL;
-
-// Import useAuth only if cloud is enabled (will be tree-shaken if not used)
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const authModule = isCloudEnabled ? require('@/contexts/AuthContext') : null;
-
-// Default auth state when cloud is disabled
-const defaultAuthState = {
-  user: null,
-  isLoading: false,
-  isAuthenticated: false,
-  signInWithGitHub: async () => {},
-  signOut: async () => {},
-};
-
-const PROVISIONING_URL = process.env.NEXT_PUBLIC_PROVISIONING_URL;
 
 export function HomeContent() {
   const isMobile = useIsMobile();
-  // Call useAuth unconditionally (it's a no-op when cloud is disabled via AuthProvider check)
-  const auth = authModule ? authModule.useAuth() : defaultAuthState;
-
-  // Fetch Fly.io connection status when authenticated
-  const {
-    status: flyioStatus,
-    isLoading: flyioLoading,
-    refresh: refreshFlyioStatus,
-  } = useFlyioStatus(auth.isAuthenticated);
-
-  // Fetch deployed cloud agents when authenticated
-  const {
-    agents,
-    isLoading: agentsLoading,
-    refresh: refreshAgents,
-    startAgent,
-    stopAgent,
-    deleteAgent,
-  } = useAgents(auth.isAuthenticated);
 
   // Set CSS variable for viewport height (handles mobile keyboard)
   useViewportHeight();
@@ -101,7 +58,7 @@ export function HomeContent() {
   } = useHomeState();
 
   // Get session count per agent for the header
-  const { sessionsByMachine, isWsConnected } = useSessionPolling();
+  const { sessionsByMachine, isWsConnected, refreshMachine } = useSessionPolling();
 
   // Convert agentConnections to ConnectedAgent format for the header
   const connectedAgents: ConnectedAgent[] = agentConnections.map((conn) => {
@@ -120,8 +77,6 @@ export function HomeContent() {
   // Slide-over panel states
   const [guideOpen, setGuideOpen] = useState(false);
   const [environmentsOpen, setEnvironmentsOpen] = useState(false);
-  const [cloudConfigOpen, setCloudConfigOpen] = useState(false);
-  const [flyioLinkModalOpen, setFlyioLinkModalOpen] = useState(false);
   const [unifiedManagerOpen, setUnifiedManagerOpen] = useState(false);
 
   // Create agent status and session count maps for UnifiedAgentManager
@@ -138,7 +93,6 @@ export function HomeContent() {
   });
 
   // Pull-to-refresh for mobile PWA
-  const { refreshMachine } = useSessionPolling();
   const { pullDistance, isRefreshing, isPulling, isThresholdReached, handlers } = usePullToRefresh({
     onRefresh: async () => {
       if (currentMachine) {
@@ -148,101 +102,17 @@ export function HomeContent() {
     disabled: !isMobile,
   });
 
-  // State for deploy modal
-  const [deployModalOpen, setDeployModalOpen] = useState(false);
-
-  // Handler for disconnecting Fly.io
-  const handleFlyioDisconnect = async () => {
-    if (!PROVISIONING_URL) return;
-    try {
-      await fetch(`${PROVISIONING_URL}/api/flyio/token`, {
-        method: 'DELETE',
-        credentials: 'include',
-      });
-      await refreshFlyioStatus();
-    } catch (error) {
-      console.error('Failed to disconnect Fly.io:', error);
-    }
-  };
-
-  // Handler for launching cloud agent - opens the deploy modal
-  const handleLaunchAgent = () => {
-    setDeployModalOpen(true);
-  };
-
-  // Handler for successful agent deployment - auto-connect to the new agent
-  const handleDeploySuccess = (agent: DeployedAgent) => {
-    // Refresh the agents list to show the new agent
-    refreshAgents();
-    // Save the agent as a connection and connect to it
-    // Use 'custom' method since it's a cloud-hosted agent via Fly.io
-    handleConnectionSaved({
-      url: `wss://${agent.hostname}`,
-      name: `Cloud Agent (${agent.region})`,
-      method: 'custom',
-    });
-  };
-
-  // Handler for connecting to an existing cloud agent
-  // If the agent is sleeping (stopped), trigger a wake first via API
-  // This is faster than waiting for Fly.io proxy auto-wake
-  const handleConnectAgent = async (agent: CloudAgent) => {
-    // If agent is stopped/sleeping, trigger wake via API (don't wait for it)
-    if (agent.status === 'stopped') {
-      startAgent(agent.id).catch(() => {
-        // Ignore errors - Fly.io proxy will auto-wake anyway
-      });
-    }
-    // Save connection immediately - WebSocket will retry if machine isn't ready yet
-    handleConnectionSaved({
-      url: `wss://${agent.hostname}`,
-      name: `Cloud Agent (${agent.region})`,
-      method: 'custom',
-    });
-  };
-
-  if (loading || auth.isLoading) {
+  if (loading) {
     return <LoadingView />;
   }
 
-  // Show CloudWelcomeView if authenticated but no local agent connected
-  // This prompts the user to connect Fly.io to deploy a cloud agent
-  if (!agentConnection && auth.isAuthenticated && auth.user) {
-    return (
-      <>
-        <CloudWelcomeView
-          user={auth.user}
-          flyioStatus={flyioStatus}
-          flyioLoading={flyioLoading}
-          onSignOut={auth.signOut}
-          onConnectionSaved={handleConnectionSaved}
-          onFlyioConnected={refreshFlyioStatus}
-          onFlyioDisconnect={handleFlyioDisconnect}
-          onLaunchAgent={handleLaunchAgent}
-          agents={agents}
-          agentsLoading={agentsLoading}
-          onConnectAgent={handleConnectAgent}
-          onStartAgent={startAgent}
-          onStopAgent={stopAgent}
-          onDeleteAgent={deleteAgent}
-        />
-        <DeployAgentModal
-          open={deployModalOpen}
-          onOpenChange={setDeployModalOpen}
-          onSuccess={handleDeploySuccess}
-        />
-      </>
-    );
-  }
-
-  // Show NoConnectionView if not authenticated and no local agent
+  // Show NoConnectionView if no agent connected
   if (!agentConnection) {
     return (
       <NoConnectionView
         modalOpen={connectionModalOpen}
         onModalOpenChange={setConnectionModalOpen}
         onConnectionSaved={handleConnectionSaved}
-        onCloudSignIn={isCloudEnabled ? auth.signInWithGitHub : undefined}
       />
     );
   }
@@ -352,7 +222,6 @@ export function HomeContent() {
               agentUrl={getAgentUrl()}
               sessionInfo={getSelectedSessionInfo()}
               environmentId={selectedSession.environmentId}
-              ralphConfig={selectedSession.ralphConfig}
               planningProjectId={selectedSession.planningProjectId}
               onMenuClick={handleMenuClick}
               onSessionCreated={handleSessionCreated}
@@ -390,21 +259,6 @@ export function HomeContent() {
         sessionCounts={sessionCountsMap}
         onDisconnectAgent={handleConnectionRemoved}
         onConnectNewAgent={handleConnectionSaved}
-        isAuthenticated={auth.isAuthenticated}
-        flyioStatus={flyioStatus}
-        flyioLoading={flyioLoading}
-        cloudAgents={agents}
-        cloudAgentsLoading={agentsLoading}
-        onSignIn={isCloudEnabled ? auth.signInWithGitHub : undefined}
-        onFlyioConnect={() => setFlyioLinkModalOpen(true)}
-        onFlyioDisconnect={handleFlyioDisconnect}
-        onLaunchCloudAgent={() => {
-          setUnifiedManagerOpen(false);
-          setDeployModalOpen(true);
-        }}
-        onStartCloudAgent={startAgent}
-        onStopCloudAgent={stopAgent}
-        onDeleteCloudAgent={deleteAgent}
       />
 
       {/* New Session Modal */}
@@ -428,54 +282,6 @@ export function HomeContent() {
       >
         <EnvironmentsList machines={machines} />
       </SlideOverPanel>
-
-      {/* Cloud Config Slide-Over Panel */}
-      {isCloudEnabled && (
-        <SlideOverPanel
-          open={cloudConfigOpen}
-          onClose={() => setCloudConfigOpen(false)}
-          title="Cloud Configuration"
-        >
-          <CloudConfigPanel
-            isAuthenticated={auth.isAuthenticated}
-            flyioStatus={flyioStatus}
-            flyioLoading={flyioLoading}
-            agents={agents}
-            agentsLoading={agentsLoading}
-            onSignIn={auth.signInWithGitHub}
-            onFlyioDisconnect={handleFlyioDisconnect}
-            onLaunchAgent={() => {
-              setCloudConfigOpen(false);
-              setDeployModalOpen(true);
-            }}
-            onConnectAgent={(agent) => {
-              setCloudConfigOpen(false);
-              handleConnectAgent(agent);
-            }}
-            onStartAgent={startAgent}
-            onStopAgent={stopAgent}
-            onDeleteAgent={deleteAgent}
-            onReconnectFlyio={() => {
-              setCloudConfigOpen(false);
-              setFlyioLinkModalOpen(true);
-            }}
-          />
-        </SlideOverPanel>
-      )}
-
-      {/* Fly.io Link Modal for reconnection */}
-      <FlyioLinkModal
-        open={flyioLinkModalOpen}
-        onOpenChange={setFlyioLinkModalOpen}
-        onSuccess={refreshFlyioStatus}
-      />
-
-      {/* Deploy Agent Modal */}
-      <DeployAgentModal
-        open={deployModalOpen}
-        onOpenChange={setDeployModalOpen}
-        onSuccess={handleDeploySuccess}
-      />
 
       {/* PWA Install Banner - only on mobile */}
       {isMobile && <InstallBanner />}

@@ -38,12 +38,6 @@ export const logger = {
   // Terminal/PTY related logs
   terminal: baseLogger.child({ module: 'Terminal' }),
 
-  // Editor (code-server) related logs
-  editor: baseLogger.child({ module: 'Editor' }),
-
-  // Git operations logs
-  git: baseLogger.child({ module: 'Git' }),
-
   // Environment management logs
   env: baseLogger.child({ module: 'Environments' }),
 

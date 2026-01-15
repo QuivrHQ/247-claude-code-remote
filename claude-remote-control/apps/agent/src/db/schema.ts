@@ -23,11 +23,6 @@ export interface DbSession {
   context_usage: number | null;
   lines_added: number | null;
   lines_removed: number | null;
-  // Ralph mode fields (legacy, kept for backwards compatibility)
-  ralph_enabled: number; // SQLite uses 0/1 for booleans
-  ralph_config: string | null; // JSON string
-  ralph_iteration: number;
-  ralph_status: string | null;
   // Worktree isolation (v6)
   worktree_path: string | null;
   branch_name: string | null;
@@ -40,8 +35,6 @@ export interface DbSession {
   // Output capture (v10)
   output_content: string | null;
   output_captured_at: number | null;
-  // Stream-json mode (v11)
-  output_format: 'terminal' | 'stream-json';
 }
 
 export interface DbStatusHistory {
@@ -74,26 +67,19 @@ export interface DbSchemaVersion {
   applied_at: number;
 }
 
-// Session events for stream-json mode (v11)
-export interface DbSessionEvent {
-  id: number;
-  session_name: string;
-  event_type: 'init' | 'text' | 'tool_call' | 'tool_result' | 'result';
-  timestamp: number;
-  // Tool call fields
-  tool_name: string | null;
-  tool_input: string | null; // JSON string
-  tool_id: string | null;
-  // Tool result fields
-  tool_output: string | null;
-  tool_error: number | null; // 0/1
-  // Text content
-  text_content: string | null;
-  // Result fields
-  success: number | null; // 0/1
-  duration_ms: number | null;
-  total_cost_usd: number | null;
-  num_turns: number | null;
+export type WebhookType = 'telegram' | 'slack' | 'discord' | 'generic';
+export type WebhookEvent = 'needs_attention' | 'task_complete' | 'session_start' | 'session_end';
+
+export interface DbWebhook {
+  id: string;
+  name: string;
+  url: string;
+  type: WebhookType;
+  enabled: number; // SQLite uses 0/1 for booleans
+  events: string; // JSON array of WebhookEvent
+  secret: string | null; // Optional secret for HMAC signing
+  created_at: number;
+  updated_at: number;
 }
 
 // ============================================================================
@@ -114,11 +100,6 @@ export interface UpsertSessionInput {
   contextUsage?: number | null;
   linesAdded?: number | null;
   linesRemoved?: number | null;
-  // Ralph mode fields (legacy, kept for backwards compatibility)
-  ralphEnabled?: boolean;
-  ralphConfig?: Record<string, unknown> | null;
-  ralphIteration?: number;
-  ralphStatus?: string | null;
   // Worktree isolation (v6)
   worktreePath?: string | null;
   branchName?: string | null;
@@ -131,8 +112,6 @@ export interface UpsertSessionInput {
   // Output capture (v10)
   output_content?: string | null;
   output_captured_at?: number | null;
-  // Stream-json mode (v11)
-  output_format?: 'terminal' | 'stream-json';
 }
 
 export interface UpsertEnvironmentInput {
@@ -143,11 +122,21 @@ export interface UpsertEnvironmentInput {
   variables: Record<string, string>;
 }
 
+export interface UpsertWebhookInput {
+  id?: string;
+  name: string;
+  url: string;
+  type: WebhookType;
+  enabled?: boolean;
+  events: WebhookEvent[];
+  secret?: string | null;
+}
+
 // ============================================================================
 // SQL Schema Definitions
 // ============================================================================
 
-export const SCHEMA_VERSION = 11;
+export const SCHEMA_VERSION = 13;
 
 export const CREATE_TABLES_SQL = `
 -- Sessions: current state of terminal sessions
@@ -170,11 +159,6 @@ CREATE TABLE IF NOT EXISTS sessions (
   context_usage INTEGER,
   lines_added INTEGER,
   lines_removed INTEGER,
-  -- Ralph mode fields (v5)
-  ralph_enabled INTEGER DEFAULT 0,
-  ralph_config TEXT,
-  ralph_iteration INTEGER DEFAULT 0,
-  ralph_status TEXT,
   -- Worktree isolation (v6)
   worktree_path TEXT,
   branch_name TEXT,
@@ -186,9 +170,7 @@ CREATE TABLE IF NOT EXISTS sessions (
   exited_at INTEGER,
   -- Output capture (v10)
   output_content TEXT,
-  output_captured_at INTEGER,
-  -- Stream-json mode (v11)
-  output_format TEXT DEFAULT 'terminal'
+  output_captured_at INTEGER
 );
 
 CREATE INDEX IF NOT EXISTS idx_sessions_name ON sessions(name);
@@ -249,31 +231,20 @@ CREATE TABLE IF NOT EXISTS push_subscriptions (
 
 CREATE INDEX IF NOT EXISTS idx_push_endpoint ON push_subscriptions(endpoint);
 
--- Session events for stream-json mode (v11)
-CREATE TABLE IF NOT EXISTS session_events (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  session_name TEXT NOT NULL,
-  event_type TEXT NOT NULL,
-  timestamp INTEGER NOT NULL,
-  -- Tool call fields
-  tool_name TEXT,
-  tool_input TEXT,
-  tool_id TEXT,
-  -- Tool result fields
-  tool_output TEXT,
-  tool_error INTEGER,
-  -- Text content
-  text_content TEXT,
-  -- Result fields
-  success INTEGER,
-  duration_ms INTEGER,
-  total_cost_usd REAL,
-  num_turns INTEGER
+-- Webhooks for external notifications (v13)
+CREATE TABLE IF NOT EXISTS webhooks (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  url TEXT NOT NULL,
+  type TEXT NOT NULL DEFAULT 'generic',
+  enabled INTEGER NOT NULL DEFAULT 1,
+  events TEXT NOT NULL DEFAULT '["needs_attention"]',
+  secret TEXT,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL
 );
 
-CREATE INDEX IF NOT EXISTS idx_events_session ON session_events(session_name);
-CREATE INDEX IF NOT EXISTS idx_events_timestamp ON session_events(timestamp);
-CREATE INDEX IF NOT EXISTS idx_events_type ON session_events(event_type);
+CREATE INDEX IF NOT EXISTS idx_webhooks_enabled ON webhooks(enabled);
 `;
 
 // ============================================================================

@@ -12,7 +12,6 @@ import type {
   EnvironmentMetadata,
   Environment,
   WSSessionInfo,
-  CloneResponse,
   ArchiveSessionResponse,
   EnvironmentProvider,
   EnvironmentIcon,
@@ -26,11 +25,6 @@ const mockConfig = {
   projects: {
     basePath: '/tmp/test-projects',
     whitelist: ['allowed-project'],
-  },
-  editor: {
-    enabled: false,
-    portRange: { start: 4680, end: 4699 },
-    idleTimeout: 60000,
   },
   dashboard: {
     apiUrl: 'http://localhost:3001/api',
@@ -81,20 +75,6 @@ vi.mock('@homebridge/node-pty-prebuilt-multiarch', () => ({
   }),
 }));
 
-// Mock git functions
-vi.mock('../../src/git.js', () => ({
-  cloneRepo: vi.fn().mockResolvedValue({
-    success: true,
-    projectName: 'test-repo',
-    path: '/tmp/test-projects/test-repo',
-  }),
-  extractProjectName: vi.fn().mockReturnValue('test-repo'),
-  listFiles: vi.fn().mockResolvedValue([]),
-  getFileContent: vi.fn().mockResolvedValue({ content: '', type: 'text' }),
-  openFileInEditor: vi.fn().mockResolvedValue({ success: true }),
-  getChangesSummary: vi.fn().mockResolvedValue({ staged: [], unstaged: [], untracked: [] }),
-}));
-
 // Mock terminal
 vi.mock('../../src/terminal.js', () => ({
   createTerminal: vi.fn(() => ({
@@ -107,17 +87,6 @@ vi.mock('../../src/terminal.js', () => ({
     captureHistory: vi.fn().mockResolvedValue(''),
     isExistingSession: vi.fn().mockReturnValue(false),
   })),
-}));
-
-// Mock editor
-vi.mock('../../src/editor.js', () => ({
-  initEditor: vi.fn(),
-  getOrStartEditor: vi.fn(),
-  stopEditor: vi.fn(),
-  getEditorStatus: vi.fn().mockReturnValue({ running: false }),
-  getAllEditors: vi.fn().mockReturnValue([]),
-  updateEditorActivity: vi.fn(),
-  shutdownAllEditors: vi.fn(),
 }));
 
 // ============================================================================
@@ -152,21 +121,6 @@ function isValidWSSessionInfo(obj: unknown): obj is WSSessionInfo {
   if (!validStatuses.includes(session.status as string)) return false;
   if (!validSources.includes(session.statusSource as string)) return false;
   if (typeof session.createdAt !== 'number') return false;
-
-  return true;
-}
-
-function isValidCloneResponse(obj: unknown): obj is CloneResponse {
-  if (typeof obj !== 'object' || obj === null) return false;
-  const response = obj as Record<string, unknown>;
-
-  if (typeof response.success !== 'boolean') return false;
-  if (response.success) {
-    if (typeof response.projectName !== 'string') return false;
-    if (typeof response.path !== 'string') return false;
-  } else {
-    if (response.error !== undefined && typeof response.error !== 'string') return false;
-  }
 
   return true;
 }
@@ -221,46 +175,6 @@ describe('API Response Contract Tests', () => {
       res.body.forEach((item: unknown) => {
         expect(typeof item).toBe('string');
       });
-    });
-  });
-
-  describe('POST /api/clone', () => {
-    it('returns valid CloneResponse on success', async () => {
-      const { cloneRepo } = await import('../../src/git.js');
-      vi.mocked(cloneRepo).mockResolvedValue({
-        success: true,
-        projectName: 'test-repo',
-        path: '/tmp/test-projects/test-repo',
-      });
-
-      const res = await request(server)
-        .post('/api/clone')
-        .send({ repoUrl: 'https://github.com/user/repo' });
-
-      expect(res.status).toBe(200);
-      expect(isValidCloneResponse(res.body)).toBe(true);
-      expect(res.body.success).toBe(true);
-      expect(typeof res.body.projectName).toBe('string');
-      expect(typeof res.body.path).toBe('string');
-    });
-
-    it('returns valid CloneResponse on failure', async () => {
-      const { cloneRepo } = await import('../../src/git.js');
-      vi.mocked(cloneRepo).mockResolvedValue({
-        success: false,
-        projectName: 'repo',
-        path: '',
-        error: 'Repository not found',
-      });
-
-      const res = await request(server)
-        .post('/api/clone')
-        .send({ repoUrl: 'https://github.com/user/nonexistent' });
-
-      expect(res.status).toBe(400);
-      expect(isValidCloneResponse(res.body)).toBe(true);
-      expect(res.body.success).toBe(false);
-      expect(typeof res.body.error).toBe('string');
     });
   });
 
@@ -404,29 +318,6 @@ describe('API Response Contract Tests', () => {
       }
     });
   });
-
-  describe('Clone Preview Endpoint', () => {
-    it('returns expected structure', async () => {
-      const { extractProjectName } = await import('../../src/git.js');
-      vi.mocked(extractProjectName).mockReturnValue('my-project');
-
-      const res = await request(server)
-        .get('/api/clone/preview')
-        .query({ url: 'https://github.com/user/my-project' });
-
-      expect(res.status).toBe(200);
-      expect(typeof res.body.projectName).toBe('string');
-    });
-  });
-
-  describe('Editor Status Endpoint', () => {
-    it('returns expected structure', async () => {
-      const res = await request(server).get('/api/editor/allowed-project/status');
-
-      expect(res.status).toBe(200);
-      expect(typeof res.body.running).toBe('boolean');
-    });
-  });
 });
 
 describe('Error Response Contracts', () => {
@@ -443,25 +334,11 @@ describe('Error Response Contracts', () => {
     }
   });
 
-  it('returns 400 with error object for bad requests', async () => {
-    const res = await request(server).post('/api/clone').send({});
-
-    expect(res.status).toBe(400);
-    expect(typeof res.body.error).toBe('string');
-  });
-
   it('returns 400 for invalid session name format', async () => {
     const res = await request(server).get('/api/sessions/invalid;rm -rf/preview');
 
     expect(res.status).toBe(400);
     expect(res.body.error).toBe('Invalid session name');
-  });
-
-  it('returns 403 for non-whitelisted project', async () => {
-    const res = await request(server).get('/api/editor/not-allowed-project/status');
-
-    expect(res.status).toBe(403);
-    expect(res.body.error).toBe('Project not allowed');
   });
 
   it('returns 404 for missing resources', async () => {

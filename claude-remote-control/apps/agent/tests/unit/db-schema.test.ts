@@ -25,8 +25,8 @@ describe('Database Schema', () => {
       expect(Number.isInteger(SCHEMA_VERSION)).toBe(true);
     });
 
-    it('current version is 11', () => {
-      expect(SCHEMA_VERSION).toBe(11);
+    it('current version is 13', () => {
+      expect(SCHEMA_VERSION).toBe(13);
     });
   });
 
@@ -221,11 +221,6 @@ describe('Database Schema', () => {
           context_usage: null,
           lines_added: null,
           lines_removed: null,
-          // Ralph mode fields
-          ralph_enabled: 0,
-          ralph_config: null,
-          ralph_iteration: 0,
-          ralph_status: null,
           // Worktree isolation
           worktree_path: null,
           branch_name: null,
@@ -266,10 +261,6 @@ describe('Database Schema', () => {
             context_usage: null,
             lines_added: null,
             lines_removed: null,
-            ralph_enabled: 0,
-            ralph_config: null,
-            ralph_iteration: 0,
-            ralph_status: null,
             worktree_path: null,
             branch_name: null,
             spawn_prompt: null,
@@ -307,10 +298,6 @@ describe('Database Schema', () => {
             context_usage: null,
             lines_added: null,
             lines_removed: null,
-            ralph_enabled: 0,
-            ralph_config: null,
-            ralph_iteration: 0,
-            ralph_status: null,
             worktree_path: null,
             branch_name: null,
             spawn_prompt: null,
@@ -345,10 +332,6 @@ describe('Database Schema', () => {
           context_usage: 36,
           lines_added: 26,
           lines_removed: 2,
-          ralph_enabled: 0,
-          ralph_config: null,
-          ralph_iteration: 0,
-          ralph_status: null,
           worktree_path: null,
           branch_name: null,
           spawn_prompt: null,

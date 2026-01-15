@@ -118,6 +118,12 @@ function runMigrations(database: Database.Database): void {
     if (currentVersion < 11) {
       migrateToV11(database);
     }
+    if (currentVersion < 12) {
+      migrateToV12(database);
+    }
+    if (currentVersion < 13) {
+      migrateToV13(database);
+    }
 
     // Record the new version
     database
@@ -175,27 +181,6 @@ function ensureRequiredColumns(database: Database.Database): void {
     }
   }
 
-  // v5: Ralph mode columns
-  const ralphColumns = [
-    {
-      name: 'ralph_enabled',
-      sql: 'ALTER TABLE sessions ADD COLUMN ralph_enabled INTEGER DEFAULT 0',
-    },
-    { name: 'ralph_config', sql: 'ALTER TABLE sessions ADD COLUMN ralph_config TEXT' },
-    {
-      name: 'ralph_iteration',
-      sql: 'ALTER TABLE sessions ADD COLUMN ralph_iteration INTEGER DEFAULT 0',
-    },
-    { name: 'ralph_status', sql: 'ALTER TABLE sessions ADD COLUMN ralph_status TEXT' },
-  ];
-
-  for (const col of ralphColumns) {
-    if (!sessionColumnNames.has(col.name)) {
-      console.log(`[DB] Adding missing ${col.name} column to sessions`);
-      database.exec(col.sql);
-    }
-  }
-
   // v6: Worktree isolation columns
   const worktreeColumns = [
     { name: 'worktree_path', sql: 'ALTER TABLE sessions ADD COLUMN worktree_path TEXT' },
@@ -239,12 +224,6 @@ function ensureRequiredColumns(database: Database.Database): void {
       console.log(`[DB] Adding missing ${col.name} column to sessions`);
       database.exec(col.sql);
     }
-  }
-
-  // v11: Stream-json mode
-  if (!sessionColumnNames.has('output_format')) {
-    console.log('[DB] Adding missing output_format column to sessions');
-    database.exec("ALTER TABLE sessions ADD COLUMN output_format TEXT DEFAULT 'terminal'");
   }
 }
 
@@ -479,6 +458,58 @@ function migrateToV11(database: Database.Database): void {
       CREATE INDEX idx_events_type ON session_events(event_type);
     `);
   }
+}
+
+/**
+ * Migration to v12: Simplification - remove unused features
+ * - Drop session_events table (stream-json mode removed)
+ * - Note: Ralph columns are left in place (SQLite doesn't easily drop columns)
+ *         but they are no longer used
+ */
+function migrateToV12(database: Database.Database): void {
+  // Drop session_events table if it exists
+  const tableExists = database
+    .prepare(`SELECT name FROM sqlite_master WHERE type='table' AND name='session_events'`)
+    .get();
+
+  if (tableExists) {
+    console.log('[DB] v12 migration: Dropping session_events table');
+    database.exec('DROP TABLE IF EXISTS session_events');
+  }
+
+  console.log(
+    '[DB] v12 migration: Simplification complete (Ralph and stream-json features removed)'
+  );
+}
+
+/**
+ * Migration to v13: Add webhooks table for external notifications
+ */
+function migrateToV13(database: Database.Database): void {
+  // Check if webhooks table already exists
+  const tableExists = database
+    .prepare(`SELECT name FROM sqlite_master WHERE type='table' AND name='webhooks'`)
+    .get();
+
+  if (!tableExists) {
+    console.log('[DB] v13 migration: Creating webhooks table');
+    database.exec(`
+      CREATE TABLE webhooks (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        url TEXT NOT NULL,
+        type TEXT NOT NULL DEFAULT 'generic',
+        enabled INTEGER NOT NULL DEFAULT 1,
+        events TEXT NOT NULL DEFAULT '["needs_attention"]',
+        secret TEXT,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL
+      );
+      CREATE INDEX idx_webhooks_enabled ON webhooks(enabled);
+    `);
+  }
+
+  console.log('[DB] v13 migration: Webhooks support added');
 }
 
 /**
