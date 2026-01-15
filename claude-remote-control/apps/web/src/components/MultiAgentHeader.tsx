@@ -19,8 +19,10 @@ import {
   Maximize2,
   Minimize2,
   Menu,
+  User,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { authClient } from '@/lib/auth-client';
 import React from 'react';
 
 // Types for the multi-agent system
@@ -302,6 +304,110 @@ function AgentsCompactView({
 
       <ChevronDown className="h-3 w-3 text-white/30" />
     </button>
+  );
+}
+
+// User menu component
+function UserMenu() {
+  const [isOpen, setIsOpen] = useState(false);
+  const [user, setUser] = useState<{ name?: string; email?: string } | null>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  // Fetch user info
+  useEffect(() => {
+    const fetchUser = async () => {
+      try {
+        const session = await authClient.getSession();
+        if (session?.data?.user) {
+          setUser({
+            name: session.data.user.name,
+            email: session.data.user.email,
+          });
+        }
+      } catch {
+        // Ignore errors
+      }
+    };
+    fetchUser();
+  }, []);
+
+  // Close menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const handleLogout = async () => {
+    try {
+      await authClient.signOut();
+      window.location.href = '/auth/sign-in';
+    } catch (error) {
+      console.error('Logout failed:', error);
+    }
+  };
+
+  const initials = user?.name
+    ? user.name
+        .split(' ')
+        .map((n) => n[0])
+        .join('')
+        .toUpperCase()
+        .slice(0, 2)
+    : user?.email?.[0]?.toUpperCase() || 'U';
+
+  return (
+    <div ref={menuRef} className="relative">
+      <button
+        onClick={() => setIsOpen(!isOpen)}
+        className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-orange-500/30 to-amber-500/30 text-xs font-medium text-white transition-all hover:from-orange-500/40 hover:to-amber-500/40"
+        title={user?.email || 'Account'}
+      >
+        {initials}
+      </button>
+
+      <AnimatePresence>
+        {isOpen && (
+          <motion.div
+            initial={{ opacity: 0, y: -8, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -8, scale: 0.95 }}
+            transition={{ duration: 0.15 }}
+            className="absolute right-0 top-full z-50 mt-2 w-56 overflow-hidden rounded-xl border border-white/10 bg-[#12121a] shadow-2xl shadow-black/50"
+          >
+            {/* User info */}
+            <div className="border-b border-white/5 p-3">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-orange-500/30 to-amber-500/30 text-sm font-medium text-white">
+                  {initials}
+                </div>
+                <div className="min-w-0 flex-1">
+                  {user?.name && (
+                    <p className="truncate text-sm font-medium text-white">{user.name}</p>
+                  )}
+                  {user?.email && <p className="truncate text-xs text-white/50">{user.email}</p>}
+                </div>
+              </div>
+            </div>
+
+            {/* Actions */}
+            <div className="p-1.5">
+              <button
+                onClick={handleLogout}
+                className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-xs text-white/70 transition-colors hover:bg-white/5 hover:text-white"
+              >
+                <User className="h-3.5 w-3.5" />
+                <span>Sign out</span>
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
   );
 }
 
@@ -683,6 +789,9 @@ export function MultiAgentHeader({
               <Plus className={isMobile ? 'h-4 w-4' : 'h-3.5 w-3.5'} />
               <span className={isMobile ? 'inline' : 'hidden sm:inline'}>New</span>
             </button>
+
+            {/* User menu */}
+            {!isMobile && <UserMenu />}
           </div>
         </div>
       </div>
