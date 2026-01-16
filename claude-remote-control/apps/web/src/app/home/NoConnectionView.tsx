@@ -14,24 +14,23 @@ import {
   Server,
   Clock,
   Github,
-  Cloud,
   Loader2,
+  LogOut,
+  User,
 } from 'lucide-react';
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   AgentConnectionSettings,
   type saveAgentConnection,
 } from '@/components/AgentConnectionSettings';
 import { InstallationGuide } from '@/components/InstallationGuide';
-
-// Check if cloud auth is enabled
-const isCloudEnabled = !!process.env.NEXT_PUBLIC_PROVISIONING_URL;
+import { authClient } from '@/lib/auth-client';
+import { AnimatePresence } from 'framer-motion';
 
 interface NoConnectionViewProps {
   modalOpen: boolean;
   onModalOpenChange: (open: boolean) => void;
   onConnectionSaved: (connection: ReturnType<typeof saveAgentConnection>) => void;
-  onCloudSignIn?: () => Promise<void>;
 }
 
 // Animation variants
@@ -144,114 +143,216 @@ function StatusBadge() {
   );
 }
 
-// Dual CTA Cards - Local vs Cloud
-function DualCTACards({
-  onLocalClick,
-  onCloudClick,
-  isCloudLoading,
-}: {
-  onLocalClick: () => void;
-  onCloudClick: () => void;
-  isCloudLoading: boolean;
-}) {
-  return (
-    <div className="grid w-full max-w-2xl gap-4 sm:grid-cols-2">
-      {/* LOCAL Card */}
-      <motion.div
-        whileHover={{ scale: 1.02, y: -4 }}
-        whileTap={{ scale: 0.98 }}
-        className="group relative cursor-pointer overflow-hidden rounded-2xl border border-l-2 border-white/10 border-l-emerald-500/50 bg-white/5 p-6 backdrop-blur-sm transition-all hover:border-white/20 hover:bg-white/[0.07]"
-        onClick={onLocalClick}
+// Auth Button Component - Sign in / User menu
+function AuthButton() {
+  const [isOpen, setIsOpen] = useState(false);
+  const [user, setUser] = useState<{ name?: string; email?: string } | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  // Fetch user info on mount
+  useEffect(() => {
+    const fetchUser = async () => {
+      try {
+        const session = await authClient.getSession();
+        if (session?.data?.user) {
+          setUser({
+            name: session.data.user.name,
+            email: session.data.user.email,
+          });
+        }
+      } catch {
+        // Not logged in
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchUser();
+  }, []);
+
+  // Close menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const handleLogout = async () => {
+    try {
+      await authClient.signOut();
+      window.location.reload();
+    } catch (error) {
+      console.error('Logout failed:', error);
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <div className="flex h-9 w-9 items-center justify-center">
+        <Loader2 className="h-4 w-4 animate-spin text-white/30" />
+      </div>
+    );
+  }
+
+  // Not logged in - show sign in button
+  if (!user) {
+    return (
+      <a
+        href="/auth/sign-in"
+        className="flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm font-medium text-white/70 transition-all hover:border-white/20 hover:bg-white/10 hover:text-white"
       >
-        {/* Icon */}
-        <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-emerald-500/10">
-          <Server className="h-6 w-6 text-emerald-400" />
-        </div>
+        <User className="h-4 w-4" />
+        <span>Sign in</span>
+      </a>
+    );
+  }
 
-        {/* Title */}
-        <h3 className="mb-1 text-lg font-semibold text-white">Local</h3>
-        <p className="mb-4 text-sm text-white/50">Run on your machine</p>
+  // Logged in - show user menu
+  const initials = user.name
+    ? user.name
+        .split(' ')
+        .map((n) => n[0])
+        .join('')
+        .toUpperCase()
+        .slice(0, 2)
+    : user.email?.[0]?.toUpperCase() || 'U';
 
-        {/* Features */}
-        <div className="mb-4 flex flex-wrap gap-2">
-          <span className="rounded-full bg-emerald-500/10 px-2.5 py-1 text-xs text-emerald-400">
-            Full privacy
-          </span>
-          <span className="rounded-full bg-white/5 px-2.5 py-1 text-xs text-white/50">
-            24/7 uptime
-          </span>
-        </div>
+  return (
+    <div ref={menuRef} className="relative">
+      <button
+        onClick={() => setIsOpen(!isOpen)}
+        className="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-orange-500/30 to-amber-500/30 text-sm font-medium text-white transition-all hover:from-orange-500/40 hover:to-amber-500/40"
+        title={user.email || 'Account'}
+      >
+        {initials}
+      </button>
 
-        {/* Button */}
-        <button className="flex w-full items-center justify-center gap-2 rounded-xl border border-white/20 bg-white/5 px-4 py-3 text-sm font-medium text-white transition-all hover:bg-white/10">
-          <Wifi className="h-4 w-4" />
-          Connect Agent
-        </button>
-
-        {/* Footer */}
-        <p className="mt-3 text-center text-xs text-white/30">Already have 247 installed?</p>
-      </motion.div>
-
-      {/* CLOUD Card */}
-      {isCloudEnabled && (
-        <motion.div
-          whileHover={{ scale: 1.02, y: -4 }}
-          whileTap={{ scale: 0.98 }}
-          className="group relative cursor-pointer overflow-hidden rounded-2xl border border-l-2 border-white/10 border-l-orange-500/50 bg-white/5 p-6 backdrop-blur-sm transition-all hover:border-orange-500/30 hover:bg-white/[0.07]"
-          onClick={onCloudClick}
-        >
-          {/* Glow effect */}
-          <div className="pointer-events-none absolute -right-20 -top-20 h-40 w-40 rounded-full bg-orange-500/10 opacity-0 blur-3xl transition-opacity group-hover:opacity-100" />
-
-          {/* Icon */}
-          <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-orange-500/10">
-            <Cloud className="h-6 w-6 text-orange-400" />
-          </div>
-
-          {/* Title */}
-          <h3 className="mb-1 text-lg font-semibold text-white">Cloud</h3>
-          <p className="mb-4 text-sm text-white/50">Run in the cloud</p>
-
-          {/* Features */}
-          <div className="mb-4 flex flex-wrap gap-2">
-            <span className="rounded-full bg-orange-500/10 px-2.5 py-1 text-xs text-orange-400">
-              No setup
-            </span>
-            <span className="rounded-full bg-white/5 px-2.5 py-1 text-xs text-white/50">BYOC</span>
-          </div>
-
-          {/* Button */}
-          <button
-            disabled={isCloudLoading}
-            className="flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-orange-500 to-amber-500 px-4 py-3 text-sm font-medium text-white shadow-lg shadow-orange-500/25 transition-all hover:shadow-orange-500/40 disabled:opacity-50"
+      <AnimatePresence>
+        {isOpen && (
+          <motion.div
+            initial={{ opacity: 0, y: -8, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -8, scale: 0.95 }}
+            transition={{ duration: 0.15 }}
+            className="absolute right-0 top-full z-50 mt-2 w-56 overflow-hidden rounded-xl border border-white/10 bg-[#12121a] shadow-2xl shadow-black/50"
           >
-            {isCloudLoading ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <Github className="h-4 w-4" />
-            )}
-            Sign in with GitHub
-          </button>
+            {/* User info */}
+            <div className="border-b border-white/5 p-3">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-orange-500/30 to-amber-500/30 text-sm font-medium text-white">
+                  {initials}
+                </div>
+                <div className="min-w-0 flex-1">
+                  {user.name && (
+                    <p className="truncate text-sm font-medium text-white">{user.name}</p>
+                  )}
+                  {user.email && <p className="truncate text-xs text-white/50">{user.email}</p>}
+                </div>
+              </div>
+            </div>
 
-          {/* Footer */}
-          <p className="mt-3 text-center text-xs text-white/30">Bring your Fly.io account</p>
-        </motion.div>
-      )}
-
-      {/* Single card fallback when cloud is disabled */}
-      {!isCloudEnabled && (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          className="flex items-center justify-center rounded-2xl border border-dashed border-white/10 p-6"
-        >
-          <div className="text-center">
-            <Cloud className="mx-auto mb-2 h-8 w-8 text-white/20" />
-            <p className="text-sm text-white/30">Cloud coming soon</p>
-          </div>
-        </motion.div>
-      )}
+            {/* Actions */}
+            <div className="p-1.5">
+              <button
+                onClick={handleLogout}
+                className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-xs text-white/70 transition-colors hover:bg-white/5 hover:text-white"
+              >
+                <LogOut className="h-3.5 w-3.5" />
+                <span>Sign out</span>
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
+  );
+}
+
+// Connect Agent Card - requires authentication
+function ConnectAgentCard({
+  onConnect,
+  isAuthenticated,
+  isCheckingAuth,
+}: {
+  onConnect: () => void;
+  isAuthenticated: boolean;
+  isCheckingAuth: boolean;
+}) {
+  const handleClick = () => {
+    if (isCheckingAuth) return;
+
+    if (!isAuthenticated) {
+      // Redirect to sign-in, then back to home
+      window.location.href = '/auth/sign-in';
+      return;
+    }
+
+    onConnect();
+  };
+
+  return (
+    <motion.div
+      whileHover={{ scale: 1.02, y: -4 }}
+      whileTap={{ scale: 0.98 }}
+      className="group relative w-full max-w-md cursor-pointer overflow-hidden rounded-2xl border border-orange-500/20 bg-gradient-to-br from-orange-500/5 to-amber-500/5 p-8 backdrop-blur-sm transition-all hover:border-orange-500/40 hover:from-orange-500/10 hover:to-amber-500/10"
+      onClick={handleClick}
+    >
+      {/* Glow effect */}
+      <div className="pointer-events-none absolute -right-20 -top-20 h-40 w-40 rounded-full bg-orange-500/20 opacity-0 blur-3xl transition-opacity group-hover:opacity-100" />
+
+      {/* Icon */}
+      <div className="mb-6 flex h-14 w-14 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500/20 to-amber-500/20">
+        <Server className="h-7 w-7 text-orange-400" />
+      </div>
+
+      {/* Title */}
+      <h3 className="mb-2 text-xl font-semibold text-white">Connect Your Agent</h3>
+      <p className="mb-6 text-sm text-white/50">
+        Run 247 on your machine for full privacy and 24/7 uptime
+      </p>
+
+      {/* Features */}
+      <div className="mb-6 flex flex-wrap gap-2">
+        <span className="rounded-full bg-orange-500/10 px-3 py-1.5 text-xs font-medium text-orange-400">
+          Full privacy
+        </span>
+        <span className="rounded-full bg-white/5 px-3 py-1.5 text-xs text-white/50">
+          24/7 uptime
+        </span>
+        <span className="rounded-full bg-white/5 px-3 py-1.5 text-xs text-white/50">
+          Your infrastructure
+        </span>
+      </div>
+
+      {/* Button */}
+      <button
+        disabled={isCheckingAuth}
+        className="flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-orange-500 to-amber-500 px-4 py-3.5 text-sm font-medium text-white shadow-lg shadow-orange-500/25 transition-all hover:shadow-orange-500/40 disabled:opacity-50"
+      >
+        {isCheckingAuth ? (
+          <Loader2 className="h-4 w-4 animate-spin" />
+        ) : isAuthenticated ? (
+          <>
+            <Wifi className="h-4 w-4" />
+            Connect Agent
+          </>
+        ) : (
+          <>
+            <User className="h-4 w-4" />
+            Sign in to Connect
+          </>
+        )}
+      </button>
+
+      {/* Footer */}
+      <p className="mt-4 text-center text-xs text-white/30">
+        {isAuthenticated ? 'Already have 247 installed?' : 'Sign in required to connect agents'}
+      </p>
+    </motion.div>
   );
 }
 
@@ -421,28 +522,38 @@ export function NoConnectionView({
   modalOpen,
   onModalOpenChange,
   onConnectionSaved,
-  onCloudSignIn,
 }: NoConnectionViewProps) {
-  const [isCloudLoading, setIsCloudLoading] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isCheckingAuth, setIsCheckingAuth] = useState(true);
 
-  const handleCloudSignIn = async () => {
-    if (!isCloudEnabled || !onCloudSignIn) return;
-    setIsCloudLoading(true);
-    try {
-      await onCloudSignIn();
-    } catch (error) {
-      console.error('Cloud sign-in error:', error);
-    } finally {
-      setIsCloudLoading(false);
-    }
-  };
+  // Check auth status on mount
+  useEffect(() => {
+    const checkAuth = async () => {
+      try {
+        const session = await authClient.getSession();
+        setIsAuthenticated(!!session?.data?.user);
+      } catch {
+        setIsAuthenticated(false);
+      } finally {
+        setIsCheckingAuth(false);
+      }
+    };
+    checkAuth();
+  }, []);
 
   return (
     <main className="relative min-h-screen overflow-hidden bg-[#0a0a10] selection:bg-orange-500/20">
       <HeroBackground />
 
+      {/* Top Header with Auth */}
+      <header className="absolute left-0 right-0 top-0 z-20">
+        <div className="mx-auto flex max-w-5xl items-center justify-end px-6 py-4">
+          <AuthButton />
+        </div>
+      </header>
+
       {/* Content */}
-      <div className="relative z-10 mx-auto max-w-5xl px-6 py-12 lg:py-20">
+      <div className="relative z-10 mx-auto max-w-5xl px-6 py-12 pt-20 lg:py-20 lg:pt-24">
         <motion.div
           variants={containerVariants}
           initial="hidden"
@@ -474,12 +585,12 @@ export function NoConnectionView({
             <span className="text-white/80">24 hours a day, 7 days a week</span>.
           </motion.p>
 
-          {/* Dual CTA Cards */}
+          {/* Connect Agent Card */}
           <motion.div variants={itemVariants} className="mt-10 flex w-full justify-center">
-            <DualCTACards
-              onLocalClick={() => onModalOpenChange(true)}
-              onCloudClick={handleCloudSignIn}
-              isCloudLoading={isCloudLoading}
+            <ConnectAgentCard
+              onConnect={() => onModalOpenChange(true)}
+              isAuthenticated={isAuthenticated}
+              isCheckingAuth={isCheckingAuth}
             />
           </motion.div>
 
