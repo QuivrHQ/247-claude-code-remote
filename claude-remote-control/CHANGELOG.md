@@ -5,6 +5,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.22.0] - 2026-01-16
+
+### Features
+
+- make auth optional with sign-in required for agent connection (a612b28)
+- add user profile menu with logout (d4a8378)
+- add Neon Auth for stateful frontend (23704fe)
+- update README with enhanced project description and add demo GIF (fb40548)
+- add agent-browser documentation for web automation (744681d)
+
+### Bug Fixes
+
+- constrain SVG icons in Neon Auth UI buttons (9c6a3bb)
+- use local demo.gif path in README (032d950)
+
+### Refactoring
+
+- major simplification - remove cloud, git, editor features (-11k lines) (58cee44)
+
 ## [2.21.1] - 2026-01-14
 
 ### Bug Fixes
