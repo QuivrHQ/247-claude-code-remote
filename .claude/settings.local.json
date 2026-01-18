@@ -342,7 +342,8 @@
       "Bash(DEBUG=*)",
       "mcp__playwright__playwright_press_key",
       "Bash(openssl rand:*)",
-      "Bash(for f in package.json packages/cli/package.json packages/shared/package.json apps/agent/package.json apps/web/package.json)"
+      "Bash(for f in package.json packages/cli/package.json packages/shared/package.json apps/agent/package.json apps/web/package.json)",
+      "Bash(unset:*)"
     ]
   },
   "remote": {
