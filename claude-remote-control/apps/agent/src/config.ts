@@ -8,10 +8,15 @@ export interface AgentConfig {
   };
   agent?: {
     port?: number;
+    url?: string;
   };
   projects: {
     basePath: string;
     whitelist: string[];
+  };
+  dashboard?: {
+    apiUrl?: string;
+    apiKey?: string;
   };
 }
 

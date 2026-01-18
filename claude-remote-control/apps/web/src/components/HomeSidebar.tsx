@@ -4,7 +4,6 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ChevronDown, Search, Zap, Keyboard, X, Archive, Download, Share } from 'lucide-react';
 import { toast } from 'sonner';
-import { SessionPreviewPopover } from './SessionPreviewPopover';
 import { ControlPanelHeader, SessionModule } from './desktop';
 import { CreatePRModal } from './CreatePRModal';
 import { type SessionWithMachine } from '@/contexts/SessionPollingContext';
@@ -53,8 +52,6 @@ export function HomeSidebar({
   const { isInstallable, isInstalled, isIOS, promptInstall } = useInstallPrompt();
   const [searchQuery, setSearchQuery] = useState('');
   const [filter, setFilter] = useState<FilterType>('all');
-  const [hoveredSession, setHoveredSession] = useState<SessionWithMachine | null>(null);
-  const [hoverPosition, setHoverPosition] = useState({ x: 0, y: 0 });
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [historyCollapsed, setHistoryCollapsed] = useState(true);
   const [prModalOpen, setPrModalOpen] = useState(false);
@@ -247,16 +244,6 @@ export function HomeSidebar({
     return () => window.removeEventListener('keydown', handleKeyboard);
   }, [handleKeyboard]);
 
-  const handleSessionHover = (session: SessionWithMachine | null, event?: React.MouseEvent) => {
-    // Disable hover popover on mobile drawer
-    if (isMobileDrawer) return;
-    setHoveredSession(session);
-    if (event && session) {
-      const rect = (event.target as HTMLElement).getBoundingClientRect();
-      setHoverPosition({ x: rect.right + 8, y: rect.top });
-    }
-  };
-
   // Wrapper for session selection that closes drawer on mobile
   const handleSessionSelect = useCallback(
     (machineId: string, sessionName: string, project: string) => {
@@ -380,8 +367,6 @@ export function HomeSidebar({
                   onArchive={() => handleArchiveSession(session)}
                   onPushBranch={session.worktreePath ? () => handlePushBranch(session) : undefined}
                   onCreatePR={session.worktreePath ? () => handleCreatePR(session) : undefined}
-                  onMouseEnter={(e) => handleSessionHover(session, e)}
-                  onMouseLeave={() => handleSessionHover(null)}
                 />
               </motion.div>
             ))}
@@ -523,13 +508,6 @@ export function HomeSidebar({
           </div>
         )}
       </motion.aside>
-
-      {/* Session Preview Popover */}
-      <SessionPreviewPopover
-        session={hoveredSession as SessionInfo | null}
-        position={hoverPosition}
-        agentUrl={hoveredSession?.agentUrl || ''}
-      />
 
       {/* Keyboard Shortcuts Modal */}
       <AnimatePresence>

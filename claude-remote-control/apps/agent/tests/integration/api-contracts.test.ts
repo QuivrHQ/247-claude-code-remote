@@ -196,61 +196,6 @@ describe('API Response Contract Tests', () => {
     });
   });
 
-  describe('POST /api/heartbeat', () => {
-    it('accepts valid heartbeat with all fields', async () => {
-      const res = await request(server)
-        .post('/api/heartbeat')
-        .send({
-          tmux_session: 'test--brave-lion-42',
-          session_id: 'session-123',
-          cwd: '/Users/test/projects/test-project',
-          model: { id: 'claude-3-opus', display_name: 'Claude 3 Opus' },
-          cost: { total_cost_usd: 0.05, total_duration_ms: 10000 },
-          context_window: {
-            context_window_size: 200000,
-            current_usage: {
-              input_tokens: 5000,
-              output_tokens: 1000,
-              cache_read_input_tokens: 500,
-            },
-          },
-        });
-
-      expect(res.status).toBe(200);
-      expect(res.body.ok).toBe(true);
-    });
-
-    it('accepts minimal heartbeat with tmux_session only', async () => {
-      const res = await request(server).post('/api/heartbeat').send({
-        tmux_session: 'test--session-1',
-      });
-
-      expect(res.status).toBe(200);
-      expect(res.body.ok).toBe(true);
-    });
-
-    it('rejects request without tmux_session', async () => {
-      const res = await request(server).post('/api/heartbeat').send({
-        session_id: 'session-123',
-      });
-
-      expect(res.status).toBe(400);
-      expect(res.body.error).toBe('Missing tmux_session');
-    });
-
-    it('updates session status to working', async () => {
-      const tmuxSession = 'test--heartbeat-working';
-
-      const res = await request(server).post('/api/heartbeat').send({
-        tmux_session: tmuxSession,
-        cwd: '/Users/test/projects/heartbeat-test',
-      });
-
-      expect(res.status).toBe(200);
-      expect(res.body.ok).toBe(true);
-    });
-  });
-
   describe('Session Preview Endpoint', () => {
     it('returns preview with expected structure', async () => {
       const { exec } = await import('child_process');

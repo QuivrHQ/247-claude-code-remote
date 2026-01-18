@@ -34,8 +34,6 @@ export interface SessionModuleProps {
   onArchive?: () => Promise<void>;
   onPushBranch?: () => Promise<void>;
   onCreatePR?: () => void;
-  onMouseEnter?: (e: React.MouseEvent) => void;
-  onMouseLeave?: () => void;
 }
 
 const statusLabels: Record<SessionStatus, string> = {
@@ -72,19 +70,7 @@ function formatStatusTime(timestamp: number | undefined): string {
 
 export const SessionModule = forwardRef<HTMLButtonElement, SessionModuleProps>(
   (
-    {
-      session,
-      isActive,
-      isCollapsed,
-      index,
-      onClick,
-      onKill,
-      onArchive,
-      onPushBranch,
-      onCreatePR,
-      onMouseEnter,
-      onMouseLeave,
-    },
+    { session, isActive, isCollapsed, index, onClick, onKill, onArchive, onPushBranch, onCreatePR },
     ref
   ) => {
     const [showKillConfirm, setShowKillConfirm] = useState(false);
@@ -177,8 +163,6 @@ export const SessionModule = forwardRef<HTMLButtonElement, SessionModuleProps>(
           <button
             ref={ref}
             onClick={onClick}
-            onMouseEnter={onMouseEnter}
-            onMouseLeave={onMouseLeave}
             title={`${displayName} - ${statusLabel}`}
             className={cn(
               'group relative flex w-full items-center justify-center rounded-lg p-2',
@@ -240,8 +224,6 @@ export const SessionModule = forwardRef<HTMLButtonElement, SessionModuleProps>(
         <div
           ref={ref as any}
           onClick={onClick}
-          onMouseEnter={onMouseEnter}
-          onMouseLeave={onMouseLeave}
           className={cn(
             'group relative cursor-pointer rounded-lg border p-3',
             'transition-all duration-200',

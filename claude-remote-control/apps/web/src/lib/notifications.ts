@@ -1,10 +1,4 @@
-import type {
-  SessionStatus,
-  AttentionReason,
-  EnvironmentProvider,
-  EnvironmentIcon,
-  StatusSource,
-} from '247-shared';
+import type { SessionStatus, AttentionReason, StatusSource } from '247-shared';
 
 // Local extension of WSSessionInfo for web app use
 // Mirrors the structure from 247-shared but with optional statusSource
@@ -19,16 +13,7 @@ export interface SessionInfo {
   lastEvent?: string;
   lastStatusChange?: number;
   archivedAt?: number; // Timestamp when archived (undefined = active)
-  environmentId?: string;
-  // Environment metadata for badge display
-  environment?: {
-    id: string;
-    name: string;
-    provider: EnvironmentProvider;
-    icon: EnvironmentIcon | null;
-    isDefault: boolean;
-  };
-  // StatusLine metrics (from Claude Code heartbeat)
+  // Session metrics
   model?: string;
   costUsd?: number;
   contextUsage?: number;

@@ -36,8 +36,6 @@ interface SessionCardProps {
   onArchive?: () => Promise<void>;
   onPushBranch?: () => Promise<void>;
   onCreatePR?: () => void;
-  onMouseEnter?: (e: React.MouseEvent) => void;
-  onMouseLeave?: () => void;
   /** Session has a worktree with a branch */
   hasWorktree?: boolean;
   /** Branch name for display */
@@ -130,8 +128,6 @@ export const SessionCard = forwardRef<HTMLButtonElement, SessionCardProps>(
       onArchive,
       onPushBranch,
       onCreatePR,
-      onMouseEnter,
-      onMouseLeave,
       hasWorktree,
       branchName,
       isMobile = false,
@@ -234,8 +230,6 @@ export const SessionCard = forwardRef<HTMLButtonElement, SessionCardProps>(
           <button
             ref={ref}
             onClick={onClick}
-            onMouseEnter={onMouseEnter}
-            onMouseLeave={onMouseLeave}
             title={`${displayName} - ${config.label}`}
             className={cn(
               'group relative w-full rounded-lg p-2 transition-all',
@@ -306,8 +300,6 @@ export const SessionCard = forwardRef<HTMLButtonElement, SessionCardProps>(
         <div
           ref={ref as any}
           onClick={onClick}
-          onMouseEnter={onMouseEnter}
-          onMouseLeave={onMouseLeave}
           className={cn(
             'group relative w-full cursor-pointer rounded-xl p-3 text-left transition-all',
             'touch-manipulation border',

@@ -14,14 +14,12 @@ import * as sessionsDb from './db/sessions.js';
 import {
   createProjectRoutes,
   createSessionRoutes,
-  createHeartbeatRoutes,
-  createNotificationRoutes,
-  createStopRoutes,
+  createAttentionRoutes,
+  createPairRoutes,
 } from './routes/index.js';
 
-// StatusLine setup and heartbeat monitor
-import { ensureStatusLineConfigured } from './setup-statusline.js';
-import { startHeartbeatMonitor, stopHeartbeatMonitor } from './heartbeat-monitor.js';
+// Hook setup
+import { ensureHooksConfigured } from './setup-hooks.js';
 
 // Status and WebSocket
 import { tmuxSessionStatus, cleanupStatusMaps, getActiveTmuxSessions } from './status.js';
@@ -49,11 +47,8 @@ export async function createServer() {
   }
   console.log(`[DB] Loaded ${dbSessions.length} sessions from database`);
 
-  // Configure statusLine for Claude Code integration
-  ensureStatusLineConfigured();
-
-  // Start heartbeat timeout monitor
-  startHeartbeatMonitor();
+  // Configure attention hook for Claude Code integration
+  ensureHooksConfigured();
 
   // Health check endpoint for container orchestration
   app.get('/health', (_req, res) => {
@@ -63,9 +58,11 @@ export async function createServer() {
   // Mount API routes
   app.use('/api', createProjectRoutes());
   app.use('/api/sessions', createSessionRoutes());
-  app.use('/api/heartbeat', createHeartbeatRoutes());
-  app.use('/api/notification', createNotificationRoutes());
-  app.use('/api/stop', createStopRoutes());
+  app.use('/api/attention', createAttentionRoutes());
+
+  // Mount pairing routes (both at /pair and /api/pair for flexibility)
+  app.use('/pair', createPairRoutes());
+  app.use('/api/pair', createPairRoutes());
 
   // Handle WebSocket upgrades
   server.on('upgrade', async (req, socket, head) => {
@@ -94,7 +91,6 @@ export async function createServer() {
   // Graceful shutdown
   const shutdown = () => {
     console.log('[Server] Shutting down...');
-    stopHeartbeatMonitor();
     closeDatabase();
     server.close();
     process.exit(0);

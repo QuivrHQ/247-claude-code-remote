@@ -4,6 +4,5 @@
 
 export { createProjectRoutes, isProjectAllowed } from './projects.js';
 export { createSessionRoutes } from './sessions.js';
-export { createHeartbeatRoutes } from './heartbeat.js';
-export { createNotificationRoutes } from './notification.js';
-export { createStopRoutes } from './stop.js';
+export { createAttentionRoutes } from './attention.js';
+export { createPairRoutes, verifyToken } from './pair.js';

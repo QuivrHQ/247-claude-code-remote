@@ -15,7 +15,18 @@ import {
   showSessionNotification,
 } from '@/lib/notifications';
 import { buildWebSocketUrl, buildApiUrl } from '@/lib/utils';
-import type { WSStatusMessageFromAgent } from '247-shared';
+import type { WSStatusMessageFromAgent, AttentionReason } from '247-shared';
+
+// SSE event types from /api/events
+interface SSEAttentionEvent {
+  type: 'attention';
+  sessionName: string;
+  project: string;
+  reason: AttentionReason;
+  timestamp: number;
+  machineId?: string;
+  machineName?: string;
+}
 
 export interface Machine {
   id: string;
@@ -101,6 +112,73 @@ export function SessionPollingProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     requestNotificationPermission();
   }, []);
+
+  // Subscribe to SSE attention events from Next.js
+  useEffect(() => {
+    let eventSource: EventSource | null = null;
+    let reconnectTimeout: NodeJS.Timeout | null = null;
+
+    const connect = () => {
+      try {
+        eventSource = new EventSource('/api/events');
+
+        eventSource.onmessage = (event) => {
+          try {
+            const data = JSON.parse(event.data);
+
+            if (data.type === 'attention') {
+              const attentionEvent = data as SSEAttentionEvent;
+              console.log('[SSE] Attention event:', attentionEvent);
+
+              // Find the machine for this event
+              const machine = machines.find(
+                (m) => m.id === attentionEvent.machineId || m.name === attentionEvent.machineName
+              );
+
+              if (machine) {
+                // Create a minimal SessionInfo for notification
+                const sessionInfo: SessionInfo = {
+                  name: attentionEvent.sessionName,
+                  project: attentionEvent.project,
+                  createdAt: attentionEvent.timestamp,
+                  status: 'needs_attention',
+                  attentionReason: attentionEvent.reason,
+                };
+
+                showSessionNotification(machine.id, machine.name, sessionInfo);
+              } else {
+                console.log('[SSE] Machine not found for attention event:', attentionEvent);
+              }
+            }
+          } catch (err) {
+            console.error('[SSE] Failed to parse event:', err);
+          }
+        };
+
+        eventSource.onerror = () => {
+          console.log('[SSE] Connection error, reconnecting...');
+          eventSource?.close();
+
+          // Reconnect after 5 seconds
+          reconnectTimeout = setTimeout(connect, 5000);
+        };
+
+        eventSource.onopen = () => {
+          console.log('[SSE] Connected to attention events');
+        };
+      } catch (err) {
+        console.error('[SSE] Failed to connect:', err);
+        reconnectTimeout = setTimeout(connect, 5000);
+      }
+    };
+
+    connect();
+
+    return () => {
+      eventSource?.close();
+      if (reconnectTimeout) clearTimeout(reconnectTimeout);
+    };
+  }, [machines]);
 
   // NOTE: Machines are now managed by the parent component (from localStorage)
   // We no longer fetch from /api/machines - the dashboard is stateless!

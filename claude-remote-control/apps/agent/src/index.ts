@@ -12,6 +12,7 @@ async function main() {
   server.listen(PORT, () => {
     logger.main.info({ port: PORT }, 'Agent running');
     logger.main.info({ url: `ws://localhost:${PORT}` }, 'Dashboard connection URL');
+    logger.main.info({ url: `http://localhost:${PORT}/pair` }, 'Pair with dashboard at');
     logger.main.info('For remote access, use Tailscale Funnel, Cloudflare Tunnel, or SSH tunnel');
   });
 }

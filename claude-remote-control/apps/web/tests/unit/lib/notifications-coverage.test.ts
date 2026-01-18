@@ -201,18 +201,10 @@ describe('Notifications Module', () => {
         lastEvent: 'PreToolUse',
         lastStatusChange: Date.now(),
         archivedAt: undefined,
-        environmentId: 'env-123',
-        environment: {
-          id: 'env-123',
-          name: 'Production',
-          provider: 'anthropic',
-          icon: 'zap',
-          isDefault: true,
-        },
       };
 
       expect(session.name).toBe('test--session-1');
-      expect(session.environment?.provider).toBe('anthropic');
+      expect(session.status).toBe('working');
     });
 
     it('accepts minimal session', () => {

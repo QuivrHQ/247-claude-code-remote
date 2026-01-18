@@ -682,6 +682,65 @@ export function AgentConnectionSettings({
                       selected={connectionType === 'remote'}
                       onClick={() => handleTypeSelect('remote')}
                     />
+
+                    {/* Pairing code divider */}
+                    <div className="flex items-center gap-3 pt-4">
+                      <div className="h-px flex-1 bg-white/10" />
+                      <span className="text-xs text-white/40">or</span>
+                      <div className="h-px flex-1 bg-white/10" />
+                    </div>
+
+                    {/* Pairing code input */}
+                    <div className="rounded-2xl border border-purple-500/20 bg-purple-500/5 p-4">
+                      <p className="mb-3 text-sm font-medium text-purple-400">
+                        Have a pairing code?
+                      </p>
+                      <p className="mb-4 text-xs text-white/50">
+                        Enter the 6-digit code shown on your agent&apos;s pairing page
+                      </p>
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          placeholder="000000"
+                          maxLength={6}
+                          className={cn(
+                            'flex-1 rounded-lg px-4 py-2.5',
+                            'border border-white/10 bg-white/5',
+                            'text-center font-mono text-lg tracking-widest text-white placeholder:text-white/30',
+                            'focus:border-purple-500/50 focus:outline-none focus:ring-2 focus:ring-purple-500/20'
+                          )}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              const input = e.target as HTMLInputElement;
+                              if (input.value.length === 6) {
+                                window.location.href = `/connect?code=${input.value}`;
+                              }
+                            }
+                          }}
+                          onChange={(e) => {
+                            // Only allow digits
+                            e.target.value = e.target.value.replace(/\D/g, '');
+                          }}
+                        />
+                        <button
+                          onClick={(e) => {
+                            const input = (e.target as HTMLElement)
+                              .closest('div')
+                              ?.querySelector('input') as HTMLInputElement;
+                            if (input?.value.length === 6) {
+                              window.location.href = `/connect?code=${input.value}`;
+                            }
+                          }}
+                          className={cn(
+                            'rounded-lg px-4 py-2.5',
+                            'bg-purple-500/20 text-purple-400',
+                            'transition-colors hover:bg-purple-500/30'
+                          )}
+                        >
+                          Pair
+                        </button>
+                      </div>
+                    </div>
                   </motion.div>
                 )}
 

@@ -5,7 +5,6 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { ChevronLeft, ChevronRight, Plus, Search, Zap, Keyboard, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { SessionCard } from './SessionCard';
-import { SessionPreviewPopover } from './SessionPreviewPopover';
 import { type SessionInfo } from '@/lib/notifications';
 import { cn, buildApiUrl } from '@/lib/utils';
 
@@ -37,8 +36,6 @@ export function SessionSidebar({
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [filter, setFilter] = useState<FilterType>('all');
-  const [hoveredSession, setHoveredSession] = useState<SessionInfo | null>(null);
-  const [hoverPosition, setHoverPosition] = useState({ x: 0, y: 0 });
   const [showShortcuts, setShowShortcuts] = useState(false);
 
   // Kill session handler
@@ -195,14 +192,6 @@ export function SessionSidebar({
     return () => window.removeEventListener('keydown', handleKeyboard);
   }, [handleKeyboard]);
 
-  const handleSessionHover = (session: SessionInfo | null, event?: React.MouseEvent) => {
-    setHoveredSession(session);
-    if (event && session) {
-      const rect = (event.target as HTMLElement).getBoundingClientRect();
-      setHoverPosition({ x: rect.right + 8, y: rect.top });
-    }
-  };
-
   const filters: { key: FilterType; label: string; count: number }[] = [
     { key: 'all', label: 'All', count: sessions.length },
     { key: 'active', label: 'Active', count: statusCounts.active },
@@ -333,8 +322,6 @@ export function SessionSidebar({
                   }
                   hasWorktree={!!session.worktreePath}
                   branchName={session.branchName}
-                  onMouseEnter={(e) => handleSessionHover(session, e)}
-                  onMouseLeave={() => handleSessionHover(null)}
                 />
               </motion.div>
             ))}
@@ -368,13 +355,6 @@ export function SessionSidebar({
           </div>
         )}
       </motion.aside>
-
-      {/* Session Preview Popover */}
-      <SessionPreviewPopover
-        session={hoveredSession}
-        position={hoverPosition}
-        agentUrl={agentUrl}
-      />
 
       {/* Keyboard Shortcuts Modal */}
       <AnimatePresence>
