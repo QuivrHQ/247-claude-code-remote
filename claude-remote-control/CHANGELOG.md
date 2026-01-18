@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.23.1] - 2026-01-18
+
+### Bug Fixes
+
+- use dynamic imports for all neon auth to avoid build-time env requirement (1feb92e)
+- use dynamic import for neonAuthMiddleware to avoid build-time env requirement (131f8bd)
+- make db connection lazy to avoid build-time env requirement (88d4730)
+- make auth server lazy to avoid build-time env requirement (db22bfc)
+- **ci**: add NEON_AUTH_BASE_URL env for build (43bb8f8)
+- update pnpm-lock.yaml (d3aee8b)
+
 ## [2.23.0] - 2026-01-18
 
 ### Features
