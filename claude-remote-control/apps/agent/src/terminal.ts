@@ -1,8 +1,6 @@
 import * as pty from '@homebridge/node-pty-prebuilt-multiarch';
 import { exec, execSync } from 'child_process';
 import { promisify } from 'util';
-import * as fs from 'fs';
-import * as os from 'os';
 import {
   generateInitScript,
   writeInitScript,
@@ -10,28 +8,6 @@ import {
   detectUserShell,
 } from './lib/init-script.js';
 import * as path from 'path';
-
-/**
- * Get the path to the output file for a spawn session
- */
-export function getSpawnOutputPath(sessionName: string): string {
-  return path.join(os.tmpdir(), `247-spawn-${sessionName}.txt`);
-}
-
-/**
- * Read and cleanup spawn output file
- * Returns the content or undefined if file doesn't exist
- */
-export function readAndCleanupSpawnOutput(sessionName: string): string | undefined {
-  const outputPath = getSpawnOutputPath(sessionName);
-  try {
-    const content = fs.readFileSync(outputPath, 'utf-8');
-    fs.unlinkSync(outputPath); // Cleanup
-    return content;
-  } catch {
-    return undefined;
-  }
-}
 
 const execAsync = promisify(exec);
 
@@ -50,8 +26,6 @@ export interface Terminal {
 export interface CreateTerminalOptions {
   /** Custom environment variables to inject into the session */
   customEnvVars?: Record<string, string>;
-  /** For spawned sessions - run this command directly instead of interactive shell */
-  spawnCommand?: string;
 }
 
 export function createTerminal(
@@ -60,10 +34,11 @@ export function createTerminal(
   options: CreateTerminalOptions | Record<string, string> = {}
 ): Terminal {
   // Support both old signature (customEnvVars object) and new options object
-  const { customEnvVars = {}, spawnCommand } =
-    'customEnvVars' in options || 'spawnCommand' in options
-      ? (options as CreateTerminalOptions)
-      : { customEnvVars: options as Record<string, string>, spawnCommand: undefined };
+  const customEnvVars =
+    'customEnvVars' in options
+      ? ((options as CreateTerminalOptions).customEnvVars ?? {})
+      : (options as Record<string, string>);
+
   // Check if session already exists before spawning
   let existingSession = false;
   try {
@@ -92,32 +67,6 @@ export function createTerminal(
 
   if (existingSession) {
     tmuxArgs = ['attach-session', '-t', sessionName];
-  } else if (spawnCommand) {
-    // Spawn mode: run command directly without init script (for claude -p)
-    console.log(`[Terminal] Spawn mode: running command directly`);
-
-    // Build environment variables for tmux -e flags
-    const envFlags: string[] = [
-      '-e',
-      `CLAUDE_TMUX_SESSION=${sessionName}`,
-      '-e',
-      `TERM=xterm-256color`,
-    ];
-
-    // Add custom env vars
-    for (const [key, value] of Object.entries(customEnvVars)) {
-      if (value && value.trim() !== '') {
-        envFlags.push('-e', `${key}=${value}`);
-      }
-    }
-
-    // Wrap command with tee to capture output to file
-    // Use PIPESTATUS to preserve the exit code from the actual command
-    const outputPath = getSpawnOutputPath(sessionName);
-    const wrappedCommand = `bash -c '${spawnCommand.replace(/'/g, "'\\''")} 2>&1 | tee "${outputPath}"; exit \${PIPESTATUS[0]}'`;
-
-    // Run command with output capture - file will be read in onExit handler
-    tmuxArgs = ['new-session', '-s', sessionName, '-c', cwd, ...envFlags, wrappedCommand];
   } else {
     // Extract project name from cwd (last directory component)
     const projectName = path.basename(cwd) || 'unknown';
@@ -200,8 +149,8 @@ export function createTerminal(
   });
 
   // Track terminal readiness state for onReady callback
-  // Existing sessions and spawn mode are ready immediately
-  let isReady = existingSession || !!spawnCommand;
+  // Existing sessions are ready immediately
+  let isReady = existingSession;
   const readyCallbacks: (() => void)[] = [];
 
   const fireReadyCallbacks = () => {
@@ -214,14 +163,7 @@ export function createTerminal(
   };
 
   // Handle session initialization and readiness
-  if (spawnCommand) {
-    // Spawn mode: command runs directly, ready immediately
-    console.log(`[Terminal] Spawn session '${sessionName}' ready (direct command)`);
-    // Enable mouse for tmux
-    setTimeout(() => {
-      exec(`tmux set-option -t "${sessionName}" mouse on`);
-    }, 100);
-  } else if (!existingSession) {
+  if (!existingSession) {
     // For new sessions, the init script handles env vars and tmux config
     // Fire ready callbacks once shell is likely initialized
     setTimeout(() => {

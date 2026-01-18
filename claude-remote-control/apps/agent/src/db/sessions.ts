@@ -1,5 +1,4 @@
 import { getDatabase } from './index.js';
-import { recordStatusChange } from './history.js';
 import type { DbSession, UpsertSessionInput } from './schema.js';
 import type { SessionStatus, AttentionReason } from '247-shared';
 
@@ -46,7 +45,6 @@ export function getSessionsByProject(project: string): DbSession[] {
 
 /**
  * Upsert a session (insert or update)
- * Records status history if status changed
  */
 export function upsertSession(name: string, input: UpsertSessionInput): DbSession {
   const db = getDatabase();
@@ -59,19 +57,11 @@ export function upsertSession(name: string, input: UpsertSessionInput): DbSessio
   const stmt = db.prepare(`
     INSERT INTO sessions (
       name, project, status, attention_reason, last_event,
-      last_activity, last_status_change, environment_id, created_at, updated_at,
-      model, cost_usd, context_usage, lines_added, lines_removed,
-      worktree_path, branch_name,
-      spawn_prompt, parent_session, task_id, exit_code, exited_at,
-      output_content, output_captured_at
+      last_activity, last_status_change, created_at, updated_at
     )
     VALUES (
       @name, @project, @status, @attentionReason, @lastEvent,
-      @lastActivity, @lastStatusChange, @environmentId, @createdAt, @updatedAt,
-      @model, @costUsd, @contextUsage, @linesAdded, @linesRemoved,
-      @worktreePath, @branchName,
-      @spawnPrompt, @parentSession, @taskId, @exitCode, @exitedAt,
-      @outputContent, @outputCapturedAt
+      @lastActivity, @lastStatusChange, @createdAt, @updatedAt
     )
     ON CONFLICT(name) DO UPDATE SET
       status = COALESCE(@status, status),
@@ -79,22 +69,7 @@ export function upsertSession(name: string, input: UpsertSessionInput): DbSessio
       last_event = COALESCE(@lastEvent, last_event),
       last_activity = COALESCE(@lastActivity, last_activity),
       last_status_change = @lastStatusChange,
-      environment_id = COALESCE(@environmentId, environment_id),
-      updated_at = @updatedAt,
-      model = COALESCE(@model, model),
-      cost_usd = COALESCE(@costUsd, cost_usd),
-      context_usage = COALESCE(@contextUsage, context_usage),
-      lines_added = COALESCE(@linesAdded, lines_added),
-      lines_removed = COALESCE(@linesRemoved, lines_removed),
-      worktree_path = COALESCE(@worktreePath, worktree_path),
-      branch_name = COALESCE(@branchName, branch_name),
-      spawn_prompt = COALESCE(@spawnPrompt, spawn_prompt),
-      parent_session = COALESCE(@parentSession, parent_session),
-      task_id = COALESCE(@taskId, task_id),
-      exit_code = COALESCE(@exitCode, exit_code),
-      exited_at = COALESCE(@exitedAt, exited_at),
-      output_content = COALESCE(@outputContent, output_content),
-      output_captured_at = COALESCE(@outputCapturedAt, output_captured_at)
+      updated_at = @updatedAt
   `);
 
   stmt.run({
@@ -105,29 +80,9 @@ export function upsertSession(name: string, input: UpsertSessionInput): DbSessio
     lastEvent: input.lastEvent ?? null,
     lastActivity: input.lastActivity ?? now,
     lastStatusChange: statusChanged ? now : (existing?.last_status_change ?? now),
-    environmentId: input.environmentId ?? null,
     createdAt: existing?.created_at ?? now,
     updatedAt: now,
-    model: input.model ?? null,
-    costUsd: input.costUsd ?? null,
-    contextUsage: input.contextUsage ?? null,
-    linesAdded: input.linesAdded ?? null,
-    linesRemoved: input.linesRemoved ?? null,
-    worktreePath: input.worktreePath ?? null,
-    branchName: input.branchName ?? null,
-    spawnPrompt: input.spawn_prompt ?? null,
-    parentSession: input.parent_session ?? null,
-    taskId: input.task_id ?? null,
-    exitCode: input.exit_code ?? null,
-    exitedAt: input.exited_at ?? null,
-    outputContent: input.output_content ?? null,
-    outputCapturedAt: input.output_captured_at ?? null,
   });
-
-  // Record status history if status changed
-  if (statusChanged && input.status) {
-    recordStatusChange(name, input.status, input.attentionReason ?? null, input.lastEvent ?? null);
-  }
 
   return getSession(name)!;
 }
@@ -171,11 +126,6 @@ export function updateSessionStatus(
     now,
     name
   );
-
-  // Record status history if status changed
-  if (statusChanged) {
-    recordStatusChange(name, status, attentionReason ?? null, lastEvent ?? null);
-  }
 
   return true;
 }
@@ -294,38 +244,6 @@ export function reconcileWithTmux(activeTmuxSessions: Set<string>): void {
 }
 
 /**
- * Get session environment mapping
- */
-export function getSessionEnvironmentId(sessionName: string): string | null {
-  const db = getDatabase();
-  const row = db
-    .prepare('SELECT environment_id FROM session_environments WHERE session_name = ?')
-    .get(sessionName) as { environment_id: string } | undefined;
-  return row?.environment_id ?? null;
-}
-
-/**
- * Set session environment mapping
- */
-export function setSessionEnvironmentId(sessionName: string, environmentId: string): void {
-  const db = getDatabase();
-  db.prepare(
-    `
-    INSERT OR REPLACE INTO session_environments (session_name, environment_id)
-    VALUES (?, ?)
-  `
-  ).run(sessionName, environmentId);
-}
-
-/**
- * Clear session environment mapping
- */
-export function clearSessionEnvironmentId(sessionName: string): void {
-  const db = getDatabase();
-  db.prepare('DELETE FROM session_environments WHERE session_name = ?').run(sessionName);
-}
-
-/**
  * Convert DbSession to HookStatus format (for compatibility with existing code)
  */
 export function toHookStatus(session: DbSession): {
@@ -336,15 +254,6 @@ export function toHookStatus(session: DbSession): {
   lastStatusChange: number;
   project?: string;
   archivedAt?: number;
-  // StatusLine metrics
-  model?: string;
-  costUsd?: number;
-  contextUsage?: number;
-  linesAdded?: number;
-  linesRemoved?: number;
-  // Worktree isolation
-  worktreePath?: string;
-  branchName?: string;
 } {
   return {
     status: session.status,
@@ -354,79 +263,5 @@ export function toHookStatus(session: DbSession): {
     lastStatusChange: session.last_status_change,
     project: session.project,
     archivedAt: session.archived_at ?? undefined,
-    // StatusLine metrics
-    model: session.model ?? undefined,
-    costUsd: session.cost_usd ?? undefined,
-    contextUsage: session.context_usage ?? undefined,
-    linesAdded: session.lines_added ?? undefined,
-    linesRemoved: session.lines_removed ?? undefined,
-    // Worktree isolation
-    worktreePath: session.worktree_path ?? undefined,
-    branchName: session.branch_name ?? undefined,
   };
-}
-
-// ============================================================================
-// Worktree Functions
-// ============================================================================
-
-/**
- * Update worktree info for a session
- */
-export function updateSessionWorktree(
-  name: string,
-  worktreePath: string,
-  branchName: string
-): boolean {
-  const db = getDatabase();
-  const result = db
-    .prepare(
-      `
-    UPDATE sessions SET
-      worktree_path = ?,
-      branch_name = ?,
-      updated_at = ?
-    WHERE name = ?
-  `
-    )
-    .run(worktreePath, branchName, Date.now(), name);
-  return result.changes > 0;
-}
-
-/**
- * Clear worktree info for a session (after cleanup)
- */
-export function clearSessionWorktree(name: string): boolean {
-  const db = getDatabase();
-  const result = db
-    .prepare(
-      `
-    UPDATE sessions SET
-      worktree_path = NULL,
-      branch_name = NULL,
-      updated_at = ?
-    WHERE name = ?
-  `
-    )
-    .run(Date.now(), name);
-  return result.changes > 0;
-}
-
-/**
- * Get sessions with worktrees that can be cleaned up
- * (archived and last activity older than maxAge)
- */
-export function getCleanableWorktreeSessions(maxAgeMs: number): DbSession[] {
-  const db = getDatabase();
-  const cutoff = Date.now() - maxAgeMs;
-  return db
-    .prepare(
-      `
-    SELECT * FROM sessions
-    WHERE worktree_path IS NOT NULL
-    AND archived_at IS NOT NULL
-    AND last_activity < ?
-  `
-    )
-    .all(cutoff) as DbSession[];
 }

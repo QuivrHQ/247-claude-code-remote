@@ -1,5 +1,6 @@
 /**
  * WebSocket handlers for terminal connections and status subscriptions.
+ * Simplified version without worktree or execution manager features.
  */
 
 import { WebSocket } from 'ws';
@@ -7,7 +8,6 @@ import { execSync } from 'child_process';
 import { createTerminal } from './terminal.js';
 import { config } from './config.js';
 import * as sessionsDb from './db/sessions.js';
-import { worktreeManager, executionManager } from './services/index.js';
 
 /**
  * Check if a tmux session exists
@@ -44,8 +44,6 @@ export function handleTerminalConnection(ws: WebSocket, url: URL): void {
   const project = url.searchParams.get('project');
   const urlSessionName = url.searchParams.get('session');
   const createFlag = url.searchParams.get('create') === 'true';
-  const useWorktree = url.searchParams.get('worktree') === 'true';
-  const branchName = url.searchParams.get('branch') || undefined;
   const sessionName = urlSessionName || generateSessionName(project || 'unknown');
 
   // Validate project
@@ -108,55 +106,13 @@ export function handleTerminalConnection(ws: WebSocket, url: URL): void {
       return;
     }
 
-    // For new sessions, check capacity and create worktree if requested
-    let terminalCwd = projectPath;
-    let worktreePath: string | null = null;
-    let worktreeBranch: string | null = null;
-
-    if (!sessionExists && createFlag) {
-      // Check execution capacity
-      if (!executionManager.canStart()) {
-        const capacity = executionManager.getCapacity();
-        console.log(
-          `[Terminal] Capacity exceeded: ${capacity.running}/${capacity.max} sessions running`
-        );
-        ws.close(4029, `Max ${capacity.max} parallel sessions`);
-        return;
-      }
-
-      // Create worktree if requested
-      if (useWorktree) {
-        try {
-          const worktreeInfo = await worktreeManager.create(projectPath, sessionName, branchName);
-          terminalCwd = worktreeInfo.worktreePath;
-          worktreePath = worktreeInfo.worktreePath;
-          worktreeBranch = worktreeInfo.branch;
-          console.log(
-            `[Terminal] Created worktree for session '${sessionName}' at ${worktreePath} (branch: ${worktreeBranch})`
-          );
-        } catch (err) {
-          console.error(`[Terminal] Failed to create worktree:`, err);
-          ws.close(1011, 'Failed to create worktree');
-          return;
-        }
-      }
-
-      // Register with execution manager
-      executionManager.register(sessionName, project!, worktreePath);
-    }
-
     // Create terminal
     let terminal;
     try {
-      terminal = createTerminal(terminalCwd, sessionName, {});
+      terminal = createTerminal(projectPath, sessionName, {});
       terminalRef = terminal; // Store reference for early message handler
     } catch (err) {
       console.error('Failed to create terminal:', err);
-      // Cleanup worktree on failure
-      if (worktreePath) {
-        await worktreeManager.remove(projectPath, worktreePath).catch(() => {});
-      }
-      executionManager.unregister(sessionName);
       ws.close(1011, 'Failed to create terminal');
       return;
     }
@@ -195,8 +151,6 @@ export function handleTerminalConnection(ws: WebSocket, url: URL): void {
           lastEvent: 'SessionCreated',
           lastActivity: now,
           lastStatusChange: now,
-          worktreePath: worktreePath || undefined,
-          branchName: worktreeBranch || undefined,
         });
         if (dbSession?.created_at) createdAt = dbSession.created_at;
       } catch (err) {
@@ -238,8 +192,6 @@ export function handleTerminalConnection(ws: WebSocket, url: URL): void {
 
     terminal.onExit(({ exitCode }: { exitCode: number }) => {
       console.log(`Terminal exited with code ${exitCode}`);
-      // Unregister from execution manager when terminal exits
-      executionManager.unregister(sessionName);
       if (ws.readyState === WebSocket.OPEN) ws.close(1000, 'Terminal closed');
     });
 
@@ -413,12 +365,6 @@ export function handleStatusConnection(ws: WebSocket, url?: URL): void {
           lastActivity: hookData?.lastActivity,
           lastEvent,
           lastStatusChange,
-          // StatusLine metrics
-          model: hookData?.model,
-          costUsd: hookData?.costUsd,
-          contextUsage: hookData?.contextUsage,
-          linesAdded: hookData?.linesAdded,
-          linesRemoved: hookData?.linesRemoved,
         });
       }
 

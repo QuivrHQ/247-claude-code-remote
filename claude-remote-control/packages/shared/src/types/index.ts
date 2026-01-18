@@ -61,7 +61,7 @@ export type AttentionReason =
 
 export type StatusSource = 'hook' | 'tmux';
 
-// Session info for status WebSocket
+// Session info for status WebSocket (simplified)
 export interface WSSessionInfo {
   name: string;
   project: string;
@@ -73,24 +73,6 @@ export interface WSSessionInfo {
   createdAt: number;
   lastActivity?: number;
   archivedAt?: number; // Timestamp when session was archived (undefined = active)
-  environmentId?: string; // Track which environment this session uses
-  // Environment metadata for UI display
-  environment?: {
-    id: string;
-    name: string;
-    provider: EnvironmentProvider;
-    icon: EnvironmentIcon | null;
-    isDefault: boolean;
-  };
-  // StatusLine metrics (from Claude Code heartbeat)
-  model?: string; // Current model display name
-  costUsd?: number; // Total cost in USD
-  contextUsage?: number; // Context window usage percentage (0-100)
-  linesAdded?: number; // Total lines of code added
-  linesRemoved?: number; // Total lines of code removed
-  // TODO: Remove these fields when agent orchestration is fully cleaned up
-  worktreePath?: string;
-  branchName?: string;
 }
 
 // WebSocket message types - Client to Agent (Status channel)
@@ -121,112 +103,6 @@ export interface AgentInfo {
   projects: string[];
 }
 
-// Editor types
-export interface EditorConfig {
-  enabled: boolean;
-  portRange: { start: number; end: number };
-  idleTimeout: number; // ms - shutdown after inactivity
-}
-
-export interface EditorStatus {
-  project: string;
-  running: boolean;
-  port?: number;
-  pid?: number;
-  startedAt?: number;
-  lastActivity?: number;
-}
-
-// Environment types
-export type EnvironmentProvider = 'anthropic' | 'openrouter';
-
-// Available icons for environments
-export const ENVIRONMENT_ICON_OPTIONS = [
-  'zap',
-  'globe',
-  'bot',
-  'brain',
-  'cpu',
-  'server',
-  'cloud',
-  'rocket',
-  'flask',
-  'code',
-  'bug',
-  'wrench',
-  'shield',
-  'lock',
-  'star',
-  'sparkles',
-  'flame',
-  'moon',
-  'sun',
-  'leaf',
-] as const;
-
-export type EnvironmentIcon = (typeof ENVIRONMENT_ICON_OPTIONS)[number];
-
-// Default icons per provider (fallback when icon is null)
-export const DEFAULT_PROVIDER_ICONS: Record<EnvironmentProvider, EnvironmentIcon> = {
-  anthropic: 'zap',
-  openrouter: 'globe',
-};
-
-export interface Environment {
-  id: string;
-  name: string;
-  provider: EnvironmentProvider;
-  icon: EnvironmentIcon | null; // Custom icon, null uses provider default
-  isDefault: boolean;
-  variables: Record<string, string>;
-  createdAt: number;
-  updatedAt: number;
-}
-
-// Safe metadata sent to dashboard (no secret values)
-export interface EnvironmentMetadata {
-  id: string;
-  name: string;
-  provider: EnvironmentProvider;
-  icon: EnvironmentIcon | null; // Custom icon, null uses provider default
-  isDefault: boolean;
-  variableKeys: string[]; // Only variable names, not values
-  createdAt: number;
-  updatedAt: number;
-}
-
-// Environment API request types
-export interface CreateEnvironmentRequest {
-  name: string;
-  provider: EnvironmentProvider;
-  icon?: EnvironmentIcon | null;
-  isDefault?: boolean;
-  variables: Record<string, string>;
-}
-
-export interface UpdateEnvironmentRequest {
-  name?: string;
-  provider?: EnvironmentProvider;
-  icon?: EnvironmentIcon | null;
-  isDefault?: boolean;
-  variables?: Record<string, string>;
-}
-
-// API Request/Response types for REST endpoints
-
-// Clone repository
-export interface CloneRequest {
-  repoUrl: string;
-  projectName?: string;
-}
-
-export interface CloneResponse {
-  success: boolean;
-  projectName?: string;
-  path?: string;
-  error?: string;
-}
-
 // Session archive
 export interface ArchiveSessionResponse {
   success: boolean;
@@ -242,7 +118,7 @@ export interface SessionOutputResponse {
   returnedLines: number;
   isRunning: boolean;
   capturedAt: number;
-  source?: 'live' | 'file' | 'database'; // 'live' = from tmux, 'file' = from tee output file, 'database' = from stored output
+  source?: 'live' | 'file' | 'database';
 }
 
 // Session input
@@ -269,33 +145,6 @@ export interface HookStatusRequest {
   timestamp?: string;
 }
 
-// Provider presets for UI
-export const ENVIRONMENT_PRESETS: Record<
-  EnvironmentProvider,
-  {
-    label: string;
-    defaultVariables: Record<string, string>;
-    description: string;
-  }
-> = {
-  anthropic: {
-    label: 'Anthropic',
-    defaultVariables: {
-      ANTHROPIC_API_KEY: '',
-    },
-    description: 'Direct Anthropic API access',
-  },
-  openrouter: {
-    label: 'OpenRouter',
-    defaultVariables: {
-      ANTHROPIC_BASE_URL: 'https://openrouter.ai/api',
-      ANTHROPIC_AUTH_TOKEN: '',
-      ANTHROPIC_API_KEY: '', // Must be explicitly empty
-    },
-    description: 'Use OpenRouter as Claude provider',
-  },
-};
-
 // Agent configuration
 export interface AgentConfig {
   machine: {
@@ -306,7 +155,6 @@ export interface AgentConfig {
     port: number;
     url: string; // e.g., "localhost:4678" or "mac.tailnet.ts.net:4678"
   };
-  editor?: EditorConfig;
   projects: {
     basePath: string;
     whitelist: string[];

@@ -13,7 +13,6 @@ import type {
 } from '247-shared';
 import { RETENTION_CONFIG } from './db/index.js';
 import * as sessionsDb from './db/sessions.js';
-import * as historyDb from './db/history.js';
 
 // Store session status from Claude Code statusLine/hooks
 export interface HookStatus {
@@ -24,13 +23,6 @@ export interface HookStatus {
   lastActivity: number;
   lastStatusChange: number;
   project?: string;
-  // StatusLine metrics
-  transcriptPath?: string;
-  model?: string;
-  costUsd?: number;
-  contextUsage?: number; // percentage 0-100
-  linesAdded?: number;
-  linesRemoved?: number;
 }
 
 // Store by tmux session name - single source of truth for status
@@ -168,10 +160,9 @@ export function cleanupStatusMaps(): void {
     STALE_THRESHOLD,
     RETENTION_CONFIG.archivedMaxAge
   );
-  const dbHistoryCleaned = historyDb.cleanupOldHistory(RETENTION_CONFIG.historyMaxAge);
 
-  if (dbSessionsCleaned > 0 || dbHistoryCleaned > 0) {
-    console.log(`[DB Cleanup] Sessions: ${dbSessionsCleaned}, History: ${dbHistoryCleaned}`);
+  if (dbSessionsCleaned > 0) {
+    console.log(`[DB Cleanup] Sessions: ${dbSessionsCleaned}`);
   }
 }
 

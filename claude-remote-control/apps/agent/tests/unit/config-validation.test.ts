@@ -5,10 +5,9 @@
  * Ensures the configuration matches expected schema and handles errors correctly.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { existsSync, readFileSync } from 'fs';
 import type { AgentConfig } from '247-shared';
 
-// Type guard for AgentConfig validation
+// Type guard for AgentConfig validation (simplified - no editor field)
 function isValidAgentConfig(obj: unknown): obj is AgentConfig {
   if (typeof obj !== 'object' || obj === null) return false;
 
@@ -40,19 +39,6 @@ function isValidAgentConfig(obj: unknown): obj is AgentConfig {
     if (agent.url !== undefined && typeof agent.url !== 'string') return false;
   }
 
-  // Optional: editor
-  if (config.editor !== undefined) {
-    if (typeof config.editor !== 'object' || config.editor === null) return false;
-    const editor = config.editor as Record<string, unknown>;
-    if (editor.enabled !== undefined && typeof editor.enabled !== 'boolean') return false;
-    if (editor.idleTimeout !== undefined && typeof editor.idleTimeout !== 'number') return false;
-    if (editor.portRange !== undefined) {
-      if (typeof editor.portRange !== 'object' || editor.portRange === null) return false;
-      const portRange = editor.portRange as Record<string, unknown>;
-      if (typeof portRange.start !== 'number' || typeof portRange.end !== 'number') return false;
-    }
-  }
-
   return true;
 }
 
@@ -72,11 +58,6 @@ describe('AgentConfig Validation', () => {
       const config: AgentConfig = {
         machine: { id: 'machine-1', name: 'Test Machine' },
         agent: { port: 4678, url: 'localhost:4678' },
-        editor: {
-          enabled: true,
-          portRange: { start: 4680, end: 4699 },
-          idleTimeout: 60000,
-        },
         projects: { basePath: '~/Dev', whitelist: ['project-a', 'project-b'] },
         dashboard: { apiUrl: 'http://localhost:3001/api', apiKey: 'test-key' },
       };
@@ -221,51 +202,6 @@ describe('AgentConfig Validation', () => {
       });
     });
 
-    describe('optional editor field validation', () => {
-      it('accepts config without editor', () => {
-        const config = {
-          machine: { id: 'machine-1', name: 'Test' },
-          projects: { basePath: '~/Dev', whitelist: [] },
-          dashboard: { apiUrl: 'http://localhost:3001/api', apiKey: 'test-key' },
-        };
-
-        expect(isValidAgentConfig(config)).toBe(true);
-      });
-
-      it('accepts config with partial editor', () => {
-        const config = {
-          machine: { id: 'machine-1', name: 'Test' },
-          editor: { enabled: true },
-          projects: { basePath: '~/Dev', whitelist: [] },
-          dashboard: { apiUrl: 'http://localhost:3001/api', apiKey: 'test-key' },
-        };
-
-        expect(isValidAgentConfig(config)).toBe(true);
-      });
-
-      it('validates portRange structure', () => {
-        const config = {
-          machine: { id: 'machine-1', name: 'Test' },
-          editor: { portRange: { start: '4680', end: 4699 } },
-          projects: { basePath: '~/Dev', whitelist: [] },
-          dashboard: { apiUrl: 'http://localhost:3001/api', apiKey: 'test-key' },
-        };
-
-        expect(isValidAgentConfig(config)).toBe(false);
-      });
-
-      it('rejects non-boolean enabled', () => {
-        const config = {
-          machine: { id: 'machine-1', name: 'Test' },
-          editor: { enabled: 'yes' },
-          projects: { basePath: '~/Dev', whitelist: [] },
-          dashboard: { apiUrl: 'http://localhost:3001/api', apiKey: 'test-key' },
-        };
-
-        expect(isValidAgentConfig(config)).toBe(false);
-      });
-    });
-
     describe('edge cases', () => {
       it('rejects null', () => {
         expect(isValidAgentConfig(null)).toBe(false);
@@ -363,18 +299,9 @@ describe('Config Schema Documentation', () => {
         port: 'number - server port (default: 4678)',
         url: 'string - public URL for the agent',
       },
-      editor: {
-        enabled: 'boolean - whether code-server is enabled',
-        portRange: {
-          start: 'number - first port in range',
-          end: 'number - last port in range',
-        },
-        idleTimeout: 'number - ms before idle shutdown',
-      },
     };
 
     expect(optionalFields.agent).toBeDefined();
-    expect(optionalFields.editor).toBeDefined();
   });
 
   it('documents example minimal config', () => {
@@ -405,11 +332,6 @@ describe('Config Schema Documentation', () => {
       agent: {
         port: 4678,
         url: 'my-macbook.local:4678',
-      },
-      editor: {
-        enabled: true,
-        portRange: { start: 4680, end: 4699 },
-        idleTimeout: 1800000, // 30 minutes
       },
       projects: {
         basePath: '~/Dev',

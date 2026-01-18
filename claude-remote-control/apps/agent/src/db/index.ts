@@ -80,48 +80,14 @@ function runMigrations(database: Database.Database): void {
   if (currentVersion < SCHEMA_VERSION) {
     console.log(`[DB] Running migrations from v${currentVersion} to v${SCHEMA_VERSION}`);
 
-    // Run all schema creation (idempotent with IF NOT EXISTS)
-    database.exec(CREATE_TABLES_SQL);
-
-    // Run incremental migrations for existing tables
-    if (currentVersion < 2) {
-      migrateToV2(database);
-    }
-    if (currentVersion < 3) {
-      migrateToV3(database);
-    }
-    if (currentVersion < 4) {
-      migrateToV4(database);
-    }
-    if (currentVersion < 5) {
-      migrateToV5(database);
-    }
-    if (currentVersion < 6) {
-      migrateToV6(database);
-    }
-    if (currentVersion < 7) {
-      migrateToV7(database);
-    }
-    if (currentVersion < 8) {
-      migrateToV8(database);
-    }
-    if (currentVersion < 9) {
-      migrateToV9(database);
-    }
-    if (currentVersion < 10) {
-      migrateToV10(database);
-    }
-    if (currentVersion < 11) {
-      migrateToV11(database);
-    }
-    if (currentVersion < 12) {
-      migrateToV12(database);
-    }
-    if (currentVersion < 13) {
-      migrateToV13(database);
-    }
-    if (currentVersion < 14) {
-      migrateToV14(database);
+    // For fresh databases or v15+, just run the simplified schema
+    if (currentVersion === 0) {
+      database.exec(CREATE_TABLES_SQL);
+    } else {
+      // For existing databases, run the v15 migration to simplify
+      if (currentVersion < 15) {
+        migrateToV15(database);
+      }
     }
 
     // Record the new version
@@ -138,411 +104,89 @@ function runMigrations(database: Database.Database): void {
   } else {
     console.log(`[DB] Database schema is up to date (v${currentVersion})`);
   }
-
-  // Always ensure required columns exist (handles incomplete migrations)
-  ensureRequiredColumns(database);
 }
 
 /**
- * Ensure all required columns exist (handles incomplete migrations)
+ * Migration to v15: Simplification - remove unused columns and tables
+ * SQLite doesn't support dropping columns easily, so we recreate the sessions table
  */
-function ensureRequiredColumns(database: Database.Database): void {
-  // Check sessions columns
-  const sessionColumns = database.pragma('table_info(sessions)') as Array<{ name: string }>;
-  const sessionColumnNames = new Set(sessionColumns.map((c) => c.name));
+function migrateToV15(database: Database.Database): void {
+  console.log('[DB] v15 migration: Simplifying schema');
 
-  // v3: archived_at
-  if (!sessionColumnNames.has('archived_at')) {
-    console.log('[DB] Adding missing archived_at column to sessions');
-    database.exec('ALTER TABLE sessions ADD COLUMN archived_at INTEGER');
-  }
-
-  // v4: StatusLine metrics
-  const metricsColumns = [
-    { name: 'model', sql: 'ALTER TABLE sessions ADD COLUMN model TEXT' },
-    { name: 'cost_usd', sql: 'ALTER TABLE sessions ADD COLUMN cost_usd REAL' },
-    { name: 'context_usage', sql: 'ALTER TABLE sessions ADD COLUMN context_usage INTEGER' },
-    { name: 'lines_added', sql: 'ALTER TABLE sessions ADD COLUMN lines_added INTEGER' },
-    { name: 'lines_removed', sql: 'ALTER TABLE sessions ADD COLUMN lines_removed INTEGER' },
-  ];
-
-  for (const col of metricsColumns) {
-    if (!sessionColumnNames.has(col.name)) {
-      console.log(`[DB] Adding missing ${col.name} column to sessions`);
-      database.exec(col.sql);
-    }
-  }
-
-  // v6: Worktree isolation columns
-  const worktreeColumns = [
-    { name: 'worktree_path', sql: 'ALTER TABLE sessions ADD COLUMN worktree_path TEXT' },
-    { name: 'branch_name', sql: 'ALTER TABLE sessions ADD COLUMN branch_name TEXT' },
-  ];
-
-  for (const col of worktreeColumns) {
-    if (!sessionColumnNames.has(col.name)) {
-      console.log(`[DB] Adding missing ${col.name} column to sessions`);
-      database.exec(col.sql);
-    }
-  }
-
-  // v9: Spawn/orchestration columns
-  const spawnColumns = [
-    { name: 'spawn_prompt', sql: 'ALTER TABLE sessions ADD COLUMN spawn_prompt TEXT' },
-    { name: 'parent_session', sql: 'ALTER TABLE sessions ADD COLUMN parent_session TEXT' },
-    { name: 'task_id', sql: 'ALTER TABLE sessions ADD COLUMN task_id TEXT' },
-    { name: 'exit_code', sql: 'ALTER TABLE sessions ADD COLUMN exit_code INTEGER' },
-    { name: 'exited_at', sql: 'ALTER TABLE sessions ADD COLUMN exited_at INTEGER' },
-  ];
-
-  for (const col of spawnColumns) {
-    if (!sessionColumnNames.has(col.name)) {
-      console.log(`[DB] Adding missing ${col.name} column to sessions`);
-      database.exec(col.sql);
-    }
-  }
-
-  // v10: Output capture columns
-  const outputColumns = [
-    { name: 'output_content', sql: 'ALTER TABLE sessions ADD COLUMN output_content TEXT' },
-    {
-      name: 'output_captured_at',
-      sql: 'ALTER TABLE sessions ADD COLUMN output_captured_at INTEGER',
-    },
-  ];
-
-  for (const col of outputColumns) {
-    if (!sessionColumnNames.has(col.name)) {
-      console.log(`[DB] Adding missing ${col.name} column to sessions`);
-      database.exec(col.sql);
-    }
-  }
-}
-
-/**
- * Migration to v2: No-op (environments table removed)
- */
-function migrateToV2(_database: Database.Database): void {
-  // Previously added icon column to environments, but environments table has been removed
-  console.log('[DB] v2 migration: No-op (environments table removed)');
-}
-
-/**
- * Migration to v3: Add archived_at column to sessions table
- */
-function migrateToV3(database: Database.Database): void {
-  // Check if archived_at column already exists
-  const columns = database.pragma('table_info(sessions)') as Array<{ name: string }>;
-  const hasArchivedAt = columns.some((c) => c.name === 'archived_at');
-
-  if (!hasArchivedAt) {
-    console.log('[DB] v3 migration: Adding archived_at column to sessions');
-    database.exec('ALTER TABLE sessions ADD COLUMN archived_at INTEGER');
-  }
-}
-
-/**
- * Migration to v4: Add StatusLine metric columns to sessions table
- */
-function migrateToV4(database: Database.Database): void {
-  const columns = database.pragma('table_info(sessions)') as Array<{ name: string }>;
-  const columnNames = new Set(columns.map((c) => c.name));
-
-  const metricsColumns = [
-    { name: 'model', sql: 'ALTER TABLE sessions ADD COLUMN model TEXT' },
-    { name: 'cost_usd', sql: 'ALTER TABLE sessions ADD COLUMN cost_usd REAL' },
-    { name: 'context_usage', sql: 'ALTER TABLE sessions ADD COLUMN context_usage INTEGER' },
-    { name: 'lines_added', sql: 'ALTER TABLE sessions ADD COLUMN lines_added INTEGER' },
-    { name: 'lines_removed', sql: 'ALTER TABLE sessions ADD COLUMN lines_removed INTEGER' },
-  ];
-
-  for (const col of metricsColumns) {
-    if (!columnNames.has(col.name)) {
-      console.log(`[DB] v4 migration: Adding ${col.name} column to sessions`);
-      database.exec(col.sql);
-    }
-  }
-}
-
-/**
- * Migration to v5: Add Ralph mode columns to sessions table
- */
-function migrateToV5(database: Database.Database): void {
-  const columns = database.pragma('table_info(sessions)') as Array<{ name: string }>;
-  const columnNames = new Set(columns.map((c) => c.name));
-
-  const ralphColumns = [
-    {
-      name: 'ralph_enabled',
-      sql: 'ALTER TABLE sessions ADD COLUMN ralph_enabled INTEGER DEFAULT 0',
-    },
-    { name: 'ralph_config', sql: 'ALTER TABLE sessions ADD COLUMN ralph_config TEXT' },
-    {
-      name: 'ralph_iteration',
-      sql: 'ALTER TABLE sessions ADD COLUMN ralph_iteration INTEGER DEFAULT 0',
-    },
-    { name: 'ralph_status', sql: 'ALTER TABLE sessions ADD COLUMN ralph_status TEXT' },
-  ];
-
-  for (const col of ralphColumns) {
-    if (!columnNames.has(col.name)) {
-      console.log(`[DB] v5 migration: Adding ${col.name} column to sessions`);
-      database.exec(col.sql);
-    }
-  }
-}
-
-/**
- * Migration to v6: Add worktree isolation columns to sessions table
- */
-function migrateToV6(database: Database.Database): void {
-  const columns = database.pragma('table_info(sessions)') as Array<{ name: string }>;
-  const columnNames = new Set(columns.map((c) => c.name));
-
-  const worktreeColumns = [
-    { name: 'worktree_path', sql: 'ALTER TABLE sessions ADD COLUMN worktree_path TEXT' },
-    { name: 'branch_name', sql: 'ALTER TABLE sessions ADD COLUMN branch_name TEXT' },
-  ];
-
-  for (const col of worktreeColumns) {
-    if (!columnNames.has(col.name)) {
-      console.log(`[DB] v6 migration: Adding ${col.name} column to sessions`);
-      database.exec(col.sql);
-    }
-  }
-}
-
-/**
- * Migration to v7: No-op (projects/issues tables removed)
- */
-function migrateToV7(_database: Database.Database): void {
-  // Previously created projects and issues tables, but this feature has been removed
-  console.log('[DB] v7 migration: No-op (projects/issues feature removed)');
-}
-
-/**
- * Migration to v8: Add push_subscriptions table for Web Push notifications
- */
-function migrateToV8(database: Database.Database): void {
-  // Check if table already exists
-  const tableExists = database
-    .prepare(`SELECT name FROM sqlite_master WHERE type='table' AND name='push_subscriptions'`)
+  // Drop status_history table if it exists
+  const historyTableExists = database
+    .prepare(`SELECT name FROM sqlite_master WHERE type='table' AND name='status_history'`)
     .get();
 
-  if (!tableExists) {
-    console.log('[DB] v8 migration: Creating push_subscriptions table');
+  if (historyTableExists) {
+    console.log('[DB] v15 migration: Dropping status_history table');
+    database.exec('DROP TABLE IF EXISTS status_history');
+  }
+
+  // Check if sessions table has the old columns we want to remove
+  const columns = database.pragma('table_info(sessions)') as Array<{ name: string }>;
+  const columnNames = new Set(columns.map((c) => c.name));
+
+  // If we have old columns like model, cost_usd, worktree_path, etc., recreate the table
+  const hasOldColumns =
+    columnNames.has('model') ||
+    columnNames.has('cost_usd') ||
+    columnNames.has('worktree_path') ||
+    columnNames.has('spawn_prompt');
+
+  if (hasOldColumns) {
+    console.log('[DB] v15 migration: Recreating sessions table with simplified schema');
+
+    // Create new simplified sessions table
     database.exec(`
-      CREATE TABLE push_subscriptions (
+      CREATE TABLE IF NOT EXISTS sessions_new (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
-        endpoint TEXT UNIQUE NOT NULL,
-        keys_p256dh TEXT NOT NULL,
-        keys_auth TEXT NOT NULL,
-        user_agent TEXT,
-        created_at INTEGER NOT NULL
-      );
-      CREATE INDEX idx_push_endpoint ON push_subscriptions(endpoint);
-    `);
-  }
-}
-
-/**
- * Migration to v9: Add spawn/orchestration columns to sessions table
- */
-function migrateToV9(database: Database.Database): void {
-  const columns = database.pragma('table_info(sessions)') as Array<{ name: string }>;
-  const columnNames = new Set(columns.map((c) => c.name));
-
-  const spawnColumns = [
-    { name: 'spawn_prompt', sql: 'ALTER TABLE sessions ADD COLUMN spawn_prompt TEXT' },
-    { name: 'parent_session', sql: 'ALTER TABLE sessions ADD COLUMN parent_session TEXT' },
-    { name: 'task_id', sql: 'ALTER TABLE sessions ADD COLUMN task_id TEXT' },
-    { name: 'exit_code', sql: 'ALTER TABLE sessions ADD COLUMN exit_code INTEGER' },
-    { name: 'exited_at', sql: 'ALTER TABLE sessions ADD COLUMN exited_at INTEGER' },
-  ];
-
-  for (const col of spawnColumns) {
-    if (!columnNames.has(col.name)) {
-      console.log(`[DB] v9 migration: Adding ${col.name} column to sessions`);
-      database.exec(col.sql);
-    }
-  }
-
-  // Add indexes for spawn fields
-  try {
-    database.exec('CREATE INDEX IF NOT EXISTS idx_sessions_parent ON sessions(parent_session)');
-    database.exec('CREATE INDEX IF NOT EXISTS idx_sessions_task ON sessions(task_id)');
-    console.log('[DB] v9 migration: Added indexes for parent_session and task_id');
-  } catch {
-    // Indexes might already exist
-  }
-}
-
-/**
- * Migration to v10: Add output capture columns to sessions table
- */
-function migrateToV10(database: Database.Database): void {
-  const columns = database.pragma('table_info(sessions)') as Array<{ name: string }>;
-  const columnNames = new Set(columns.map((c) => c.name));
-
-  const outputColumns = [
-    { name: 'output_content', sql: 'ALTER TABLE sessions ADD COLUMN output_content TEXT' },
-    {
-      name: 'output_captured_at',
-      sql: 'ALTER TABLE sessions ADD COLUMN output_captured_at INTEGER',
-    },
-  ];
-
-  for (const col of outputColumns) {
-    if (!columnNames.has(col.name)) {
-      console.log(`[DB] v10 migration: Adding ${col.name} column to sessions`);
-      database.exec(col.sql);
-    }
-  }
-}
-
-/**
- * Migration to v11: Add stream-json support
- * - Add output_format column to sessions
- * - Create session_events table
- */
-function migrateToV11(database: Database.Database): void {
-  // Add output_format column to sessions
-  const columns = database.pragma('table_info(sessions)') as Array<{ name: string }>;
-  const columnNames = new Set(columns.map((c) => c.name));
-
-  if (!columnNames.has('output_format')) {
-    console.log('[DB] v11 migration: Adding output_format column to sessions');
-    database.exec("ALTER TABLE sessions ADD COLUMN output_format TEXT DEFAULT 'terminal'");
-  }
-
-  // Create session_events table
-  const tableExists = database
-    .prepare(`SELECT name FROM sqlite_master WHERE type='table' AND name='session_events'`)
-    .get();
-
-  if (!tableExists) {
-    console.log('[DB] v11 migration: Creating session_events table');
-    database.exec(`
-      CREATE TABLE session_events (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        session_name TEXT NOT NULL,
-        event_type TEXT NOT NULL,
-        timestamp INTEGER NOT NULL,
-        tool_name TEXT,
-        tool_input TEXT,
-        tool_id TEXT,
-        tool_output TEXT,
-        tool_error INTEGER,
-        text_content TEXT,
-        success INTEGER,
-        duration_ms INTEGER,
-        total_cost_usd REAL,
-        num_turns INTEGER
-      );
-      CREATE INDEX idx_events_session ON session_events(session_name);
-      CREATE INDEX idx_events_timestamp ON session_events(timestamp);
-      CREATE INDEX idx_events_type ON session_events(event_type);
-    `);
-  }
-}
-
-/**
- * Migration to v12: Simplification - remove unused features
- * - Drop session_events table (stream-json mode removed)
- * - Note: Ralph columns are left in place (SQLite doesn't easily drop columns)
- *         but they are no longer used
- */
-function migrateToV12(database: Database.Database): void {
-  // Drop session_events table if it exists
-  const tableExists = database
-    .prepare(`SELECT name FROM sqlite_master WHERE type='table' AND name='session_events'`)
-    .get();
-
-  if (tableExists) {
-    console.log('[DB] v12 migration: Dropping session_events table');
-    database.exec('DROP TABLE IF EXISTS session_events');
-  }
-
-  console.log(
-    '[DB] v12 migration: Simplification complete (Ralph and stream-json features removed)'
-  );
-}
-
-/**
- * Migration to v13: Add webhooks table for external notifications
- */
-function migrateToV13(database: Database.Database): void {
-  // Check if webhooks table already exists
-  const tableExists = database
-    .prepare(`SELECT name FROM sqlite_master WHERE type='table' AND name='webhooks'`)
-    .get();
-
-  if (!tableExists) {
-    console.log('[DB] v13 migration: Creating webhooks table');
-    database.exec(`
-      CREATE TABLE webhooks (
-        id TEXT PRIMARY KEY,
-        name TEXT NOT NULL,
-        url TEXT NOT NULL,
-        type TEXT NOT NULL DEFAULT 'generic',
-        enabled INTEGER NOT NULL DEFAULT 1,
-        events TEXT NOT NULL DEFAULT '["needs_attention"]',
-        secret TEXT,
+        name TEXT NOT NULL UNIQUE,
+        project TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'init',
+        attention_reason TEXT,
+        last_event TEXT,
+        last_activity INTEGER NOT NULL,
+        last_status_change INTEGER NOT NULL,
+        archived_at INTEGER,
         created_at INTEGER NOT NULL,
         updated_at INTEGER NOT NULL
       );
-      CREATE INDEX idx_webhooks_enabled ON webhooks(enabled);
     `);
+
+    // Copy data from old table to new table (only the columns we're keeping)
+    database.exec(`
+      INSERT INTO sessions_new (name, project, status, attention_reason, last_event,
+                                last_activity, last_status_change, archived_at, created_at, updated_at)
+      SELECT name, project, status, attention_reason, last_event,
+             last_activity, last_status_change, archived_at, created_at, updated_at
+      FROM sessions;
+    `);
+
+    // Drop old table and rename new one
+    database.exec('DROP TABLE sessions');
+    database.exec('ALTER TABLE sessions_new RENAME TO sessions');
+
+    // Recreate indexes
+    database.exec('CREATE INDEX IF NOT EXISTS idx_sessions_name ON sessions(name)');
+    database.exec('CREATE INDEX IF NOT EXISTS idx_sessions_project ON sessions(project)');
+    database.exec('CREATE INDEX IF NOT EXISTS idx_sessions_status ON sessions(status)');
+    database.exec(
+      'CREATE INDEX IF NOT EXISTS idx_sessions_last_activity ON sessions(last_activity)'
+    );
+
+    console.log('[DB] v15 migration: Sessions table simplified');
   }
 
-  console.log('[DB] v13 migration: Webhooks support added');
-}
+  // Ensure schema_version table exists
+  database.exec(`
+    CREATE TABLE IF NOT EXISTS schema_version (
+      version INTEGER PRIMARY KEY,
+      applied_at INTEGER NOT NULL
+    );
+  `);
 
-/**
- * Migration to v14: Simplification - remove push notifications and webhooks
- */
-function migrateToV14(database: Database.Database): void {
-  // Drop push_subscriptions table
-  const pushTableExists = database
-    .prepare(`SELECT name FROM sqlite_master WHERE type='table' AND name='push_subscriptions'`)
-    .get();
-
-  if (pushTableExists) {
-    console.log('[DB] v14 migration: Dropping push_subscriptions table');
-    database.exec('DROP TABLE IF EXISTS push_subscriptions');
-  }
-
-  // Drop webhooks table
-  const webhooksTableExists = database
-    .prepare(`SELECT name FROM sqlite_master WHERE type='table' AND name='webhooks'`)
-    .get();
-
-  if (webhooksTableExists) {
-    console.log('[DB] v14 migration: Dropping webhooks table');
-    database.exec('DROP TABLE IF EXISTS webhooks');
-  }
-
-  // Drop environments table
-  const envTableExists = database
-    .prepare(`SELECT name FROM sqlite_master WHERE type='table' AND name='environments'`)
-    .get();
-
-  if (envTableExists) {
-    console.log('[DB] v14 migration: Dropping environments table');
-    database.exec('DROP TABLE IF EXISTS environments');
-  }
-
-  // Drop session_environments table
-  const sessionEnvTableExists = database
-    .prepare(`SELECT name FROM sqlite_master WHERE type='table' AND name='session_environments'`)
-    .get();
-
-  if (sessionEnvTableExists) {
-    console.log('[DB] v14 migration: Dropping session_environments table');
-    database.exec('DROP TABLE IF EXISTS session_environments');
-  }
-
-  console.log('[DB] v14 migration: Simplification complete - removed push, webhooks, environments');
+  console.log('[DB] v15 migration: Simplification complete');
 }
 
 /**
@@ -583,20 +227,15 @@ function getCurrentSchemaVersion(database: Database.Database): number {
  */
 export function getDatabaseStats(): {
   sessions: number;
-  history: number;
 } {
   const database = getDatabase();
 
   const sessions = database.prepare('SELECT COUNT(*) as count FROM sessions').get() as {
     count: number;
   };
-  const history = database.prepare('SELECT COUNT(*) as count FROM status_history').get() as {
-    count: number;
-  };
 
   return {
     sessions: sessions.count,
-    history: history.count,
   };
 }
 

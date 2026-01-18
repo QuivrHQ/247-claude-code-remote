@@ -10,7 +10,6 @@ import {
   SCHEMA_VERSION,
   RETENTION_CONFIG,
   type DbSession,
-  type DbStatusHistory,
   type DbSchemaVersion,
   type UpsertSessionInput,
 } from '../../src/db/schema.js';
@@ -22,8 +21,8 @@ describe('Database Schema', () => {
       expect(Number.isInteger(SCHEMA_VERSION)).toBe(true);
     });
 
-    it('current version is 14', () => {
-      expect(SCHEMA_VERSION).toBe(14);
+    it('current version is 15', () => {
+      expect(SCHEMA_VERSION).toBe(15);
     });
   });
 
@@ -31,7 +30,6 @@ describe('Database Schema', () => {
     it('has all required fields', () => {
       expect(RETENTION_CONFIG.sessionMaxAge).toBeDefined();
       expect(RETENTION_CONFIG.archivedMaxAge).toBeDefined();
-      expect(RETENTION_CONFIG.historyMaxAge).toBeDefined();
       expect(RETENTION_CONFIG.cleanupInterval).toBeDefined();
     });
 
@@ -45,11 +43,6 @@ describe('Database Schema', () => {
       expect(RETENTION_CONFIG.archivedMaxAge).toBe(expected);
     });
 
-    it('historyMaxAge is 7 days', () => {
-      const expected = 7 * 24 * 60 * 60 * 1000;
-      expect(RETENTION_CONFIG.historyMaxAge).toBe(expected);
-    });
-
     it('cleanupInterval is 1 hour', () => {
       const expected = 60 * 60 * 1000;
       expect(RETENTION_CONFIG.cleanupInterval).toBe(expected);
@@ -59,7 +52,6 @@ describe('Database Schema', () => {
       // All values should be much larger than seconds
       expect(RETENTION_CONFIG.sessionMaxAge).toBeGreaterThan(1000);
       expect(RETENTION_CONFIG.archivedMaxAge).toBeGreaterThan(1000);
-      expect(RETENTION_CONFIG.historyMaxAge).toBeGreaterThan(1000);
       expect(RETENTION_CONFIG.cleanupInterval).toBeGreaterThan(1000);
     });
   });
@@ -74,10 +66,6 @@ describe('Database Schema', () => {
       expect(CREATE_TABLES_SQL).toContain('CREATE TABLE IF NOT EXISTS sessions');
     });
 
-    it('creates status_history table', () => {
-      expect(CREATE_TABLES_SQL).toContain('CREATE TABLE IF NOT EXISTS status_history');
-    });
-
     it('creates schema_version table', () => {
       expect(CREATE_TABLES_SQL).toContain('CREATE TABLE IF NOT EXISTS schema_version');
     });
@@ -86,8 +74,6 @@ describe('Database Schema', () => {
       expect(CREATE_TABLES_SQL).toContain('CREATE INDEX IF NOT EXISTS idx_sessions_name');
       expect(CREATE_TABLES_SQL).toContain('CREATE INDEX IF NOT EXISTS idx_sessions_project');
       expect(CREATE_TABLES_SQL).toContain('CREATE INDEX IF NOT EXISTS idx_sessions_status');
-      expect(CREATE_TABLES_SQL).toContain('CREATE INDEX IF NOT EXISTS idx_history_session');
-      expect(CREATE_TABLES_SQL).toContain('CREATE INDEX IF NOT EXISTS idx_history_timestamp');
     });
 
     it('executes without error on fresh database', () => {
@@ -111,7 +97,6 @@ describe('Database Schema', () => {
 
       const tableNames = tables.map((t) => t.name);
       expect(tableNames).toContain('sessions');
-      expect(tableNames).toContain('status_history');
       expect(tableNames).toContain('schema_version');
 
       db.close();
@@ -135,32 +120,6 @@ describe('Database Schema', () => {
       expect(columnNames).toContain('archived_at');
       expect(columnNames).toContain('created_at');
       expect(columnNames).toContain('updated_at');
-      // StatusLine metrics (v4)
-      expect(columnNames).toContain('model');
-      expect(columnNames).toContain('cost_usd');
-      expect(columnNames).toContain('context_usage');
-      expect(columnNames).toContain('lines_added');
-      expect(columnNames).toContain('lines_removed');
-      // Git worktree isolation (v6)
-      expect(columnNames).toContain('worktree_path');
-      expect(columnNames).toContain('branch_name');
-
-      db.close();
-    });
-
-    it('status_history table has all required columns', () => {
-      const db = new Database(':memory:');
-      db.exec(CREATE_TABLES_SQL);
-
-      const columns = db.pragma('table_info(status_history)') as Array<{ name: string }>;
-      const columnNames = columns.map((c) => c.name);
-
-      expect(columnNames).toContain('id');
-      expect(columnNames).toContain('session_name');
-      expect(columnNames).toContain('status');
-      expect(columnNames).toContain('attention_reason');
-      expect(columnNames).toContain('event');
-      expect(columnNames).toContain('timestamp');
 
       db.close();
     });
@@ -181,24 +140,6 @@ describe('Database Schema', () => {
           archived_at: null,
           created_at: Date.now(),
           updated_at: Date.now(),
-          // StatusLine metrics
-          model: null,
-          cost_usd: null,
-          context_usage: null,
-          lines_added: null,
-          lines_removed: null,
-          // Worktree isolation
-          worktree_path: null,
-          branch_name: null,
-          // Spawn/orchestration fields (v9)
-          spawn_prompt: null,
-          parent_session: null,
-          task_id: null,
-          exit_code: null,
-          exited_at: null,
-          // Output capture (v10)
-          output_content: null,
-          output_captured_at: null,
         };
 
         expect(session.id).toBe(1);
@@ -221,20 +162,6 @@ describe('Database Schema', () => {
             archived_at: null,
             created_at: Date.now(),
             updated_at: Date.now(),
-            model: null,
-            cost_usd: null,
-            context_usage: null,
-            lines_added: null,
-            lines_removed: null,
-            worktree_path: null,
-            branch_name: null,
-            spawn_prompt: null,
-            parent_session: null,
-            task_id: null,
-            exit_code: null,
-            exited_at: null,
-            output_content: null,
-            output_captured_at: null,
           };
 
           expect(session.attention_reason).toBe(reason);
@@ -257,88 +184,21 @@ describe('Database Schema', () => {
             archived_at: null,
             created_at: Date.now(),
             updated_at: Date.now(),
-            model: null,
-            cost_usd: null,
-            context_usage: null,
-            lines_added: null,
-            lines_removed: null,
-            worktree_path: null,
-            branch_name: null,
-            spawn_prompt: null,
-            parent_session: null,
-            task_id: null,
-            exit_code: null,
-            exited_at: null,
-            output_content: null,
-            output_captured_at: null,
           };
 
           expect(session.status).toBe(status);
         });
-      });
-
-      it('validates session with StatusLine metrics', () => {
-        const session: DbSession = {
-          id: 1,
-          name: 'test--session-1',
-          project: 'test',
-          status: 'working',
-          attention_reason: null,
-          last_event: 'PreToolUse',
-          last_activity: Date.now(),
-          last_status_change: Date.now(),
-          environment_id: null,
-          archived_at: null,
-          created_at: Date.now(),
-          updated_at: Date.now(),
-          model: 'Opus 4.5',
-          cost_usd: 4.1,
-          context_usage: 36,
-          lines_added: 26,
-          lines_removed: 2,
-          worktree_path: null,
-          branch_name: null,
-          spawn_prompt: null,
-          parent_session: null,
-          task_id: null,
-          exit_code: null,
-          exited_at: null,
-          output_content: null,
-          output_captured_at: null,
-        };
-
-        expect(session.model).toBe('Opus 4.5');
-        expect(session.cost_usd).toBe(4.1);
-        expect(session.context_usage).toBe(36);
-        expect(session.lines_added).toBe(26);
-        expect(session.lines_removed).toBe(2);
-      });
-    });
-
-    describe('DbStatusHistory', () => {
-      it('validates correct history structure', () => {
-        const history: DbStatusHistory = {
-          id: 1,
-          session_name: 'test--session-1',
-          status: 'working',
-          attention_reason: null,
-          event: 'PreToolUse',
-          timestamp: Date.now(),
-        };
-
-        expect(history.id).toBe(1);
-        expect(history.session_name).toBe('test--session-1');
       });
     });
 
     describe('DbSchemaVersion', () => {
       it('validates correct version structure', () => {
         const version: DbSchemaVersion = {
-          version: 3,
+          version: 15,
           applied_at: Date.now(),
         };
 
-        expect(version.version).toBe(3);
+        expect(version.version).toBe(15);
         expect(typeof version.applied_at).toBe('number');
       });
     });

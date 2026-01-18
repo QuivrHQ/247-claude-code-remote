@@ -1,7 +1,7 @@
 import type { SessionStatus, AttentionReason } from '247-shared';
 
 // ============================================================================
-// Database Row Types
+// Database Row Types (Simplified)
 // ============================================================================
 
 export interface DbSession {
@@ -13,37 +13,9 @@ export interface DbSession {
   last_event: string | null;
   last_activity: number;
   last_status_change: number;
-  environment_id: string | null;
   archived_at: number | null;
   created_at: number;
   updated_at: number;
-  // StatusLine metrics
-  model: string | null;
-  cost_usd: number | null;
-  context_usage: number | null;
-  lines_added: number | null;
-  lines_removed: number | null;
-  // Worktree isolation (v6)
-  worktree_path: string | null;
-  branch_name: string | null;
-  // Spawn/orchestration fields (v9)
-  spawn_prompt: string | null;
-  parent_session: string | null;
-  task_id: string | null;
-  exit_code: number | null;
-  exited_at: number | null;
-  // Output capture (v10)
-  output_content: string | null;
-  output_captured_at: number | null;
-}
-
-export interface DbStatusHistory {
-  id: number;
-  session_name: string;
-  status: SessionStatus;
-  attention_reason: AttentionReason | null;
-  event: string | null;
-  timestamp: number;
 }
 
 export interface DbSchemaVersion {
@@ -62,35 +34,16 @@ export interface UpsertSessionInput {
   lastEvent?: string | null;
   lastActivity?: number;
   lastStatusChange?: number;
-  environmentId?: string | null;
-  // StatusLine metrics
-  model?: string | null;
-  costUsd?: number | null;
-  contextUsage?: number | null;
-  linesAdded?: number | null;
-  linesRemoved?: number | null;
-  // Worktree isolation (v6)
-  worktreePath?: string | null;
-  branchName?: string | null;
-  // Spawn/orchestration fields (v9)
-  spawn_prompt?: string | null;
-  parent_session?: string | null;
-  task_id?: string | null;
-  exit_code?: number | null;
-  exited_at?: number | null;
-  // Output capture (v10)
-  output_content?: string | null;
-  output_captured_at?: number | null;
 }
 
 // ============================================================================
-// SQL Schema Definitions
+// SQL Schema Definitions (Simplified v15)
 // ============================================================================
 
-export const SCHEMA_VERSION = 14;
+export const SCHEMA_VERSION = 15;
 
 export const CREATE_TABLES_SQL = `
--- Sessions: current state of terminal sessions
+-- Sessions: current state of terminal sessions (simplified)
 CREATE TABLE IF NOT EXISTS sessions (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   name TEXT NOT NULL UNIQUE,
@@ -100,49 +53,15 @@ CREATE TABLE IF NOT EXISTS sessions (
   last_event TEXT,
   last_activity INTEGER NOT NULL,
   last_status_change INTEGER NOT NULL,
-  environment_id TEXT,
   archived_at INTEGER,
   created_at INTEGER NOT NULL,
-  updated_at INTEGER NOT NULL,
-  -- StatusLine metrics (v4)
-  model TEXT,
-  cost_usd REAL,
-  context_usage INTEGER,
-  lines_added INTEGER,
-  lines_removed INTEGER,
-  -- Worktree isolation (v6)
-  worktree_path TEXT,
-  branch_name TEXT,
-  -- Spawn/orchestration fields (v9)
-  spawn_prompt TEXT,
-  parent_session TEXT,
-  task_id TEXT,
-  exit_code INTEGER,
-  exited_at INTEGER,
-  -- Output capture (v10)
-  output_content TEXT,
-  output_captured_at INTEGER
+  updated_at INTEGER NOT NULL
 );
 
 CREATE INDEX IF NOT EXISTS idx_sessions_name ON sessions(name);
 CREATE INDEX IF NOT EXISTS idx_sessions_project ON sessions(project);
 CREATE INDEX IF NOT EXISTS idx_sessions_status ON sessions(status);
 CREATE INDEX IF NOT EXISTS idx_sessions_last_activity ON sessions(last_activity);
-CREATE INDEX IF NOT EXISTS idx_sessions_parent ON sessions(parent_session);
-CREATE INDEX IF NOT EXISTS idx_sessions_task ON sessions(task_id);
-
--- Status history: audit trail of status changes
-CREATE TABLE IF NOT EXISTS status_history (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  session_name TEXT NOT NULL,
-  status TEXT NOT NULL,
-  attention_reason TEXT,
-  event TEXT,
-  timestamp INTEGER NOT NULL
-);
-
-CREATE INDEX IF NOT EXISTS idx_history_session ON status_history(session_name);
-CREATE INDEX IF NOT EXISTS idx_history_timestamp ON status_history(timestamp);
 
 -- Schema version tracking
 CREATE TABLE IF NOT EXISTS schema_version (
@@ -160,8 +79,6 @@ export const RETENTION_CONFIG = {
   sessionMaxAge: 24 * 60 * 60 * 1000,
   /** Max age for archived sessions before cleanup (30 days) */
   archivedMaxAge: 30 * 24 * 60 * 60 * 1000,
-  /** Max age for status history (7 days) */
-  historyMaxAge: 7 * 24 * 60 * 60 * 1000,
   /** Cleanup interval (1 hour) */
   cleanupInterval: 60 * 60 * 1000,
 };

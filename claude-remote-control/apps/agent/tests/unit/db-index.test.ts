@@ -8,7 +8,7 @@ vi.mock('fs', () => ({
   readFileSync: vi.fn(),
 }));
 
-// Mock schema module
+// Mock schema module (simplified v15)
 vi.mock('../../src/db/schema.js', () => ({
   CREATE_TABLES_SQL: `
     CREATE TABLE IF NOT EXISTS schema_version (
@@ -16,25 +16,23 @@ vi.mock('../../src/db/schema.js', () => ({
       applied_at INTEGER NOT NULL
     );
     CREATE TABLE IF NOT EXISTS sessions (
-      id TEXT PRIMARY KEY,
-      name TEXT,
-      project TEXT NOT NULL,
-      created_at INTEGER NOT NULL,
-      updated_at INTEGER NOT NULL,
-      archived_at INTEGER
-    );
-    CREATE TABLE IF NOT EXISTS status_history (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
-      session_id TEXT NOT NULL,
-      status TEXT NOT NULL,
-      timestamp INTEGER NOT NULL
+      name TEXT NOT NULL UNIQUE,
+      project TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'init',
+      attention_reason TEXT,
+      last_event TEXT,
+      last_activity INTEGER NOT NULL,
+      last_status_change INTEGER NOT NULL,
+      archived_at INTEGER,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL
     );
   `,
-  SCHEMA_VERSION: 14,
+  SCHEMA_VERSION: 15,
   RETENTION_CONFIG: {
-    activeSessionMaxAge: 24 * 60 * 60 * 1000,
-    archivedSessionMaxAge: 30 * 24 * 60 * 60 * 1000,
-    statusHistoryMaxAge: 7 * 24 * 60 * 60 * 1000,
+    sessionMaxAge: 24 * 60 * 60 * 1000,
+    archivedMaxAge: 30 * 24 * 60 * 60 * 1000,
     cleanupInterval: 60 * 60 * 1000,
   },
 }));
@@ -96,7 +94,6 @@ describe('Database Index', () => {
       const tableNames = tables.map((t) => t.name);
       expect(tableNames).toContain('schema_version');
       expect(tableNames).toContain('sessions');
-      expect(tableNames).toContain('status_history');
     });
 
     it('sets schema version', async () => {
@@ -108,7 +105,7 @@ describe('Database Index', () => {
         .prepare('SELECT version FROM schema_version ORDER BY version DESC LIMIT 1')
         .get() as { version: number };
 
-      expect(version.version).toBe(14);
+      expect(version.version).toBe(15);
     });
   });
 
@@ -137,30 +134,23 @@ describe('Database Index', () => {
   });
 
   describe('getDatabaseStats', () => {
-    it('returns counts for all tables', async () => {
+    it('returns counts for sessions table', async () => {
       const { initTestDatabase, getDatabaseStats } = await import('../../src/db/index.js');
 
       const db = initTestDatabase();
+      const now = Date.now();
 
       // Insert test data
       db.prepare(
         `
-        INSERT INTO sessions (id, name, project, created_at, updated_at)
-        VALUES ('s1', 'Session 1', 'project1', ${Date.now()}, ${Date.now()})
+        INSERT INTO sessions (name, project, status, last_activity, last_status_change, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
       `
-      ).run();
-
-      db.prepare(
-        `
-        INSERT INTO status_history (session_id, status, timestamp)
-        VALUES ('s1', 'working', ${Date.now()})
-      `
-      ).run();
+      ).run('Session-1', 'project1', 'init', now, now, now, now);
 
       const stats = getDatabaseStats();
 
       expect(stats.sessions).toBe(1);
-      expect(stats.history).toBe(1);
     });
 
     it('returns zeros for empty database', async () => {
@@ -171,7 +161,6 @@ describe('Database Index', () => {
       const stats = getDatabaseStats();
 
       expect(stats.sessions).toBe(0);
-      expect(stats.history).toBe(0);
     });
   });
 
