@@ -336,7 +336,8 @@
       "mcp__plugin_247-orchestrator_247-orchestrator__send_input",
       "WebFetch(domain:builders.ramp.com)",
       "Bash(export DATABASE_URL:*)",
-      "Bash(psql:*)"
+      "Bash(psql:*)",
+      "Bash(vercel logs:*)"
     ]
   },
   "remote": {

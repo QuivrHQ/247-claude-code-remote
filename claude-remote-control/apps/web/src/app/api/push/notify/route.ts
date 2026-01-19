@@ -60,6 +60,10 @@ export async function POST(req: Request) {
     const [projectName] = sessionName.split('--');
 
     // Send push notification to all user's subscriptions
+    // Build URL with query params to auto-select session
+    // Use connection.id (not machineId) because that's what the web app uses as machine identifier
+    const notificationUrl = `/?machine=${encodeURIComponent(connection.id)}&session=${encodeURIComponent(sessionName)}`;
+
     const payload = {
       title: `Claude - ${projectName}`,
       body: 'Attention requise',
@@ -69,7 +73,8 @@ export async function POST(req: Request) {
       data: {
         sessionName,
         projectName,
-        url: '/',
+        connectionId: connection.id,
+        url: notificationUrl,
       },
     };
 
