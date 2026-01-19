@@ -2,7 +2,7 @@
 
 import { forwardRef, useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Clock, Circle, X, Archive, DollarSign } from 'lucide-react';
+import { Clock, Circle, X, Archive, DollarSign, AlertCircle } from 'lucide-react';
 import { type SessionInfo } from '@/lib/types';
 import { ConfirmDialog } from './ui/confirm-dialog';
 import { cn } from '@/lib/utils';
@@ -40,6 +40,17 @@ export const SessionCard = forwardRef<HTMLButtonElement, SessionCardProps>(
     // Extract readable session name (part after --)
     const displayName = session.name.split('--')[1] || session.name;
     const shortcut = index < 9 ? index + 1 : null;
+
+    // Check if session needs attention
+    const needsAttention = session.status === 'needs_attention';
+    const attentionLabel =
+      session.attentionReason === 'permission'
+        ? 'Permission requise'
+        : session.attentionReason === 'input'
+          ? 'Input attendu'
+          : session.attentionReason === 'plan_approval'
+            ? 'Approbation requise'
+            : 'Attention requise';
 
     const handleKillClick = (e: React.MouseEvent) => {
       e.stopPropagation();
@@ -88,8 +99,23 @@ export const SessionCard = forwardRef<HTMLButtonElement, SessionCardProps>(
                 : 'border border-transparent hover:bg-white/5'
             )}
           >
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/5">
-              <Circle className="h-4 w-4 text-white/40" />
+            <div
+              className={cn(
+                'relative flex h-8 w-8 items-center justify-center rounded-lg',
+                needsAttention ? 'bg-orange-500/20' : 'bg-white/5'
+              )}
+            >
+              {needsAttention ? (
+                <>
+                  <AlertCircle className="h-4 w-4 text-orange-400" />
+                  <span className="absolute -right-1 -top-1 flex h-2.5 w-2.5">
+                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-orange-400 opacity-75" />
+                    <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-orange-500" />
+                  </span>
+                </>
+              ) : (
+                <Circle className="h-4 w-4 text-white/40" />
+              )}
             </div>
 
             {/* Kill button - collapsed mode */}
@@ -148,7 +174,9 @@ export const SessionCard = forwardRef<HTMLButtonElement, SessionCardProps>(
             isMobile && 'min-h-[72px] p-4',
             isActive
               ? 'border-orange-500/30 bg-gradient-to-r from-white/10 to-white/5 shadow-lg shadow-orange-500/20'
-              : 'border-transparent hover:border-white/10 hover:bg-white/5',
+              : needsAttention
+                ? 'border-orange-500/50 bg-orange-500/10 shadow-lg shadow-orange-500/10'
+                : 'border-transparent hover:border-white/10 hover:bg-white/5',
             'focus-visible:ring-2 focus-visible:ring-orange-500/50 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0d0d14]'
           )}
         >
@@ -216,11 +244,23 @@ export const SessionCard = forwardRef<HTMLButtonElement, SessionCardProps>(
                 exit={{ scale: 0.8, opacity: 0 }}
                 transition={{ duration: 0.2 }}
                 className={cn(
-                  'flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg',
-                  'border border-white/10 bg-white/5'
+                  'relative flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg',
+                  needsAttention
+                    ? 'border border-orange-500/30 bg-orange-500/20'
+                    : 'border border-white/10 bg-white/5'
                 )}
               >
-                <Circle className="h-5 w-5 text-white/40" />
+                {needsAttention ? (
+                  <>
+                    <AlertCircle className="h-5 w-5 text-orange-400" />
+                    <span className="absolute -right-1 -top-1 flex h-3 w-3">
+                      <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-orange-400 opacity-75" />
+                      <span className="relative inline-flex h-3 w-3 rounded-full bg-orange-500" />
+                    </span>
+                  </>
+                ) : (
+                  <Circle className="h-5 w-5 text-white/40" />
+                )}
               </motion.div>
             </AnimatePresence>
 
@@ -244,6 +284,16 @@ export const SessionCard = forwardRef<HTMLButtonElement, SessionCardProps>(
                   <span>{formatRelativeTime(session.createdAt)}</span>
                 </div>
               </div>
+
+              {/* Attention indicator */}
+              {needsAttention && (
+                <div className="mt-2 flex items-center gap-1.5">
+                  <span className="inline-flex items-center gap-1 rounded-full bg-orange-500/20 px-2 py-0.5 text-xs font-medium text-orange-400">
+                    <AlertCircle className="h-3 w-3" />
+                    {attentionLabel}
+                  </span>
+                </div>
+              )}
 
               {/* StatusLine metrics */}
               {session.costUsd !== undefined && (
