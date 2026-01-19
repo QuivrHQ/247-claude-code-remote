@@ -11,6 +11,7 @@ import { updateCommand } from './commands/update.js';
 import { doctorCommand } from './commands/doctor.js';
 import { profileCommand } from './commands/profile.js';
 import { versionCommand } from './commands/version.js';
+import { hooksCommand } from './commands/hooks.js';
 
 const program = new Command();
 
@@ -31,6 +32,7 @@ program.addCommand(updateCommand);
 program.addCommand(doctorCommand);
 program.addCommand(profileCommand);
 program.addCommand(versionCommand);
+program.addCommand(hooksCommand);
 
 // Export program for use in subcommands (to access global options)
 export { program };

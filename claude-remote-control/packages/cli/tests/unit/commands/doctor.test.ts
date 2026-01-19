@@ -50,6 +50,11 @@ vi.mock('../../../src/lib/paths.js', () => ({
   getAgentPaths: vi.fn(),
 }));
 
+// Mock hooks
+vi.mock('../../../src/lib/hooks.js', () => ({
+  getHooksStatus: vi.fn(),
+}));
+
 // Mock net module
 const createMockServer = (portAvailable: boolean = true) => {
   return {
@@ -104,6 +109,7 @@ describe('Doctor Command', () => {
     const { isAgentRunning, getAgentHealth } = await import('../../../src/lib/process.js');
     const { createServiceManager } = await import('../../../src/service/index.js');
     const { getAgentPaths } = await import('../../../src/lib/paths.js');
+    const { getHooksStatus } = await import('../../../src/lib/hooks.js');
     const { existsSync } = await import('fs');
 
     // Default all passing scenario
@@ -157,6 +163,15 @@ describe('Doctor Command', () => {
       logDir: '/home/user/Library/Logs/247-agent',
     } as any);
 
+    vi.mocked(getHooksStatus).mockReturnValue({
+      installed: true,
+      version: '2.25.0',
+      path: '/home/user/.247/hooks/notify-247.sh',
+      settingsConfigured: true,
+      needsUpdate: false,
+      packagedVersion: '2.25.0',
+    });
+
     vi.mocked(existsSync).mockReturnValue(true);
 
     // Apply overrides
@@ -184,6 +199,7 @@ describe('Doctor Command', () => {
     }
     if (overrides.existsSync !== undefined)
       vi.mocked(existsSync).mockReturnValue(overrides.existsSync);
+    if (overrides.hooksStatus) vi.mocked(getHooksStatus).mockReturnValue(overrides.hooksStatus);
 
     // Setup net mock for port availability check (only runs when agent not running)
     const net = await import('net');

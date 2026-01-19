@@ -6,6 +6,7 @@ import { configExists, loadConfig } from '../lib/config.js';
 import { isAgentRunning, getAgentHealth } from '../lib/process.js';
 import { createServiceManager } from '../service/index.js';
 import { getAgentPaths } from '../lib/paths.js';
+import { getHooksStatus } from '../lib/hooks.js';
 
 interface CheckResult {
   name: string;
@@ -219,6 +220,32 @@ export const doctorCommand = new Command('doctor')
           });
         }
       }
+    }
+
+    // 10. Check hooks status
+    const hooksStatus = getHooksStatus();
+    if (hooksStatus.installed) {
+      if (hooksStatus.needsUpdate) {
+        results.push({
+          name: 'Notification hooks',
+          status: 'warn',
+          message: `Installed (v${hooksStatus.version}) - update available`,
+          hint: 'Run "247 hooks install" to update',
+        });
+      } else {
+        results.push({
+          name: 'Notification hooks',
+          status: 'pass',
+          message: `Installed (v${hooksStatus.version})`,
+        });
+      }
+    } else {
+      results.push({
+        name: 'Notification hooks',
+        status: 'warn',
+        message: 'Not installed',
+        hint: 'Run "247 hooks install" for attention notifications',
+      });
     }
 
     // Print results

@@ -1,5 +1,6 @@
 #!/bin/bash
 # 247 Hook Script for Claude Code
+# VERSION: 2.25.0
 # Called by Claude Code on Stop/Notification events to notify the agent
 #
 # This script receives event JSON from stdin and POSTs to the agent's /api/hooks/status
