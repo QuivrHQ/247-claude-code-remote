@@ -3,6 +3,7 @@
 import { useState, useMemo, useCallback, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ChevronDown, Plus, Search, HelpCircle, Settings, Wifi } from 'lucide-react';
+import { PushNotificationButton } from '@/components/PushNotificationButton';
 import { toast } from 'sonner';
 import { cn, buildApiUrl } from '@/lib/utils';
 import { SessionMiniCard } from './SessionMiniCard';
@@ -260,6 +261,7 @@ export function MobileStatusStrip({
                 <Wifi className="h-4 w-4" />
               </button>
             )}
+            <PushNotificationButton isMobile={true} />
           </div>
 
           {/* Quick Add */}
