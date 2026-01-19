@@ -1,152 +1,164 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-
-// Test the notification logic without mocking the browser APIs
-// Focus on the function behavior and message formatting
+import { describe, it, expect, vi, beforeEach, afterEach, Mock } from 'vitest';
+import {
+  requestNotificationPermission,
+  showBrowserNotification,
+} from '../../../src/lib/notifications';
+import type { AttentionReason } from '247-shared';
 
 describe('Notifications', () => {
-  describe('SessionInfo type', () => {
-    it('defines valid session statuses', () => {
-      const validStatuses = ['running', 'waiting', 'permission', 'stopped', 'ended', 'idle'];
-      validStatuses.forEach(status => {
-        expect(typeof status).toBe('string');
+  describe('requestNotificationPermission', () => {
+    beforeEach(() => {
+      // Reset mock implementation for each test
+      (window.Notification.requestPermission as Mock).mockClear();
+    });
+
+    it('calls Notification.requestPermission when API is available', async () => {
+      (window.Notification.requestPermission as Mock).mockResolvedValueOnce('granted');
+
+      const result = await requestNotificationPermission();
+
+      expect(window.Notification.requestPermission).toHaveBeenCalled();
+      expect(result).toBe('granted');
+    });
+
+    it('returns denied permission state', async () => {
+      (window.Notification.requestPermission as Mock).mockResolvedValueOnce('denied');
+
+      const result = await requestNotificationPermission();
+      expect(result).toBe('denied');
+    });
+
+    it('returns default permission state', async () => {
+      (window.Notification.requestPermission as Mock).mockResolvedValueOnce('default');
+
+      const result = await requestNotificationPermission();
+      expect(result).toBe('default');
+    });
+  });
+
+  describe('showBrowserNotification', () => {
+    let NotificationSpy: Mock;
+
+    beforeEach(() => {
+      // Create a constructor spy
+      NotificationSpy = vi.fn();
+      Object.defineProperty(window, 'Notification', {
+        writable: true,
+        value: NotificationSpy,
+      });
+      // @ts-expect-error - setting permission
+      window.Notification.permission = 'granted';
+    });
+
+    afterEach(() => {
+      // Restore the original mock from setup.ts
+      Object.defineProperty(window, 'Notification', {
+        writable: true,
+        value: class MockNotification {
+          static permission = 'default';
+          static requestPermission = vi.fn().mockResolvedValue('granted');
+          constructor() {}
+          close = vi.fn();
+        },
       });
     });
-  });
 
-  describe('Notification body messages', () => {
-    // Test the mapping logic used in showSessionNotification
-    const getNotificationBody = (status: string): string => {
-      return status === 'permission'
-        ? 'Autorisation requise'
-        : status === 'waiting'
-          ? 'Question posée'
-          : 'Tâche terminée';
-    };
+    it('does nothing when permission is not granted', () => {
+      // @ts-expect-error - setting permission
+      window.Notification.permission = 'denied';
 
-    it('returns "Autorisation requise" for permission status', () => {
-      expect(getNotificationBody('permission')).toBe('Autorisation requise');
+      showBrowserNotification('test-project', 'permission');
+      expect(NotificationSpy).not.toHaveBeenCalled();
     });
 
-    it('returns "Question posée" for waiting status', () => {
-      expect(getNotificationBody('waiting')).toBe('Question posée');
+    it('creates notification with correct title and body for permission reason', () => {
+      showBrowserNotification('my-project', 'permission');
+
+      expect(NotificationSpy).toHaveBeenCalledWith('Claude - my-project', {
+        body: 'Permission requise',
+        icon: '/icon-192x192.png',
+        tag: 'claude-my-project',
+        requireInteraction: true,
+      });
     });
 
-    it('returns "Tâche terminée" for stopped status', () => {
-      expect(getNotificationBody('stopped')).toBe('Tâche terminée');
+    it('creates notification with correct body for input reason', () => {
+      showBrowserNotification('my-project', 'input');
+
+      expect(NotificationSpy).toHaveBeenCalledWith('Claude - my-project', {
+        body: 'Input attendu',
+        icon: '/icon-192x192.png',
+        tag: 'claude-my-project',
+        requireInteraction: true,
+      });
     });
 
-    it('returns "Tâche terminée" for running status', () => {
-      expect(getNotificationBody('running')).toBe('Tâche terminée');
+    it('creates notification with correct body for plan_approval reason', () => {
+      showBrowserNotification('my-project', 'plan_approval');
+
+      expect(NotificationSpy).toHaveBeenCalledWith('Claude - my-project', {
+        body: 'Approbation du plan',
+        icon: '/icon-192x192.png',
+        tag: 'claude-my-project',
+        requireInteraction: true,
+      });
     });
 
-    it('returns "Tâche terminée" for ended status', () => {
-      expect(getNotificationBody('ended')).toBe('Tâche terminée');
-    });
-  });
+    it('creates notification with correct body for task_complete reason', () => {
+      showBrowserNotification('my-project', 'task_complete');
 
-  describe('Notification title formatting', () => {
-    const formatTitle = (machineName: string, project: string): string => {
-      return `${machineName} - ${project}`;
-    };
-
-    it('formats title with machine name and project', () => {
-      expect(formatTitle('Mac Mini', 'my-project')).toBe('Mac Mini - my-project');
+      expect(NotificationSpy).toHaveBeenCalledWith('Claude - my-project', {
+        body: 'Tâche terminée',
+        icon: '/icon-192x192.png',
+        tag: 'claude-my-project',
+        requireInteraction: true,
+      });
     });
 
-    it('handles special characters in names', () => {
-      expect(formatTitle('Mac (home)', 'project-v2')).toBe('Mac (home) - project-v2');
+    it('creates notification with default body when no reason provided', () => {
+      showBrowserNotification('my-project');
+
+      expect(NotificationSpy).toHaveBeenCalledWith('Claude - my-project', {
+        body: 'Attention requise',
+        icon: '/icon-192x192.png',
+        tag: 'claude-my-project',
+        requireInteraction: true,
+      });
     });
-  });
 
-  describe('Notification tag generation', () => {
-    const generateTag = (sessionName: string, status: string): string => {
-      return `${sessionName}-${status}`;
-    };
+    it('uses project name in tag to prevent duplicates', () => {
+      showBrowserNotification('project-a', 'permission');
+      showBrowserNotification('project-b', 'permission');
 
-    it('generates unique tag from session name and status', () => {
-      expect(generateTag('project--brave-lion-42', 'waiting')).toBe(
-        'project--brave-lion-42-waiting'
+      expect(NotificationSpy).toHaveBeenNthCalledWith(
+        1,
+        expect.any(String),
+        expect.objectContaining({ tag: 'claude-project-a' })
+      );
+      expect(NotificationSpy).toHaveBeenNthCalledWith(
+        2,
+        expect.any(String),
+        expect.objectContaining({ tag: 'claude-project-b' })
       );
     });
-
-    it('changes tag when status changes', () => {
-      const sessionName = 'project--brave-lion-42';
-      expect(generateTag(sessionName, 'running')).not.toBe(
-        generateTag(sessionName, 'stopped')
-      );
-    });
   });
 
-  describe('Notification click URL generation', () => {
-    // This matches the URL format used in showSessionNotification onclick handler
-    const generateNotificationUrl = (
-      machineId: string,
-      sessionName: string
-    ): string => {
-      return `?session=${encodeURIComponent(sessionName)}&machine=${machineId}`;
+  describe('AttentionReason labels', () => {
+    const REASON_LABELS: Record<AttentionReason, string> = {
+      permission: 'Permission requise',
+      input: 'Input attendu',
+      plan_approval: 'Approbation du plan',
+      task_complete: 'Tâche terminée',
     };
 
-    it('generates correct URL with query parameters', () => {
-      const url = generateNotificationUrl('local-agent', 'project--brave-lion-42');
+    it('has label for all attention reasons', () => {
+      const reasons: AttentionReason[] = ['permission', 'input', 'plan_approval', 'task_complete'];
 
-      expect(url).toBe('?session=project--brave-lion-42&machine=local-agent');
-    });
-
-    it('encodes special characters in session name', () => {
-      const url = generateNotificationUrl('machine-1', 'project with spaces');
-
-      expect(url).toBe('?session=project%20with%20spaces&machine=machine-1');
-    });
-
-    it('does not use /s/ route format (deprecated)', () => {
-      const url = generateNotificationUrl('machine-1', 'test-session');
-
-      expect(url).not.toContain('/s/');
-      expect(url.startsWith('?')).toBe(true);
-    });
-
-    it('has session parameter before machine parameter', () => {
-      const url = generateNotificationUrl('machine-1', 'test-session');
-
-      const sessionIndex = url.indexOf('session=');
-      const machineIndex = url.indexOf('machine=');
-      expect(sessionIndex).toBeLessThan(machineIndex);
-    });
-  });
-
-  describe('Permission state handling', () => {
-    type PermissionState = 'default' | 'granted' | 'denied';
-
-    const shouldShowNotification = (permission: PermissionState): boolean => {
-      return permission === 'granted';
-    };
-
-    const shouldRequestPermission = (permission: PermissionState): boolean => {
-      return permission === 'default';
-    };
-
-    it('allows notifications when permission granted', () => {
-      expect(shouldShowNotification('granted')).toBe(true);
-    });
-
-    it('blocks notifications when permission denied', () => {
-      expect(shouldShowNotification('denied')).toBe(false);
-    });
-
-    it('blocks notifications when permission default', () => {
-      expect(shouldShowNotification('default')).toBe(false);
-    });
-
-    it('requests permission when state is default', () => {
-      expect(shouldRequestPermission('default')).toBe(true);
-    });
-
-    it('does not request when already granted', () => {
-      expect(shouldRequestPermission('granted')).toBe(false);
-    });
-
-    it('does not request when denied', () => {
-      expect(shouldRequestPermission('denied')).toBe(false);
+      reasons.forEach((reason) => {
+        expect(REASON_LABELS[reason]).toBeDefined();
+        expect(typeof REASON_LABELS[reason]).toBe('string');
+        expect(REASON_LABELS[reason].length).toBeGreaterThan(0);
+      });
     });
   });
 });

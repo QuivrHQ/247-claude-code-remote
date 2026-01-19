@@ -11,6 +11,7 @@ import {
 } from 'react';
 import { SessionInfo, SessionWithMachine } from '@/lib/types';
 import { buildWebSocketUrl, buildApiUrl } from '@/lib/utils';
+import { requestNotificationPermission, showBrowserNotification } from '@/lib/notifications';
 import type { WSSessionsMessageFromAgent } from '247-shared';
 
 export interface Machine {
@@ -75,6 +76,11 @@ export function SessionPollingProvider({ children }: { children: ReactNode }) {
   const wsConnectedRef = useRef<Set<string>>(new Set()); // Track connected machines via ref for polling
   const wsReconnectDelaysRef = useRef<Map<string, number>>(new Map());
   const wsReconnectTimeoutsRef = useRef<Map<string, NodeJS.Timeout>>(new Map());
+
+  // Request notification permission on mount
+  useEffect(() => {
+    requestNotificationPermission();
+  }, []);
 
   // Cleanup all timeouts on unmount
   useEffect(() => {
@@ -316,6 +322,38 @@ export function SessionPollingProvider({ children }: { children: ReactNode }) {
               case 'update-pending':
                 console.log(`[WS] Agent updating to ${msg.targetVersion}: ${msg.message}`);
                 // Agent will restart, WebSocket will reconnect automatically
+                break;
+
+              case 'status-update':
+                console.log(`[WS] Status update: ${msg.session.name} -> ${msg.session.status}`);
+                setSessionsByMachine((prev) => {
+                  const next = new Map(prev);
+                  const existingData = next.get(machine.id);
+                  if (existingData) {
+                    const sessionIndex = existingData.sessions.findIndex(
+                      (s) => s.name === msg.session.name
+                    );
+                    if (sessionIndex !== -1) {
+                      const updatedSessions = [...existingData.sessions];
+                      updatedSessions[sessionIndex] = {
+                        ...updatedSessions[sessionIndex],
+                        status: msg.session.status,
+                        attentionReason: msg.session.attentionReason,
+                        statusSource: msg.session.statusSource,
+                        lastStatusChange: msg.session.lastStatusChange,
+                      };
+                      next.set(machine.id, { ...existingData, sessions: updatedSessions });
+                    }
+                  }
+                  return next;
+                });
+                // Trigger browser notification for needs_attention (except task_complete)
+                if (
+                  msg.session.status === 'needs_attention' &&
+                  msg.session.attentionReason !== 'task_complete'
+                ) {
+                  showBrowserNotification(msg.session.project, msg.session.attentionReason);
+                }
                 break;
             }
           } catch (err) {
