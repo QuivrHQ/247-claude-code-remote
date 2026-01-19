@@ -227,20 +227,39 @@ function migrateToV16(database: Database.Database): void {
 function migrateToV17(database: Database.Database): void {
   console.log('[DB] v17 migration: Adding status tracking via hooks');
 
-  // Check if status column already exists
-  const columns = database.pragma('table_info(sessions)') as Array<{ name: string }>;
-  const columnNames = new Set(columns.map((c) => c.name));
+  // Helper to get current columns
+  const getColumnNames = (): Set<string> => {
+    const columns = database.pragma('table_info(sessions)') as Array<{ name: string }>;
+    return new Set(columns.map((c) => c.name));
+  };
 
-  if (!columnNames.has('status')) {
-    console.log('[DB] v17 migration: Adding status tracking columns');
-    // Execute each ALTER TABLE statement separately (SQLite limitation)
-    database.exec('ALTER TABLE sessions ADD COLUMN status TEXT');
-    database.exec('ALTER TABLE sessions ADD COLUMN status_source TEXT');
-    database.exec('ALTER TABLE sessions ADD COLUMN attention_reason TEXT');
-    database.exec('ALTER TABLE sessions ADD COLUMN last_status_change INTEGER');
-    database.exec('CREATE INDEX IF NOT EXISTS idx_sessions_status ON sessions(status)');
-    console.log('[DB] v17 migration: Status tracking columns added');
+  const requiredColumns = ['status', 'status_source', 'attention_reason', 'last_status_change'];
+  let columnNames = getColumnNames();
+
+  // Add each missing column
+  for (const col of requiredColumns) {
+    if (!columnNames.has(col)) {
+      console.log(`[DB] v17 migration: Adding column ${col}`);
+      try {
+        database.exec(
+          `ALTER TABLE sessions ADD COLUMN ${col} ${col === 'last_status_change' ? 'INTEGER' : 'TEXT'}`
+        );
+      } catch {
+        // Column might already exist from a failed partial migration
+        console.log(`[DB] v17 migration: Column ${col} might already exist, continuing...`);
+      }
+    }
   }
+
+  // Verify all columns were added
+  columnNames = getColumnNames();
+  const missingColumns = requiredColumns.filter((col) => !columnNames.has(col));
+  if (missingColumns.length > 0) {
+    throw new Error(`[DB] v17 migration failed: Missing columns: ${missingColumns.join(', ')}`);
+  }
+
+  // Create index if it doesn't exist
+  database.exec('CREATE INDEX IF NOT EXISTS idx_sessions_status ON sessions(status)');
 
   console.log('[DB] v17 migration: Complete');
 }
