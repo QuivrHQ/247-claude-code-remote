@@ -1,6 +1,5 @@
 .vercel
 .env*.local
 
-# PWA generated files
-public/sw.js
+# PWA source map (sw.js is versioned for manual updates)
 public/sw.js.map

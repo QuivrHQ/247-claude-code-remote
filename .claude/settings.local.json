@@ -337,7 +337,10 @@
       "WebFetch(domain:builders.ramp.com)",
       "Bash(export DATABASE_URL:*)",
       "Bash(psql:*)",
-      "Bash(vercel logs:*)"
+      "Bash(vercel logs:*)",
+      "Bash(ping:*)",
+      "Bash(ssh ubuntu@vibecoding \"ps aux | grep -E ''\\(node|agent\\)'' | grep -v grep | head -10\")",
+      "Bash(ssh:*)"
     ]
   },
   "remote": {

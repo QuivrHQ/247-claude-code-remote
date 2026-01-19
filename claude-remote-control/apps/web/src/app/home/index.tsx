@@ -18,6 +18,7 @@ import { useHomeState } from './useHomeState';
 import { useIsMobile } from '@/hooks/useMediaQuery';
 import { useViewportHeight } from '@/hooks/useViewportHeight';
 import { usePullToRefresh } from '@/hooks/usePullToRefresh';
+import { useNotificationDeeplink } from '@/hooks/useNotificationDeeplink';
 import { useSessionPolling } from '@/contexts/SessionPollingContext';
 
 export function HomeContent() {
@@ -25,6 +26,9 @@ export function HomeContent() {
 
   // Set CSS variable for viewport height (handles mobile keyboard)
   useViewportHeight();
+
+  // Handle notification deep links (iOS PWA fallback)
+  useNotificationDeeplink();
 
   const {
     loading,
