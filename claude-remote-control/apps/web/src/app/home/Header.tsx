@@ -13,6 +13,7 @@ import {
   Settings,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { PushNotificationButton } from '@/components/PushNotificationButton';
 import type { SelectedSession } from './types';
 
 interface HeaderProps {
@@ -150,6 +151,9 @@ export function Header({
                 <Settings className="h-4 w-4" />
               </button>
             )}
+
+            {/* Push notifications toggle */}
+            <PushNotificationButton isMobile={isMobile} />
 
             <button
               onClick={onConnectionSettingsClick}
