@@ -220,6 +220,67 @@ describe('Updater Module', () => {
     });
   });
 
+  describe('nvm support', () => {
+    it('sources nvm in update script for Linux compatibility', async () => {
+      vi.useFakeTimers();
+      const { writeFileSync } = await import('fs');
+      const mockedWriteFileSync = vi.mocked(writeFileSync);
+
+      const { triggerUpdate } = await import('../../src/updater.js');
+      triggerUpdate('1.0.0');
+
+      const scriptContent = mockedWriteFileSync.mock.calls[0][1] as string;
+      // Script should source nvm if available
+      expect(scriptContent).toContain('NVM_DIR');
+      expect(scriptContent).toContain('source "$NVM_DIR/nvm.sh"');
+      // The nvm sourcing should come before npm install
+      const nvmIndex = scriptContent.indexOf('source "$NVM_DIR/nvm.sh"');
+      const npmIndex = scriptContent.indexOf('npm install -g');
+      expect(nvmIndex).toBeLessThan(npmIndex);
+
+      vi.advanceTimersByTime(1100);
+    });
+
+    it('passes NVM_DIR in spawn environment', async () => {
+      vi.useFakeTimers();
+      const { spawn } = await import('child_process');
+      const mockedSpawn = vi.mocked(spawn);
+
+      const { triggerUpdate } = await import('../../src/updater.js');
+      triggerUpdate('1.0.0');
+
+      const spawnOptions = mockedSpawn.mock.calls[0][2] as { env: Record<string, string> };
+      expect(spawnOptions.env.NVM_DIR).toBeDefined();
+      expect(spawnOptions.env.NVM_DIR).toContain('.nvm');
+
+      vi.advanceTimersByTime(1100);
+    });
+
+    it('includes NVM_BIN in PATH if set', async () => {
+      vi.useFakeTimers();
+      const originalNvmBin = process.env.NVM_BIN;
+      process.env.NVM_BIN = '/home/user/.nvm/versions/node/v22.0.0/bin';
+
+      const { spawn } = await import('child_process');
+      const mockedSpawn = vi.mocked(spawn);
+
+      vi.resetModules();
+      const { triggerUpdate } = await import('../../src/updater.js');
+      triggerUpdate('1.0.0');
+
+      const spawnOptions = mockedSpawn.mock.calls[0][2] as { env: Record<string, string> };
+      expect(spawnOptions.env.PATH).toContain('/home/user/.nvm/versions/node/v22.0.0/bin');
+
+      vi.advanceTimersByTime(1100);
+
+      if (originalNvmBin) {
+        process.env.NVM_BIN = originalNvmBin;
+      } else {
+        delete process.env.NVM_BIN;
+      }
+    });
+  });
+
   describe('error handling', () => {
     it('handles writeFileSync error', async () => {
       vi.useFakeTimers();

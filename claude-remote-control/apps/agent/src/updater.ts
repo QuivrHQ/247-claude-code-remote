@@ -68,6 +68,13 @@ cd /tmp
 # Wait for agent to fully exit
 sleep 2
 
+# Load nvm if available (required for Linux VMs using nvm)
+export NVM_DIR="${'$'}{NVM_DIR:-${'$'}HOME/.nvm}"
+if [ -s "${'$'}NVM_DIR/nvm.sh" ]; then
+  source "${'$'}NVM_DIR/nvm.sh"
+  echo "[247] Loaded nvm from ${'$'}NVM_DIR"
+fi
+
 echo "[247] Installing version ${targetVersion}..."
 npm install -g ${PACKAGE_NAME}@${targetVersion}
 
@@ -98,14 +105,20 @@ rm -f "${UPDATE_SCRIPT}"
     return;
   }
 
+  // Build PATH with common locations for npm
+  const nvmPath = process.env.NVM_BIN || '';
+  const basePath = '/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin';
+  const extraPath = process.env.PATH || '';
+
   // Spawn detached updater process
   const updater = spawn('bash', [UPDATE_SCRIPT], {
     detached: true,
     stdio: 'ignore',
     env: {
       ...process.env,
-      // Ensure npm and 247 are in PATH
-      PATH: '/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:' + (process.env.PATH || ''),
+      // Ensure npm and 247 are in PATH (nvm paths + homebrew + standard)
+      PATH: `${nvmPath}:${basePath}:${extraPath}`,
+      NVM_DIR: process.env.NVM_DIR || `${process.env.HOME}/.nvm`,
     },
   });
 
