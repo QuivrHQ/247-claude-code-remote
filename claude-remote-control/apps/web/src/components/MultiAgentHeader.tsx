@@ -737,7 +737,15 @@ export function MultiAgentHeader({
                     <Settings className="h-4 w-4" />
                   </button>
                 )}
-                <PushNotificationButton />
+              </>
+            )}
+
+            {/* Push notification button - always visible */}
+            <PushNotificationButton isMobile={isMobile} />
+
+            {/* Desktop: fullscreen + separator */}
+            {!isMobile && (
+              <>
                 {onToggleFullscreen && (
                   <button
                     onClick={onToggleFullscreen}
@@ -754,9 +762,6 @@ export function MultiAgentHeader({
                 <div className="mx-1 h-4 w-px bg-white/10" />
               </>
             )}
-
-            {/* Mobile: Push notification button */}
-            {isMobile && <PushNotificationButton isMobile />}
 
             {/* New session button */}
             <button

@@ -31,8 +31,14 @@ export async function POST(req: Request) {
       .where(eq(agentConnection.machineId, machineId))
       .limit(1);
 
+    console.warn(
+      `[Push] Looking for machineId=${machineId}, found connection:`,
+      connection?.id || 'none'
+    );
+
     if (!connection) {
       // No connection found for this machineId - agent not paired
+      console.warn(`[Push] No connection found for machineId=${machineId}`);
       return NextResponse.json({ success: true, sent: 0, message: 'Agent not paired' });
     }
 
@@ -41,6 +47,10 @@ export async function POST(req: Request) {
       .select()
       .from(pushSubscription)
       .where(eq(pushSubscription.userId, connection.userId));
+
+    console.warn(
+      `[Push] Found ${subscriptions.length} subscriptions for userId=${connection.userId}`
+    );
 
     if (subscriptions.length === 0) {
       return NextResponse.json({ success: true, sent: 0, message: 'No subscriptions' });
