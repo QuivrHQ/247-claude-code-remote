@@ -21,17 +21,11 @@ function isValidStatus(value: unknown): value is SessionStatus {
 }
 
 /**
- * Validate that a value is a valid AttentionReason
+ * Validate that a value is a valid AttentionReason (now accepts any string for pass-through)
  */
 function isValidAttentionReason(value: unknown): value is AttentionReason {
-  return (
-    value === 'permission' ||
-    value === 'input' ||
-    value === 'plan_approval' ||
-    value === 'task_complete' ||
-    value === null ||
-    value === undefined
-  );
+  // Accept any string, null, or undefined (pass-through from Claude Code notification_type)
+  return typeof value === 'string' || value === null || value === undefined;
 }
 
 /**

@@ -3,7 +3,10 @@
 // ============================================================================
 
 export type SessionStatus = 'init' | 'working' | 'needs_attention' | 'idle';
-export type AttentionReason = 'permission' | 'input' | 'plan_approval' | 'task_complete';
+// AttentionReason is now a pass-through from Claude Code's notification_type
+// Known values: permission_prompt, input_request, plan_mode, task_complete, input (from Stop hook)
+// Using string to allow any future types from Claude Code
+export type AttentionReason = string;
 export type StatusSource = 'hook' | 'tmux';
 
 export interface AttentionNotification {

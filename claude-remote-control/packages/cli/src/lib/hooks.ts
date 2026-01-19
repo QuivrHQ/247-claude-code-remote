@@ -22,6 +22,8 @@ const HOOK_SCRIPT_PATH = join(HOOKS_DIR, HOOK_SCRIPT_NAME);
 // Hook configuration for Claude Code settings.json
 const HOOK_MATCHER = '*';
 const HOOK_COMMAND = `bash ${HOOK_SCRIPT_PATH}`;
+// All hook types we need to register
+const HOOK_TYPES = ['Stop', 'PermissionRequest', 'Notification'] as const;
 
 export interface HookStatus {
   installed: boolean;
@@ -110,7 +112,7 @@ export function getPackagedHookVersion(): string {
 }
 
 /**
- * Check if the hook is installed in Claude Code settings.
+ * Check if the hook is installed in Claude Code settings for all required hook types.
  */
 function isHookInSettings(): boolean {
   try {
@@ -118,15 +120,18 @@ function isHookInSettings(): boolean {
     const content = readFileSync(CLAUDE_SETTINGS_PATH, 'utf-8');
     const settings = JSON.parse(content);
 
-    if (!settings.hooks?.Notification) return false;
+    if (!settings.hooks) return false;
 
-    // Check if our hook is registered
-    const notifications = settings.hooks.Notification;
-    return notifications.some(
-      (entry: { matcher?: string; hooks?: Array<{ command?: string }> }) =>
-        entry.matcher === HOOK_MATCHER &&
-        entry.hooks?.some((h) => h.command?.includes(HOOK_SCRIPT_NAME))
-    );
+    // Check if our hook is registered for all required types
+    return HOOK_TYPES.every((hookType) => {
+      const hookArray = settings.hooks[hookType];
+      if (!Array.isArray(hookArray)) return false;
+      return hookArray.some(
+        (entry: { matcher?: string; hooks?: Array<{ command?: string }> }) =>
+          entry.matcher === HOOK_MATCHER &&
+          entry.hooks?.some((h) => h.command?.includes(HOOK_SCRIPT_NAME))
+      );
+    });
   } catch {
     return false;
   }
@@ -235,32 +240,35 @@ export function installHook(): InstallResult {
 
     const hooks = settings.hooks as Record<string, unknown[]>;
 
-    // Ensure Notification array exists
-    if (!Array.isArray(hooks.Notification)) {
-      hooks.Notification = [];
+    // Install hook for all required types (Stop, PermissionRequest, Notification)
+    for (const hookType of HOOK_TYPES) {
+      // Ensure array exists
+      if (!Array.isArray(hooks[hookType])) {
+        hooks[hookType] = [];
+      }
+
+      // Remove any existing 247 hook entries
+      hooks[hookType] = (
+        hooks[hookType] as Array<{
+          matcher?: string;
+          hooks?: Array<{ command?: string }>;
+        }>
+      ).filter(
+        (entry) =>
+          !(entry.matcher === HOOK_MATCHER && entry.hooks?.some((h) => h.command?.includes('247')))
+      );
+
+      // Add our hook
+      hooks[hookType].push({
+        matcher: HOOK_MATCHER,
+        hooks: [
+          {
+            type: 'command',
+            command: HOOK_COMMAND,
+          },
+        ],
+      });
     }
-
-    // Remove any existing 247 hook entries
-    hooks.Notification = (
-      hooks.Notification as Array<{
-        matcher?: string;
-        hooks?: Array<{ command?: string }>;
-      }>
-    ).filter(
-      (entry) =>
-        !(entry.matcher === HOOK_MATCHER && entry.hooks?.some((h) => h.command?.includes('247')))
-    );
-
-    // Add our hook
-    hooks.Notification.push({
-      matcher: HOOK_MATCHER,
-      hooks: [
-        {
-          type: 'command',
-          command: HOOK_COMMAND,
-        },
-      ],
-    });
 
     writeClaudeSettings(settings);
 
@@ -283,32 +291,35 @@ export function uninstallHook(removeScript: boolean = true): UninstallResult {
       if (settings.hooks) {
         const hooks = settings.hooks as Record<string, unknown[]>;
 
-        if (Array.isArray(hooks.Notification)) {
-          hooks.Notification = (
-            hooks.Notification as Array<{
-              matcher?: string;
-              hooks?: Array<{ command?: string }>;
-            }>
-          ).filter(
-            (entry) =>
-              !(
-                entry.matcher === HOOK_MATCHER &&
-                entry.hooks?.some((h) => h.command?.includes('247'))
-              )
-          );
+        // Remove from all hook types
+        for (const hookType of HOOK_TYPES) {
+          if (Array.isArray(hooks[hookType])) {
+            hooks[hookType] = (
+              hooks[hookType] as Array<{
+                matcher?: string;
+                hooks?: Array<{ command?: string }>;
+              }>
+            ).filter(
+              (entry) =>
+                !(
+                  entry.matcher === HOOK_MATCHER &&
+                  entry.hooks?.some((h) => h.command?.includes('247'))
+                )
+            );
 
-          // Clean up empty Notification array
-          if (hooks.Notification.length === 0) {
-            delete hooks.Notification;
+            // Clean up empty array
+            if (hooks[hookType].length === 0) {
+              delete hooks[hookType];
+            }
           }
-
-          // Clean up empty hooks object
-          if (Object.keys(hooks).length === 0) {
-            delete settings.hooks;
-          }
-
-          writeClaudeSettings(settings);
         }
+
+        // Clean up empty hooks object
+        if (Object.keys(hooks).length === 0) {
+          delete settings.hooks;
+        }
+
+        writeClaudeSettings(settings);
       }
     }
 

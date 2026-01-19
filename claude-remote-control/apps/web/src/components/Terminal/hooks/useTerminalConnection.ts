@@ -66,6 +66,9 @@ export function useTerminalConnection({
   const pongTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const awaitingPongRef = useRef<boolean>(false);
 
+  // Track if we've acknowledged this session (reset needs_attention on first input)
+  const hasAcknowledgedRef = useRef<boolean>(false);
+
   const scrollToBottom = useCallback(() => {
     xtermRef.current?.scrollToBottom();
   }, []);
@@ -115,6 +118,9 @@ export function useTerminalConnection({
 
   useEffect(() => {
     if (!terminalRef.current) return;
+
+    // Reset acknowledge flag for new session
+    hasAcknowledgedRef.current = false;
 
     let cancelled = false;
     let term: XTerm | null = null;
@@ -513,6 +519,14 @@ export function useTerminalConnection({
         if (activeWs?.readyState === WebSocket.OPEN) {
           lastActivityRef.current = Date.now(); // Track activity for adaptive heartbeat
           activeWs.send(JSON.stringify({ type: 'input', data }));
+
+          // Acknowledge session on first input (reset needs_attention)
+          if (!hasAcknowledgedRef.current && sessionName && agentUrl) {
+            hasAcknowledgedRef.current = true;
+            fetch(`${agentUrl}/api/sessions/${sessionName}/acknowledge`, {
+              method: 'POST',
+            }).catch(console.error);
+          }
         }
       });
 

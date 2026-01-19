@@ -3,7 +3,8 @@
 // ============================================================================
 
 export type DbSessionStatus = 'init' | 'working' | 'needs_attention' | 'idle';
-export type DbAttentionReason = 'permission' | 'input' | 'plan_approval' | 'task_complete';
+// AttentionReason is now a pass-through from Claude Code's notification_type (string)
+export type DbAttentionReason = string;
 export type DbStatusSource = 'hook' | 'tmux';
 
 export interface DbSession {

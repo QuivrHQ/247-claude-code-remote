@@ -6,7 +6,11 @@
 import { Router } from 'express';
 import type { WSSessionInfo } from '247-shared';
 import * as sessionsDb from '../db/sessions.js';
-import { broadcastSessionRemoved, broadcastSessionArchived } from '../websocket-handlers.js';
+import {
+  broadcastSessionRemoved,
+  broadcastSessionArchived,
+  broadcastStatusUpdate,
+} from '../websocket-handlers.js';
 
 export function createSessionRoutes(): Router {
   const router = Router();
@@ -194,6 +198,41 @@ export function createSessionRoutes(): Router {
     };
 
     res.json(sessionInfo);
+  });
+
+  // Acknowledge session - reset needs_attention status
+  router.post('/:sessionName/acknowledge', (req, res) => {
+    const { sessionName } = req.params;
+
+    if (!/^[\w-]+$/.test(sessionName)) {
+      return res.status(400).json({ error: 'Invalid session name' });
+    }
+
+    const session = sessionsDb.getSession(sessionName);
+    if (!session) {
+      return res.status(404).json({ error: 'Session not found' });
+    }
+
+    // Only reset if currently needs_attention
+    if (session.status === 'needs_attention') {
+      const updatedSession = sessionsDb.upsertSession(sessionName, {
+        status: 'working',
+        attentionReason: null,
+      });
+
+      // Broadcast status change to all WebSocket clients
+      broadcastStatusUpdate({
+        name: sessionName,
+        project: updatedSession.project,
+        status: 'working',
+        attentionReason: undefined,
+        statusSource: 'hook',
+        createdAt: updatedSession.created_at,
+        lastActivity: updatedSession.last_activity,
+      });
+    }
+
+    res.json({ success: true });
   });
 
   // Get terminal preview (last N lines from tmux pane)

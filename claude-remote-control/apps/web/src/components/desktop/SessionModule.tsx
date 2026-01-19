@@ -2,7 +2,7 @@
 
 import { forwardRef, useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { X, Archive, Clock } from 'lucide-react';
+import { X, Archive, Clock, AlertCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { formatRelativeTime } from '@/lib/time';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
@@ -35,6 +35,31 @@ export const SessionModule = forwardRef<HTMLButtonElement, SessionModuleProps>(
     // Extract readable session name
     const displayName = session.name.split('--')[1] || session.name;
     const shortcut = index < 9 ? index + 1 : null;
+
+    // Check if session needs attention
+    const needsAttention = session.status === 'needs_attention';
+
+    // Map attention reason to display label (front-end decides how to display)
+    const getAttentionLabel = (reason?: string): string => {
+      if (!reason) return 'Attention requise';
+
+      const labels: Record<string, string> = {
+        // Claude Code notification_type values
+        permission_prompt: 'Permission requise',
+        input_request: 'Input attendu',
+        plan_mode: 'Approbation du plan',
+        task_complete: 'Tâche terminée',
+        // Stop hook value
+        input: 'Input attendu',
+        // Legacy values (for backwards compat)
+        permission: 'Permission requise',
+        plan_approval: 'Approbation requise',
+      };
+
+      return labels[reason] || `Attention: ${reason}`;
+    };
+
+    const attentionLabel = getAttentionLabel(session.attentionReason);
 
     const handleKillClick = (e: React.MouseEvent) => {
       e.stopPropagation();
@@ -81,14 +106,29 @@ export const SessionModule = forwardRef<HTMLButtonElement, SessionModuleProps>(
               'transition-all',
               isActive
                 ? 'border border-orange-500/30 bg-white/10'
-                : 'border border-transparent hover:bg-white/5'
+                : needsAttention
+                  ? 'border border-orange-500/50 bg-orange-500/10'
+                  : 'border border-transparent hover:bg-white/5'
             )}
             data-testid="session-module-collapsed"
           >
-            {/* Simple session indicator */}
-            <div
-              className={cn('h-7 w-7 rounded-full', isActive ? 'bg-orange-500/30' : 'bg-white/10')}
-            />
+            {/* Session indicator - shows alert when needs attention */}
+            {needsAttention ? (
+              <div className="relative flex h-7 w-7 items-center justify-center">
+                <AlertCircle className="h-5 w-5 text-orange-400" />
+                <span className="absolute -right-0.5 -top-0.5 flex h-2.5 w-2.5">
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-orange-400 opacity-75" />
+                  <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-orange-500" />
+                </span>
+              </div>
+            ) : (
+              <div
+                className={cn(
+                  'h-7 w-7 rounded-full',
+                  isActive ? 'bg-orange-500/30' : 'bg-white/10'
+                )}
+              />
+            )}
 
             {/* Kill button on hover */}
             {onKill && (
@@ -143,7 +183,9 @@ export const SessionModule = forwardRef<HTMLButtonElement, SessionModuleProps>(
             'transition-all duration-200',
             isActive
               ? 'border-l-2 border-orange-500/30 bg-white/[0.08] shadow-lg'
-              : 'border-white/5 hover:border-white/10 hover:bg-white/[0.04]'
+              : needsAttention
+                ? 'border-orange-500/50 bg-orange-500/10 shadow-lg shadow-orange-500/10'
+                : 'border-white/5 hover:border-white/10 hover:bg-white/[0.04]'
           )}
           data-testid="session-module"
         >
@@ -186,14 +228,24 @@ export const SessionModule = forwardRef<HTMLButtonElement, SessionModuleProps>(
           )}
 
           <div className="flex items-start gap-3">
-            {/* Simple session indicator */}
+            {/* Session indicator - shows alert when needs attention */}
             <div className="flex-shrink-0 pt-0.5">
-              <div
-                className={cn(
-                  'h-7 w-7 rounded-full',
-                  isActive ? 'bg-orange-500/30' : 'bg-white/10'
-                )}
-              />
+              {needsAttention ? (
+                <div className="relative flex h-7 w-7 items-center justify-center">
+                  <AlertCircle className="h-5 w-5 text-orange-400" />
+                  <span className="absolute -right-0.5 -top-0.5 flex h-2.5 w-2.5">
+                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-orange-400 opacity-75" />
+                    <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-orange-500" />
+                  </span>
+                </div>
+              ) : (
+                <div
+                  className={cn(
+                    'h-7 w-7 rounded-full',
+                    isActive ? 'bg-orange-500/30' : 'bg-white/10'
+                  )}
+                />
+              )}
             </div>
 
             {/* Content */}
@@ -217,6 +269,16 @@ export const SessionModule = forwardRef<HTMLButtonElement, SessionModuleProps>(
                 <Clock className="h-3 w-3" />
                 <span>{formatRelativeTime(session.createdAt)}</span>
               </div>
+
+              {/* Attention indicator */}
+              {needsAttention && (
+                <div className="mt-1.5 flex items-center gap-1.5">
+                  <span className="inline-flex items-center gap-1 rounded-full bg-orange-500/20 px-2 py-0.5 text-[10px] font-medium text-orange-400">
+                    <AlertCircle className="h-3 w-3" />
+                    {attentionLabel}
+                  </span>
+                </div>
+              )}
             </div>
           </div>
         </div>

@@ -1,10 +1,15 @@
-import type { AttentionReason } from '247-shared';
-
-const REASON_LABELS: Record<AttentionReason, string> = {
-  permission: 'Permission requise',
-  input: 'Input attendu',
-  plan_approval: 'Approbation du plan',
+// Map attention reason to notification body (front-end decides how to display)
+const REASON_LABELS: Record<string, string> = {
+  // Claude Code notification_type values
+  permission_prompt: 'Permission requise',
+  input_request: 'Input attendu',
+  plan_mode: 'Approbation du plan',
   task_complete: 'Tâche terminée',
+  // Stop hook value
+  input: 'Input attendu',
+  // Legacy values (for backwards compat)
+  permission: 'Permission requise',
+  plan_approval: 'Approbation du plan',
 };
 
 export async function requestNotificationPermission(): Promise<NotificationPermission> {
@@ -17,7 +22,7 @@ export async function requestNotificationPermission(): Promise<NotificationPermi
   return permission;
 }
 
-export function showBrowserNotification(project: string, reason?: AttentionReason): void {
+export function showBrowserNotification(project: string, reason?: string): void {
   console.log('[Notifications] showBrowserNotification called:', { project, reason });
 
   if (!('Notification' in window)) {
@@ -31,7 +36,7 @@ export function showBrowserNotification(project: string, reason?: AttentionReaso
   }
 
   const title = `Claude - ${project}`;
-  const body = reason ? REASON_LABELS[reason] : 'Attention requise';
+  const body = reason ? REASON_LABELS[reason] || `Attention: ${reason}` : 'Attention requise';
 
   console.log('[Notifications] Creating notification:', { title, body });
 

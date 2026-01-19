@@ -69,22 +69,37 @@ describe('Hooks Utility', () => {
     });
   });
 
+  // Helper to create mock settings with all hook types
+  const createMockSettings = () => ({
+    hooks: {
+      Stop: [
+        {
+          matcher: '*',
+          hooks: [{ type: 'command', command: 'bash ~/.247/hooks/notify-247.sh' }],
+        },
+      ],
+      PermissionRequest: [
+        {
+          matcher: '*',
+          hooks: [{ type: 'command', command: 'bash ~/.247/hooks/notify-247.sh' }],
+        },
+      ],
+      Notification: [
+        {
+          matcher: '*',
+          hooks: [{ type: 'command', command: 'bash ~/.247/hooks/notify-247.sh' }],
+        },
+      ],
+    },
+  });
+
   describe('isHookInstalled', () => {
     it('returns true when script exists and settings configured', async () => {
       const { existsSync, readFileSync } = await import('fs');
       vi.mocked(existsSync).mockReturnValue(true);
       vi.mocked(readFileSync).mockImplementation((path) => {
         if (String(path).includes('settings.json')) {
-          return JSON.stringify({
-            hooks: {
-              Notification: [
-                {
-                  matcher: '*',
-                  hooks: [{ type: 'command', command: 'bash ~/.247/hooks/notify-247.sh' }],
-                },
-              ],
-            },
-          });
+          return JSON.stringify(createMockSettings());
         }
         return '#!/bin/bash\n# VERSION: 2.25.0';
       });
@@ -98,18 +113,7 @@ describe('Hooks Utility', () => {
       vi.mocked(existsSync).mockImplementation((path) => {
         return !String(path).includes('notify-247.sh');
       });
-      vi.mocked(readFileSync).mockReturnValue(
-        JSON.stringify({
-          hooks: {
-            Notification: [
-              {
-                matcher: '*',
-                hooks: [{ type: 'command', command: 'bash ~/.247/hooks/notify-247.sh' }],
-              },
-            ],
-          },
-        })
-      );
+      vi.mocked(readFileSync).mockReturnValue(JSON.stringify(createMockSettings()));
 
       const { isHookInstalled } = await import('../../../src/lib/hooks.js');
       expect(isHookInstalled()).toBe(false);
@@ -194,16 +198,7 @@ describe('Hooks Utility', () => {
       vi.mocked(readFileSync).mockImplementation((path) => {
         const pathStr = String(path);
         if (pathStr.includes('settings.json')) {
-          return JSON.stringify({
-            hooks: {
-              Notification: [
-                {
-                  matcher: '*',
-                  hooks: [{ type: 'command', command: 'bash ~/.247/hooks/notify-247.sh' }],
-                },
-              ],
-            },
-          });
+          return JSON.stringify(createMockSettings());
         }
         if (pathStr.includes('notify-247.sh')) {
           return '#!/bin/bash\n# VERSION: 2.25.0';

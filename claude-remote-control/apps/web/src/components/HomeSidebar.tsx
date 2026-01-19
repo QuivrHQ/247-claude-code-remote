@@ -183,14 +183,23 @@ export function HomeSidebar({
   }, [handleKeyboard]);
 
   // Wrapper for session selection that closes drawer on mobile
+  // Also resets needs_attention status when selecting a session
   const handleSessionSelect = useCallback(
     (machineId: string, sessionName: string, project: string) => {
+      // Reset needs_attention status when selecting
+      const session = sessions.find((s) => s.name === sessionName);
+      if (session?.status === 'needs_attention') {
+        fetch(buildApiUrl(session.agentUrl, `/api/sessions/${sessionName}/acknowledge`), {
+          method: 'POST',
+        }).catch(console.error);
+      }
+
       onSelectSession(machineId, sessionName, project);
       if (isMobileDrawer) {
         onMobileSessionSelect?.();
       }
     },
-    [onSelectSession, isMobileDrawer, onMobileSessionSelect]
+    [sessions, onSelectSession, isMobileDrawer, onMobileSessionSelect]
   );
 
   return (
