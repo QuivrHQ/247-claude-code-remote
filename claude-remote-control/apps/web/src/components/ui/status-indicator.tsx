@@ -182,7 +182,7 @@ export function StatusBadge({ status, size = 'md', showDot = true, className }: 
       {showDot && <StatusDot status={status} size="xs" showGlow={false} />}
       <span
         style={{
-          color: `hsl(var(--status-${status === 'needs_attention' ? 'attention' : status}))`,
+          color: `var(--status-${status === 'needs_attention' ? 'attention' : status})`,
         }}
       >
         {config.label}

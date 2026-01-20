@@ -90,7 +90,7 @@ export function AppShell({
   // In fullscreen mode, hide the sidebar and session list
   if (isFullscreen) {
     return (
-      <div className="h-screen-safe flex flex-col overflow-hidden bg-[hsl(var(--background))]">
+      <div className="h-screen-safe bg-background flex flex-col overflow-hidden">
         <AppHeader
           onSidebarToggle={handleSidebarToggle}
           sidebarCollapsed={sidebarCollapsed}
@@ -106,7 +106,7 @@ export function AppShell({
   }
 
   return (
-    <div className="h-screen-safe flex flex-col overflow-hidden bg-[hsl(var(--background))]">
+    <div className="h-screen-safe bg-background flex flex-col overflow-hidden">
       {/* Header */}
       <AppHeader
         onSidebarToggle={handleSidebarToggle}

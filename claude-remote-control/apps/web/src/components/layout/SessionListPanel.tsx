@@ -144,9 +144,9 @@ function SessionCard({ session, selected, onClick, onKill, onArchive }: SessionC
       className={cn(
         'w-full rounded-lg p-3 text-left',
         'transition-all duration-150',
-        'hover:bg-white/5 active:scale-[0.99]',
+        'hover:bg-surface-1/50 hover:shadow-thin active:scale-[0.99]',
         'group relative',
-        selected && 'ring-primary/30 bg-white/5 ring-1'
+        selected && 'ring-primary/30 bg-surface-1/50 shadow-thin ring-1'
       )}
       {...interactive.subtle}
     >

@@ -56,7 +56,7 @@ function UserMenu() {
           'bg-gradient-to-br from-orange-500 to-amber-500',
           'flex items-center justify-center',
           'text-xs font-bold text-white',
-          'hover:ring-primary/30 hover:ring-2 hover:ring-offset-2 hover:ring-offset-[hsl(var(--background))]',
+          'hover:ring-primary/30 hover:ring-offset-background hover:ring-2 hover:ring-offset-2',
           'transition-all duration-150'
         )}
         aria-label={`User menu for ${user.name}`}
@@ -88,8 +88,8 @@ function UserMenu() {
               className={cn(
                 'absolute right-0 top-full z-50 mt-2',
                 'w-56 rounded-xl p-1',
-                'border border-white/10 bg-[hsl(var(--surface-2))]',
-                'shadow-xl shadow-black/30'
+                'bg-surface-2 border border-white/10',
+                'shadow-modal'
               )}
             >
               {/* User info */}
@@ -184,7 +184,7 @@ export function AppHeader({
       className={cn(
         'flex h-14 items-center justify-between px-4',
         'border-b border-white/5',
-        'bg-[hsl(var(--background))]/80 backdrop-blur-xl',
+        'glass-dark',
         'z-40'
       )}
       role="banner"

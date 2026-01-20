@@ -93,7 +93,7 @@ function Section({ title, children, collapsed, defaultExpanded = true, action }:
         className={cn(
           'flex w-full items-center justify-between',
           'px-3 py-2 text-xs font-semibold uppercase tracking-wider',
-          'text-[hsl(var(--foreground-subtle))] hover:text-[hsl(var(--foreground-muted))]',
+          'text-foreground-subtle hover:text-foreground-muted',
           'transition-colors duration-150'
         )}
       >
