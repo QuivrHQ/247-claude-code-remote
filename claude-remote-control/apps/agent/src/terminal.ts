@@ -114,7 +114,9 @@ export function createTerminal(
     env: {
       ...process.env,
       TERM: 'xterm-256color',
+      AGENT_247_SESSION: sessionName, // Shared session id for hooks
       CLAUDE_TMUX_SESSION: sessionName, // Also set at PTY level for hook detection
+      CODEX_TMUX_SESSION: sessionName,
       PATH: `/opt/homebrew/bin:${process.env.PATH}`,
       // Ensure UTF-8 encoding for proper accent/unicode support
       LANG: process.env.LANG || 'en_US.UTF-8',

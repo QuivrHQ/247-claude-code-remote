@@ -1,15 +1,22 @@
 import { Command } from 'commander';
 import chalk from 'chalk';
 import ora from 'ora';
-import { getHooksStatus, installHook, uninstallHook } from '../lib/hooks.js';
+import {
+  getHooksStatus,
+  installHook,
+  uninstallHook,
+  getCodexNotifyStatus,
+  installCodexNotify,
+  uninstallCodexNotify,
+} from '../lib/hooks.js';
 
 export const hooksCommand = new Command('hooks').description(
-  'Manage Claude Code notification hooks'
+  'Manage Claude Code and Codex notification hooks'
 );
 
 hooksCommand
   .command('install')
-  .description('Install Claude Code notification hooks')
+  .description('Install Claude Code and Codex notification hooks')
   .option('-f, --force', 'Force reinstall even if hooks are up to date')
   .action(async (options) => {
     const spinner = ora('Checking hooks status...').start();
@@ -45,6 +52,26 @@ hooksCommand
         console.log(chalk.dim('  Settings: ~/.claude/settings.json\n'));
         console.log(chalk.green('Claude Code will now notify 247 when it needs attention.'));
         console.log(chalk.dim('Make sure the 247 agent is running: 247 start\n'));
+
+        const codexResult = installCodexNotify({ force: options.force });
+        if (codexResult.status === 'installed' || codexResult.status === 'updated') {
+          console.log(chalk.green('Codex will now notify 247 when it needs attention.'));
+          console.log(chalk.dim('  Settings: ~/.codex/config.toml\n'));
+        } else if (codexResult.status === 'conflict') {
+          console.log(
+            chalk.yellow(
+              'Codex notify already configured. Update ~/.codex/config.toml to use notify-247.sh.'
+            )
+          );
+          console.log(chalk.dim('  Expected: notify = ["bash", "~/.247/hooks/notify-247.sh"]\n'));
+        } else if (codexResult.status === 'missing-config') {
+          console.log(
+            chalk.dim(
+              'Codex config not found (skipped). If you use Codex, add notify to ~/.codex/config.toml.'
+            )
+          );
+          console.log(chalk.dim('  notify = ["bash", "~/.247/hooks/notify-247.sh"]\n'));
+        }
       } else {
         spinner.fail(`Failed to install hooks: ${result.error}`);
         process.exit(1);
@@ -57,7 +84,7 @@ hooksCommand
 
 hooksCommand
   .command('uninstall')
-  .description('Uninstall Claude Code notification hooks')
+  .description('Uninstall Claude Code and Codex notification hooks')
   .option('--keep-script', 'Keep the script file, only remove from settings')
   .action(async (options) => {
     const spinner = ora('Checking hooks status...').start();
@@ -71,6 +98,7 @@ hooksCommand
       }
 
       spinner.text = 'Uninstalling hooks...';
+      const codexResult = uninstallCodexNotify();
       const result = uninstallHook(!options.keepScript);
 
       if (result.success) {
@@ -79,6 +107,14 @@ hooksCommand
           console.log(chalk.dim(`  Removed: ${status.path}`));
         }
         console.log(chalk.dim('  Cleaned: ~/.claude/settings.json\n'));
+
+        if (codexResult.status === 'removed') {
+          console.log(chalk.dim('  Cleaned: ~/.codex/config.toml\n'));
+        } else if (codexResult.status === 'conflict') {
+          console.log(
+            chalk.yellow('Codex notify entry not managed by 247. No changes made to config.')
+          );
+        }
       } else {
         spinner.fail(`Failed to uninstall hooks: ${result.error}`);
         process.exit(1);
@@ -128,6 +164,21 @@ hooksCommand
     console.log(chalk.bold('Claude Code Settings:'));
     if (status.settingsConfigured) {
       console.log(chalk.green('✓ Notification hook registered'));
+    } else {
+      console.log(chalk.yellow('✗ Notification hook not registered'));
+    }
+
+    console.log();
+
+    const codexStatus = getCodexNotifyStatus();
+    console.log(chalk.bold('Codex Settings:'));
+    if (!codexStatus.configExists) {
+      console.log(chalk.dim('Config not found: ~/.codex/config.toml'));
+    } else if (codexStatus.notifyConfigured) {
+      console.log(chalk.green('✓ Notification hook registered'));
+    } else if (codexStatus.notifyLine) {
+      console.log(chalk.yellow('✗ Notification hook points elsewhere'));
+      console.log(chalk.dim('  Expected: notify = ["bash", "~/.247/hooks/notify-247.sh"]'));
     } else {
       console.log(chalk.yellow('✗ Notification hook not registered'));
     }

@@ -354,7 +354,15 @@
       "Bash(git -C /Users/stan/Dev/BrainStorming diff)",
       "Bash(git -C /Users/stan/Dev/BrainStorming commit --no-verify -m \"$\\(cat <<''EOF''\nfeat: add in-app notifications support\n\nAdd support for in-app notifications as a fallback when push notifications\nare not available or denied.\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
       "Bash(git -C /Users/stan/Dev/BrainStorming commit --no-verify -m \"chore: resolve pending changes\")",
-      "Bash(git -C /Users/stan/Dev/BrainStorming commit --no-verify -m \"fix: add proper typing to test mock function\")"
+      "Bash(git -C /Users/stan/Dev/BrainStorming commit --no-verify -m \"fix: add proper typing to test mock function\")",
+      "Bash(du -sh:*)",
+      "Bash(git clone:*)",
+      "Bash(\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/check-deadcode.sh)",
+      "Bash(/Users/stan/Dev/BrainStorming/.claude/hooks/check-deadcode.sh)",
+      "Skill(rams)",
+      "Skill(continuous-learning)",
+      "Bash(git reset:*)",
+      "Bash(git -C /Users/stan/Dev/BrainStorming/claude-remote-control commit -m \"$\\(cat <<''EOF''\nfix\\(web\\): remove duplicate in-app notification from WebSocket\n\nRemove showInAppToast from WebSocket session updates since push notifications\nalready handle this via useInAppNotifications hook. This prevents showing\ntwo identical toasts when a session needs attention.\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")"
     ]
   },
   "remote": {

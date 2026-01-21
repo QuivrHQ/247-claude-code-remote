@@ -15,9 +15,12 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 
 // Paths
 const CLAUDE_SETTINGS_PATH = join(homedir(), '.claude', 'settings.json');
+const CODEX_CONFIG_PATH = join(homedir(), '.codex', 'config.toml');
 const HOOKS_DIR = join(homedir(), '.247', 'hooks');
 const HOOK_SCRIPT_NAME = 'notify-247.sh';
 const HOOK_SCRIPT_PATH = join(HOOKS_DIR, HOOK_SCRIPT_NAME);
+const CODEX_NOTIFY_LINE = `notify = ["bash", "~/.247/hooks/${HOOK_SCRIPT_NAME}"]`;
+const CODEX_NOTIFY_REGEX = /^\s*notify\s*=\s*\[[^\]]*\]\s*$/m;
 
 // Hook configuration for Claude Code settings.json
 const HOOK_MATCHER = '*';
@@ -42,6 +45,25 @@ export interface InstallResult {
 
 export interface UninstallResult {
   success: boolean;
+  error?: string;
+}
+
+export interface CodexNotifyStatus {
+  configPath: string;
+  configExists: boolean;
+  notifyConfigured: boolean;
+  notifyLine?: string;
+}
+
+export interface CodexInstallResult {
+  success: boolean;
+  status: 'installed' | 'updated' | 'already-configured' | 'missing-config' | 'conflict';
+  error?: string;
+}
+
+export interface CodexUninstallResult {
+  success: boolean;
+  status: 'removed' | 'not-configured' | 'missing-config' | 'conflict';
   error?: string;
 }
 
@@ -331,5 +353,106 @@ export function uninstallHook(removeScript: boolean = true): UninstallResult {
     return { success: true };
   } catch (err) {
     return { success: false, error: (err as Error).message };
+  }
+}
+
+function getCodexNotifyLine(config: string): string | null {
+  const match = config.match(CODEX_NOTIFY_REGEX);
+  return match ? match[0] : null;
+}
+
+function readCodexConfig(): string | null {
+  try {
+    if (!existsSync(CODEX_CONFIG_PATH)) return null;
+    return readFileSync(CODEX_CONFIG_PATH, 'utf-8');
+  } catch {
+    return null;
+  }
+}
+
+function writeCodexConfig(content: string): void {
+  const dir = dirname(CODEX_CONFIG_PATH);
+  if (!existsSync(dir)) {
+    mkdirSync(dir, { recursive: true });
+  }
+  writeFileSync(CODEX_CONFIG_PATH, content);
+}
+
+export function getCodexNotifyStatus(): CodexNotifyStatus {
+  const config = readCodexConfig();
+  if (!config) {
+    return {
+      configPath: CODEX_CONFIG_PATH,
+      configExists: false,
+      notifyConfigured: false,
+    };
+  }
+
+  const notifyLine = getCodexNotifyLine(config);
+  const notifyConfigured = !!notifyLine && notifyLine.includes(HOOK_SCRIPT_NAME);
+
+  return {
+    configPath: CODEX_CONFIG_PATH,
+    configExists: true,
+    notifyConfigured,
+    notifyLine: notifyLine || undefined,
+  };
+}
+
+export function installCodexNotify(options: { force?: boolean } = {}): CodexInstallResult {
+  try {
+    const config = readCodexConfig();
+    if (!config) {
+      return { success: false, status: 'missing-config' };
+    }
+
+    const notifyLine = getCodexNotifyLine(config);
+    if (notifyLine && notifyLine.includes(HOOK_SCRIPT_NAME)) {
+      return { success: true, status: 'already-configured' };
+    }
+
+    if (notifyLine && !options.force) {
+      return { success: false, status: 'conflict' };
+    }
+
+    let updatedConfig = config.trimEnd();
+    if (notifyLine) {
+      updatedConfig = updatedConfig.replace(CODEX_NOTIFY_REGEX, CODEX_NOTIFY_LINE);
+      writeCodexConfig(`${updatedConfig}\n`);
+      return { success: true, status: 'updated' };
+    }
+
+    const separator = updatedConfig.length > 0 ? '\n\n' : '';
+    updatedConfig = `${updatedConfig}${separator}# 247 notifications\n${CODEX_NOTIFY_LINE}\n`;
+    writeCodexConfig(updatedConfig);
+
+    return { success: true, status: 'installed' };
+  } catch (err) {
+    return { success: false, status: 'conflict', error: (err as Error).message };
+  }
+}
+
+export function uninstallCodexNotify(): CodexUninstallResult {
+  try {
+    const config = readCodexConfig();
+    if (!config) {
+      return { success: true, status: 'missing-config' };
+    }
+
+    const notifyLine = getCodexNotifyLine(config);
+    if (!notifyLine) {
+      return { success: true, status: 'not-configured' };
+    }
+
+    if (!notifyLine.includes(HOOK_SCRIPT_NAME)) {
+      return { success: false, status: 'conflict' };
+    }
+
+    let updatedConfig = config.replace(CODEX_NOTIFY_REGEX, '').replace(/\n{3,}/g, '\n\n');
+    updatedConfig = updatedConfig.trimEnd();
+    writeCodexConfig(updatedConfig.length ? `${updatedConfig}\n` : '');
+    return { success: true, status: 'removed' };
+  } catch (err) {
+    return { success: false, status: 'conflict', error: (err as Error).message };
   }
 }

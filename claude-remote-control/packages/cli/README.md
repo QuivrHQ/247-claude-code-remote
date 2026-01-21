@@ -96,6 +96,16 @@ The agent includes hooks that notify when Claude Code sessions stop:
 247 hooks update    # Update to latest
 ```
 
+## Codex Notifications
+
+Codex supports a `notify` hook command. Configure it to point to the 247 hook script:
+
+```toml
+notify = ["bash", "~/.247/hooks/notify-247.sh"]
+```
+
+If `~/.codex/config.toml` exists, `247 hooks install` will try to add this line for you.
+
 ## Troubleshooting
 
 ```bash

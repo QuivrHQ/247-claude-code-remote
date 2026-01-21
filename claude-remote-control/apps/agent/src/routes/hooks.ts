@@ -1,5 +1,5 @@
 /**
- * Hook API routes for Claude Code hook notifications.
+ * Hook API routes for Claude Code / Codex hook notifications.
  * Receives status updates from hook scripts and broadcasts to WebSocket subscribers.
  */
 
@@ -76,7 +76,7 @@ export function createHooksRoutes(): Router {
 
   /**
    * POST /api/hooks/status
-   * Receives status updates from Claude Code hooks (notify-247.sh)
+   * Receives status updates from Claude Code / Codex hooks (notify-247.sh)
    *
    * Body: AttentionNotification
    * - sessionId: string (tmux session name, e.g., "project--abc123")

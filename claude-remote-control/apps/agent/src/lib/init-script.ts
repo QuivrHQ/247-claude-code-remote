@@ -472,7 +472,9 @@ printf "\\n"`;
 # ═══════════════════════════════════════════════════════════════
 # SECTION 1: Environment Variables
 # ═══════════════════════════════════════════════════════════════
+export AGENT_247_SESSION="${escapedSession}"
 export CLAUDE_TMUX_SESSION="${escapedSession}"
+export CODEX_TMUX_SESSION="${escapedSession}"
 export CLAUDE_PROJECT="${escapedProject}"
 export TERM="xterm-256color"
 export COLORTERM="truecolor"

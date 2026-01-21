@@ -2,7 +2,7 @@
   "name": "247-hooks",
   "version": "2.24.1",
   "private": true,
-  "description": "Claude Code hooks for 247 agent notifications",
+  "description": "Claude Code + Codex hooks for 247 agent notifications",
   "files": [
     "notify-247.sh"
   ],
