@@ -1,6 +1,6 @@
 {
   "name": "247",
-  "version": "2.32.2",
+  "version": "2.32.3",
   "private": true,
   "description": "247 - Remote web terminal for Claude Code. Access AI coding sessions from your phone, tablet, or any browser 24/7. Built with Next.js, WebSocket, xterm.js, and tmux for persistent terminal sessions.",
   "keywords": [
