@@ -79,13 +79,45 @@ export const updateCommand = new Command('update')
       }
 
       // Update via npm
-      const updateSpinner = ora('Updating via npm...').start();
+      const updateSpinner = ora(`Updating to ${latestVersion} via npm...`).start();
       try {
-        await execAsync(`npm install -g ${PACKAGE_NAME}@latest`);
-        updateSpinner.succeed('Package updated');
+        const { stdout, stderr } = await execAsync(
+          `npm install -g ${PACKAGE_NAME}@${latestVersion} 2>&1`,
+          { timeout: 120_000 }
+        );
+
+        // Verify the installed version matches what we requested
+        const { stdout: installedStr } = await execAsync(
+          `npm ls -g ${PACKAGE_NAME} --depth=0 --json 2>/dev/null`
+        );
+        const installed = JSON.parse(installedStr);
+        const installedVersion = installed?.dependencies?.[PACKAGE_NAME]?.version;
+
+        if (installedVersion !== latestVersion) {
+          updateSpinner.fail(
+            `npm installed ${installedVersion || 'unknown'} instead of ${latestVersion}`
+          );
+          if (stderr || stdout) {
+            console.log(chalk.dim('\nnpm output:'));
+            console.log(chalk.dim(stderr || stdout));
+          }
+          console.log(
+            chalk.dim(`\nTry: npm install -g ${PACKAGE_NAME}@${latestVersion} --force\n`)
+          );
+          process.exit(1);
+        }
+
+        updateSpinner.succeed(`Updated to ${latestVersion}`);
       } catch (err) {
-        updateSpinner.fail(`Failed to update: ${(err as Error).message}`);
-        console.log(chalk.dim('\nTry running manually: npm install -g 247-cli@latest\n'));
+        const execErr = err as Error & { stderr?: string; stdout?: string };
+        updateSpinner.fail(`Failed to update: ${execErr.message}`);
+        if (execErr.stderr) {
+          console.log(chalk.dim('\nnpm error output:'));
+          console.log(chalk.dim(execErr.stderr));
+        }
+        console.log(
+          chalk.dim(`\nTry running manually: npm install -g ${PACKAGE_NAME}@${latestVersion}\n`)
+        );
         process.exit(1);
       }
 
