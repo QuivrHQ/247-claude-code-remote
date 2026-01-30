@@ -14,7 +14,12 @@ export async function GET(request: NextRequest, context: { params: Promise<{ pat
 
 export async function POST(request: NextRequest, context: { params: Promise<{ path: string[] }> }) {
   const handler = await createHandler('POST');
-  return handler(request, context);
+  const response = await handler(request, context);
+  if (!response.ok) {
+    const text = await response.clone().text();
+    console.error('[Auth POST Error]', response.status, text);
+  }
+  return response;
 }
 
 export async function PUT(request: NextRequest, context: { params: Promise<{ path: string[] }> }) {
