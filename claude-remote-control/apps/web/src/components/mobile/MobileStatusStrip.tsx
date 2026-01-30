@@ -2,12 +2,18 @@
 
 import { useState, useMemo, useCallback, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ChevronDown, Plus, Search, HelpCircle, Settings, Wifi } from 'lucide-react';
+import { ChevronDown, Plus, Search, HelpCircle, Settings, Wifi, Monitor } from 'lucide-react';
 import { PushNotificationButton } from '@/components/PushNotificationButton';
-import { toast } from 'sonner';
-import { cn, buildApiUrl } from '@/lib/utils';
+import { cn } from '@/lib/utils';
 import { SessionMiniCard } from './SessionMiniCard';
 import { type SessionWithMachine } from '@/contexts/SessionPollingContext';
+
+/** Machine info for filtering */
+export interface MobileMachine {
+  id: string;
+  name: string;
+  color?: string;
+}
 
 export interface MobileStatusStripProps {
   sessions: SessionWithMachine[];
@@ -22,8 +28,24 @@ export interface MobileStatusStripProps {
   onOpenEnvironments?: () => void;
   /** Called to open connection settings modal */
   onConnectionSettingsClick?: () => void;
-  /** Called when a session is killed (to deselect if it was selected) */
+  /** Called when a session is killed or archived */
   onSessionKilled?: (machineId: string, sessionName: string) => void;
+  /** Kill session callback (from useSessionActions hook) */
+  onKillSession?: (machineId: string, sessionName: string) => Promise<boolean>;
+  /** Archive session callback (from useSessionActions hook) */
+  onArchiveSession?: (machineId: string, sessionName: string) => Promise<boolean>;
+  /** Available machines for filtering */
+  machines?: MobileMachine[];
+  /** Currently selected machine filter */
+  machineFilter?: string | null;
+  /** Callback to select/deselect machine filter */
+  onSelectMachine?: (machineId: string | null) => void;
+  /** Unique projects extracted from sessions */
+  projects?: string[];
+  /** Currently selected project filter */
+  projectFilter?: string | null;
+  /** Callback to select/deselect project filter */
+  onSelectProject?: (projectName: string | null) => void;
 }
 
 export function MobileStatusStrip({
@@ -35,63 +57,40 @@ export function MobileStatusStrip({
   onOpenEnvironments,
   onConnectionSettingsClick,
   onSessionKilled,
+  onKillSession,
+  onArchiveSession,
+  machines = [],
+  machineFilter,
+  onSelectMachine,
+  projects = [],
+  projectFilter,
+  onSelectProject,
 }: MobileStatusStripProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [search, setSearch] = useState('');
 
-  // Kill session handler
+  // Kill session handler using shared hook
   const handleKillSession = useCallback(
     async (session: SessionWithMachine) => {
-      try {
-        const response = await fetch(
-          buildApiUrl(session.agentUrl, `/api/sessions/${encodeURIComponent(session.name)}`),
-          { method: 'DELETE' }
-        );
-
-        if (response.ok) {
-          toast.success('Session terminated');
-          // If we killed the selected session, notify parent
-          if (currentSession?.sessionName === session.name) {
-            onSessionKilled?.(session.machineId, session.name);
-          }
-        } else {
-          toast.error('Failed to terminate session');
-        }
-      } catch (err) {
-        console.error('Failed to kill session:', err);
-        toast.error('Could not connect to agent');
+      if (!onKillSession) return;
+      const success = await onKillSession(session.machineId, session.name);
+      if (success && currentSession?.sessionName === session.name) {
+        onSessionKilled?.(session.machineId, session.name);
       }
     },
-    [currentSession, onSessionKilled]
+    [onKillSession, currentSession, onSessionKilled]
   );
 
-  // Archive session handler
+  // Archive session handler using shared hook
   const handleArchiveSession = useCallback(
     async (session: SessionWithMachine) => {
-      try {
-        const response = await fetch(
-          buildApiUrl(
-            session.agentUrl,
-            `/api/sessions/${encodeURIComponent(session.name)}/archive`
-          ),
-          { method: 'POST' }
-        );
-
-        if (response.ok) {
-          toast.success('Session archived');
-          // If we archived the selected session, notify parent
-          if (currentSession?.sessionName === session.name) {
-            onSessionKilled?.(session.machineId, session.name);
-          }
-        } else {
-          toast.error('Failed to archive session');
-        }
-      } catch (err) {
-        console.error('Failed to archive session:', err);
-        toast.error('Could not connect to agent');
+      if (!onArchiveSession) return;
+      const success = await onArchiveSession(session.machineId, session.name);
+      if (success && currentSession?.sessionName === session.name) {
+        onSessionKilled?.(session.machineId, session.name);
       }
     },
-    [currentSession, onSessionKilled]
+    [onArchiveSession, currentSession, onSessionKilled]
   );
 
   // Close on Escape key
@@ -125,9 +124,19 @@ export function MobileStatusStrip({
     }));
   }, [sessions, currentSession]);
 
-  // Filter sessions by search
+  // Filter sessions by search, machine, and project
   const filteredSessions = useMemo(() => {
     let result = [...sessions];
+
+    // Apply machine filter
+    if (machineFilter) {
+      result = result.filter((s) => s.machineId === machineFilter);
+    }
+
+    // Apply project filter
+    if (projectFilter) {
+      result = result.filter((s) => s.project === projectFilter);
+    }
 
     // Apply search filter
     if (search) {
@@ -142,7 +151,7 @@ export function MobileStatusStrip({
 
     // Sort by createdAt (newest first)
     return result.sort((a, b) => b.createdAt - a.createdAt);
-  }, [sessions, search]);
+  }, [sessions, search, machineFilter, projectFilter]);
 
   const handleSessionSelect = useCallback(
     (machineId: string, name: string, project: string) => {
@@ -321,6 +330,7 @@ export function MobileStatusStrip({
                     placeholder="Search sessions..."
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
+                    aria-label="Search sessions"
                     className={cn(
                       'h-9 w-full rounded-lg pl-8 pr-3',
                       'border border-white/10 bg-white/5',
@@ -331,6 +341,73 @@ export function MobileStatusStrip({
                   />
                 </div>
               </div>
+
+              {/* Filter Chips - Machines & Projects */}
+              {(machines.length > 1 || projects.length > 1) && (
+                <div className="border-b border-white/5 px-3 py-2" data-testid="filter-chips">
+                  {/* Machine filters */}
+                  {machines.length > 1 && onSelectMachine && (
+                    <div className="mb-2">
+                      <span className="mb-1.5 block text-[10px] font-medium uppercase tracking-wider text-white/30">
+                        Machines
+                      </span>
+                      <div className="flex flex-wrap gap-1.5">
+                        {machines.map((m) => (
+                          <button
+                            key={m.id}
+                            onClick={() => onSelectMachine(machineFilter === m.id ? null : m.id)}
+                            className={cn(
+                              'flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs transition-all',
+                              'touch-manipulation active:scale-95',
+                              machineFilter === m.id
+                                ? 'bg-orange-500/20 text-orange-400 ring-1 ring-orange-500/30'
+                                : 'bg-white/5 text-white/50 hover:bg-white/10'
+                            )}
+                            data-testid={`machine-filter-${m.id}`}
+                          >
+                            {m.color ? (
+                              <span
+                                className="h-2 w-2 rounded-full"
+                                style={{ backgroundColor: m.color }}
+                              />
+                            ) : (
+                              <Monitor className="h-3 w-3" />
+                            )}
+                            {m.name}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Project filters */}
+                  {projects.length > 1 && onSelectProject && (
+                    <div>
+                      <span className="mb-1.5 block text-[10px] font-medium uppercase tracking-wider text-white/30">
+                        Projects
+                      </span>
+                      <div className="flex flex-wrap gap-1.5">
+                        {projects.map((p) => (
+                          <button
+                            key={p}
+                            onClick={() => onSelectProject(projectFilter === p ? null : p)}
+                            className={cn(
+                              'rounded-full px-2.5 py-1 text-xs transition-all',
+                              'touch-manipulation active:scale-95',
+                              projectFilter === p
+                                ? 'bg-orange-500/20 text-orange-400 ring-1 ring-orange-500/30'
+                                : 'bg-white/5 text-white/50 hover:bg-white/10'
+                            )}
+                            data-testid={`project-filter-${p}`}
+                          >
+                            {p}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* Sessions Grid */}
               <div

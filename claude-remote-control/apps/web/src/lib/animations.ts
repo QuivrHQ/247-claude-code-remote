@@ -23,20 +23,6 @@ export const spring = {
     stiffness: 400,
     damping: 30,
   } as const,
-
-  /** Bouncy spring - for playful feedback */
-  bouncy: {
-    type: 'spring',
-    stiffness: 300,
-    damping: 10,
-  } as const,
-
-  /** Stiff spring - for precise movements */
-  stiff: {
-    type: 'spring',
-    stiffness: 500,
-    damping: 35,
-  } as const,
 } satisfies Record<string, Transition>;
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -49,41 +35,6 @@ export const variants = {
     initial: { opacity: 0, y: 8 },
     animate: { opacity: 1, y: 0 },
     exit: { opacity: 0, y: -8 },
-  } satisfies Variants,
-
-  /** Fade in with downward movement */
-  fadeInDown: {
-    initial: { opacity: 0, y: -8 },
-    animate: { opacity: 1, y: 0 },
-    exit: { opacity: 0, y: 8 },
-  } satisfies Variants,
-
-  /** Scale in from center */
-  scaleIn: {
-    initial: { opacity: 0, scale: 0.95 },
-    animate: { opacity: 1, scale: 1 },
-    exit: { opacity: 0, scale: 0.95 },
-  } satisfies Variants,
-
-  /** Slide in from left */
-  slideInLeft: {
-    initial: { opacity: 0, x: -12 },
-    animate: { opacity: 1, x: 0 },
-    exit: { opacity: 0, x: -12 },
-  } satisfies Variants,
-
-  /** Slide in from right */
-  slideInRight: {
-    initial: { opacity: 0, x: 12 },
-    animate: { opacity: 1, x: 0 },
-    exit: { opacity: 0, x: 12 },
-  } satisfies Variants,
-
-  /** Simple fade */
-  fade: {
-    initial: { opacity: 0 },
-    animate: { opacity: 1 },
-    exit: { opacity: 0 },
   } satisfies Variants,
 
   /** Collapse height animation */
@@ -107,24 +58,6 @@ export const stagger = {
       },
     },
   } satisfies Variants,
-
-  /** Normal stagger for content */
-  normal: {
-    animate: {
-      transition: {
-        staggerChildren: 0.05,
-      },
-    },
-  } satisfies Variants,
-
-  /** Slow stagger for emphasis */
-  slow: {
-    animate: {
-      transition: {
-        staggerChildren: 0.08,
-      },
-    },
-  } satisfies Variants,
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -136,27 +69,5 @@ export const interactive = {
   subtle: {
     whileHover: { scale: 1.01 },
     whileTap: { scale: 0.99 },
-  },
-
-  /** More pronounced scale */
-  pronounced: {
-    whileHover: { scale: 1.02 },
-    whileTap: { scale: 0.98 },
-  },
-
-  /** Lift effect with shadow */
-  lift: {
-    whileHover: {
-      y: -2,
-      boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
-    },
-    whileTap: { y: 0 },
-  },
-
-  /** Glow effect */
-  glow: {
-    whileHover: {
-      boxShadow: '0 0 20px rgba(249, 115, 22, 0.2)',
-    },
   },
 };

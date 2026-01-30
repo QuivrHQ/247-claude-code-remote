@@ -2,8 +2,6 @@
 
 import { useState, useMemo, useCallback, useEffect } from 'react';
 import { Zap, Loader2, ArrowDown } from 'lucide-react';
-import { toast } from 'sonner';
-import { buildApiUrl } from '@/lib/utils';
 import { SessionView } from '@/components/SessionView';
 import { NewSessionModal } from '@/components/NewSessionModal';
 import { AgentConnectionSettings } from '@/components/AgentConnectionSettings';
@@ -23,6 +21,7 @@ import { useNotificationDeeplink } from '@/hooks/useNotificationDeeplink';
 import { useInAppNotifications } from '@/hooks/useInAppNotifications';
 import { useNotificationPreferences } from '@/hooks/useNotificationPreferences';
 import { useSoundNotifications } from '@/hooks/useSoundNotifications';
+import { useSessionActions } from '@/hooks/useSessionActions';
 import { NotificationSettingsPanel } from '@/components/NotificationSettingsPanel';
 import { useSessionPolling, type SessionWithMachine } from '@/contexts/SessionPollingContext';
 // New layout components
@@ -96,6 +95,9 @@ export function HomeContent() {
     handleConnectionCleared,
     clearSessionFromUrl,
   } = useHomeState();
+
+  // Shared session actions hook (used by both desktop SessionListPanel and mobile MobileStatusStrip)
+  const { killSession, archiveSession, acknowledgeSession } = useSessionActions(agentConnections);
 
   // Get session count per agent for the header
   const { sessionsByMachine, isWsConnected, refreshMachine, setOnNeedsAttention } =
@@ -231,77 +233,33 @@ export function HomeContent() {
     (item: SessionListItem) => {
       // Auto-acknowledge if needs_attention (replicate HomeSidebar behavior)
       if (item.status === 'needs_attention' && item.machineId) {
-        const machine = agentConnections.find((c) => c.id === item.machineId);
-        if (machine) {
-          fetch(
-            buildApiUrl(machine.url, `/api/sessions/${encodeURIComponent(item.name)}/acknowledge`),
-            {
-              method: 'POST',
-            }
-          ).catch(console.error);
-        }
+        acknowledgeSession(item.machineId, item.name);
       }
       handleSelectSession(item.machineId!, item.name, item.project);
     },
-    [handleSelectSession, agentConnections]
+    [handleSelectSession, acknowledgeSession]
   );
 
-  // Handler pour kill depuis SessionListPanel
+  // Handler pour kill depuis SessionListPanel (uses shared hook)
   const handleKillSessionFromList = useCallback(
     async (item: SessionListItem) => {
-      const machine = agentConnections.find((c) => c.id === item.machineId);
-      if (!machine) {
-        toast.error('Agent not found');
-        return;
-      }
-
-      try {
-        const response = await fetch(
-          buildApiUrl(machine.url, `/api/sessions/${encodeURIComponent(item.name)}`),
-          { method: 'DELETE' }
-        );
-
-        if (response.ok) {
-          toast.success('Session terminated');
-          handleSessionKilled(item.machineId!, item.name);
-        } else {
-          toast.error('Failed to terminate session');
-        }
-      } catch (err) {
-        console.error('Failed to kill session:', err);
-        toast.error('Could not connect to agent');
+      const success = await killSession(item.machineId!, item.name);
+      if (success) {
+        handleSessionKilled(item.machineId!, item.name);
       }
     },
-    [agentConnections, handleSessionKilled]
+    [killSession, handleSessionKilled]
   );
 
-  // Handler pour archive depuis SessionListPanel
+  // Handler pour archive depuis SessionListPanel (uses shared hook)
   const handleArchiveSessionFromList = useCallback(
     async (item: SessionListItem) => {
-      const machine = agentConnections.find((c) => c.id === item.machineId);
-      if (!machine) {
-        toast.error('Agent not found');
-        return;
-      }
-
-      try {
-        const response = await fetch(
-          buildApiUrl(machine.url, `/api/sessions/${encodeURIComponent(item.name)}/archive`),
-          { method: 'POST' }
-        );
-
-        if (response.ok) {
-          toast.success('Session archived');
-          handleSessionArchived(item.machineId!, item.name);
-        } else {
-          toast.error('Failed to archive session');
-        }
-      } catch (err) {
-        console.error('Failed to archive session:', err);
-        toast.error('Could not connect to agent');
+      const success = await archiveSession(item.machineId!, item.name);
+      if (success) {
+        handleSessionArchived(item.machineId!, item.name);
       }
     },
-    [agentConnections, handleSessionArchived]
+    [archiveSession, handleSessionArchived]
   );
 
   // Create agent status and session count maps for UnifiedAgentManager
@@ -532,6 +490,16 @@ export function HomeContent() {
         onOpenGuide={() => setGuideOpen(true)}
         onConnectionSettingsClick={() => setUnifiedManagerOpen(true)}
         onSessionKilled={handleSessionKilled}
+        // Session actions from shared hook
+        onKillSession={killSession}
+        onArchiveSession={archiveSession}
+        // Filtering
+        machines={sidebarMachines.map((m) => ({ id: m.id, name: m.name, color: m.color }))}
+        machineFilter={machineFilter}
+        onSelectMachine={(id) => setMachineFilter(id)}
+        projects={sidebarProjects.map((p) => p.name)}
+        projectFilter={projectFilter}
+        onSelectProject={(name) => setProjectFilter(name)}
       />
 
       {/* Main Content Area */}
