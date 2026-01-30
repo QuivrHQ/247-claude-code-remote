@@ -10,7 +10,6 @@ import {
   ChevronRight,
   Plus,
   FolderOpen,
-  Settings,
   PanelLeftClose,
   PanelLeft,
   Pencil,
@@ -49,7 +48,6 @@ interface SidebarProps {
   selectedMachineId?: string | null;
   onSelectMachine?: (id: string) => void;
   onAddMachine?: () => void;
-  onOpenSettings?: () => void;
   onSelectProject?: (projectName: string) => void;
   selectedProjectName?: string | null;
   onEditMachine?: (machine: SidebarMachine) => void;
@@ -413,7 +411,6 @@ export function Sidebar({
   selectedMachineId,
   onSelectMachine,
   onAddMachine,
-  onOpenSettings,
   onSelectProject,
   selectedProjectName,
   onEditMachine,
@@ -527,23 +524,6 @@ export function Sidebar({
             ))}
           </Section>
         )}
-      </div>
-
-      {/* Bottom Actions */}
-      <div className={cn('border-t border-white/5', collapsed ? 'p-2' : 'p-3')}>
-        <button
-          onClick={onOpenSettings}
-          className={cn(
-            'flex w-full items-center gap-2 rounded-lg transition-colors',
-            'text-white/40 hover:bg-white/5 hover:text-white/70',
-            collapsed ? 'justify-center p-2' : 'px-3 py-2'
-          )}
-          title="Settings"
-          aria-label="Settings"
-        >
-          <Settings className="h-4 w-4" aria-hidden="true" />
-          {!collapsed && <span className="text-sm">Settings</span>}
-        </button>
       </div>
     </aside>
   );

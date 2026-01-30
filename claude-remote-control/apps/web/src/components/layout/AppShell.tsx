@@ -20,7 +20,6 @@ export interface AppShellProps {
   selectedMachineId?: string | null;
   onSelectMachine?: (id: string) => void;
   onAddMachine?: () => void;
-  onOpenSettings?: () => void;
   onSelectProject?: (projectName: string) => void;
   selectedProjectName?: string | null;
   onEditMachine?: (machine: SidebarMachine) => void;
@@ -69,7 +68,6 @@ export function AppShell({
   selectedMachineId,
   onSelectMachine,
   onAddMachine,
-  onOpenSettings,
   onSelectProject,
   selectedProjectName,
   onEditMachine,
@@ -148,7 +146,6 @@ export function AppShell({
               selectedMachineId={selectedMachineId}
               onSelectMachine={onSelectMachine}
               onAddMachine={onAddMachine}
-              onOpenSettings={onOpenSettings}
               onSelectProject={onSelectProject}
               selectedProjectName={selectedProjectName}
               onEditMachine={onEditMachine}

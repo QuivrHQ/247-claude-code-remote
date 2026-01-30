@@ -428,7 +428,6 @@ export function HomeContent() {
           selectedMachineId={machineFilter}
           onSelectMachine={handleSelectMachine}
           onAddMachine={() => setUnifiedManagerOpen(true)}
-          onOpenSettings={() => setConnectionModalOpen(true)}
           selectedProjectName={projectFilter}
           onSelectProject={handleSelectProject}
           onEditMachine={handleEditMachineFromSidebar}
