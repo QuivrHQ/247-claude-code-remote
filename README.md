@@ -149,6 +149,21 @@ Create `apps/agent/config.json`:
 | `pnpm typecheck` | TypeScript type checking      |
 | `pnpm lint`      | Lint all packages             |
 | `pnpm release`   | Semantic versioning release   |
+| `./dev.sh`       | Start web & agent in tmux     |
+
+### Local Development with tmux
+
+For a better development experience, use the included tmux script:
+
+```bash
+cd claude-remote-control
+./dev.sh
+```
+
+This creates a tmux session with web and agent in split panes. Useful shortcuts:
+- `Ctrl+b` then `←/→` - switch between panes
+- `Ctrl+b` then `d` - detach (servers keep running)
+- `tmux attach -t 247-dev` - reattach later
 
 ## Tech Stack
 
