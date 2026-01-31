@@ -129,6 +129,8 @@ export function useTerminalConnection({
     let handleResize: (() => void) | null = null;
     let handleMouseUp: (() => void) | null = null;
     let handlePaste: ((e: ClipboardEvent) => void) | null = null;
+    let handleContextMenu: ((e: Event) => void) | null = null;
+    let handleRightMouseDown: ((e: MouseEvent) => void) | null = null;
     let handleTouchStart: ((e: TouchEvent) => void) | null = null;
     let handleTouchMove: ((e: TouchEvent) => void) | null = null;
     let handleTouchEnd: (() => void) | null = null;
@@ -160,6 +162,8 @@ export function useTerminalConnection({
         cursorWidth: 2,
         allowProposedApi: true,
         theme: TERMINAL_THEME,
+        // Disable xterm's built-in right-click handling (we handle paste ourselves)
+        rightClickSelectsWord: false,
       });
 
       const fitAddon = new FitAddon();
@@ -232,6 +236,34 @@ export function useTerminalConnection({
       };
       termElement = term.element ?? null;
       termElement?.addEventListener('paste', handlePaste);
+
+      // Right-click paste: intercept contextmenu in capture phase to paste from clipboard
+      // and prevent browser's context menu from appearing
+      handleContextMenu = (e: Event) => {
+        e.preventDefault();
+        e.stopPropagation();
+        e.stopImmediatePropagation();
+        navigator.clipboard.readText().then((text) => {
+          if (text && wsRef.current?.readyState === WebSocket.OPEN) {
+            lastActivityRef.current = Date.now();
+            wsRef.current.send(JSON.stringify({ type: 'input', data: text }));
+          }
+          xtermRef.current?.focus();
+        }).catch(() => {
+          xtermRef.current?.focus();
+        });
+      };
+      terminalRef.current?.addEventListener('contextmenu', handleContextMenu, true);
+
+      // Intercept right-click mousedown - xterm moves its textarea on mousedown (before contextmenu)
+      // which would cause a context menu to appear on the textarea
+      handleRightMouseDown = (e: MouseEvent) => {
+        if (e.button === 2) {
+          e.stopPropagation();
+          e.stopImmediatePropagation();
+        }
+      };
+      terminalRef.current?.addEventListener('mousedown', handleRightMouseDown, true);
 
       // Scroll tracking
       term.onScroll(() => {
@@ -524,7 +556,9 @@ export function useTerminalConnection({
           // Acknowledge session on first input (reset needs_attention)
           if (!hasAcknowledgedRef.current && sessionName && agentUrl) {
             hasAcknowledgedRef.current = true;
-            fetch(`${agentUrl}/api/sessions/${sessionName}/acknowledge`, {
+            // Ensure URL has protocol
+            const baseUrl = agentUrl.startsWith('http') ? agentUrl : `http://${agentUrl}`;
+            fetch(`${baseUrl}/api/sessions/${sessionName}/acknowledge`, {
               method: 'POST',
             }).catch(console.error);
           }
@@ -645,6 +679,12 @@ export function useTerminalConnection({
       }
       if (handleMouseUp) window.removeEventListener('mouseup', handleMouseUp);
       if (handlePaste && termElement) termElement.removeEventListener('paste', handlePaste);
+      // Remove contextmenu handler from parent container
+      terminalRef.current?.removeEventListener('contextmenu', handleContextMenu!, true);
+      // Remove right-click mousedown handler
+      if (handleRightMouseDown) {
+        terminalRef.current?.removeEventListener('mousedown', handleRightMouseDown, true);
+      }
       // Clean up touch scroll listeners
       if (touchElement && handleTouchStart) {
         touchElement.removeEventListener('touchstart', handleTouchStart);

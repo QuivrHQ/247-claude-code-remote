@@ -92,8 +92,7 @@ function Section({ title, children, collapsed, defaultExpanded = true, action }:
   return (
     <div className="py-1">
       {/* Section Header */}
-      <button
-        onClick={() => setExpanded(!expanded)}
+      <div
         className={cn(
           'flex w-full items-center justify-between',
           'px-3 py-2 text-xs font-semibold uppercase tracking-wider',
@@ -101,14 +100,17 @@ function Section({ title, children, collapsed, defaultExpanded = true, action }:
           'transition-colors duration-150'
         )}
       >
-        <div className="flex items-center gap-1.5">
+        <button
+          onClick={() => setExpanded(!expanded)}
+          className="flex items-center gap-1.5 hover:text-foreground-muted"
+        >
           <motion.div animate={{ rotate: expanded ? 90 : 0 }} transition={spring.snappy}>
             <ChevronRight className="h-3 w-3" />
           </motion.div>
           <span>{title}</span>
-        </div>
+        </button>
         {action}
-      </button>
+      </div>
 
       {/* Section Content */}
       <AnimatePresence>

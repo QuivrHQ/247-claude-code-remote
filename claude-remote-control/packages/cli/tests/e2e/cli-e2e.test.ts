@@ -169,26 +169,26 @@ describe.skipIf(skipE2E)('247 CLI E2E Tests', () => {
   });
 
   describe('hooks command', () => {
-    it('shows statusLine API status after init', async () => {
+    it('shows hooks status after init', async () => {
       const port = await getFreePort();
       await env.runCli(['init', '--name', 'hooks-test', '--port', String(port)]);
 
       const result = await env.runCli(['hooks', 'status']);
 
-      // New statusLine-based system shows this message
-      expect(result.stdout).toContain('Using new statusLine API');
+      // Should show hooks status header
+      expect(result.stdout).toContain('247 Hooks Status');
     });
 
-    it('shows deprecation warning on hooks install', async () => {
+    it('installs hooks successfully', async () => {
       const port = await getFreePort();
       await env.runCli(['init', '--name', 'hooks-test', '--port', String(port)]);
 
       const installResult = await env.runCli(['hooks', 'install']);
-      // hooks install now shows deprecation warning
-      expect(installResult.stdout).toContain('deprecated');
+      // hooks install shows success message with path
+      expect(installResult.stdout).toContain('Path:');
 
       const statusResult = await env.runCli(['hooks', 'status']);
-      expect(statusResult.stdout).toContain('Using new statusLine API');
+      expect(statusResult.stdout).toContain('247 Hooks Status');
     });
   });
 

@@ -9,7 +9,7 @@ async function main() {
 
   const server = await createServer();
 
-  server.listen(PORT, () => {
+  server.listen(PORT, '127.0.0.1', () => {
     logger.main.info({ port: PORT }, 'Agent running');
     logger.main.info({ url: `ws://localhost:${PORT}` }, 'Dashboard connection URL');
     logger.main.info({ url: `http://localhost:${PORT}/pair` }, 'Pair with dashboard at');

@@ -136,13 +136,21 @@ function SessionCard({ session, selected, onClick, onKill, onArchive }: SessionC
   const [showActions, setShowActions] = useState(false);
 
   return (
-    <motion.button
+    <motion.div
       variants={variants.fadeInUp}
       onClick={onClick}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          onClick?.();
+        }
+      }}
       onMouseEnter={() => setShowActions(true)}
       onMouseLeave={() => setShowActions(false)}
+      role="button"
+      tabIndex={0}
       className={cn(
-        'w-full rounded-lg p-3 text-left',
+        'w-full cursor-pointer rounded-lg p-3 text-left',
         'transition-all duration-150',
         'hover:bg-surface-1/50 hover:shadow-thin active:scale-[0.99]',
         'group relative',
@@ -219,7 +227,7 @@ function SessionCard({ session, selected, onClick, onKill, onArchive }: SessionC
           )}
         </AnimatePresence>
       </div>
-    </motion.button>
+    </motion.div>
   );
 }
 
