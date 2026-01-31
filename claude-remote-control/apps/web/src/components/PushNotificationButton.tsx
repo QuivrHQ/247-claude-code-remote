@@ -27,8 +27,13 @@ export function PushNotificationButton({
   const { isSupported, isSubscribed, isLoading, subscribe, unsubscribe } = usePushNotifications();
   const [showDialog, setShowDialog] = useState(false);
 
+  // Don't render at all if push notifications aren't supported
+  if (!isSupported) {
+    return null;
+  }
+
   const handleClick = () => {
-    if (!isSupported || isLoading) return;
+    if (isLoading) return;
     setShowDialog(true);
   };
 
@@ -42,10 +47,9 @@ export function PushNotificationButton({
   };
 
   const iconClass = isMobile ? 'h-5 w-5' : 'h-4 w-4';
-  const isDisabled = isLoading || !isSupported;
+  const isDisabled = isLoading;
 
   const getTitle = () => {
-    if (!isSupported) return 'Push notifications not supported';
     if (isSubscribed) return 'Disable notifications';
     return 'Enable notifications';
   };

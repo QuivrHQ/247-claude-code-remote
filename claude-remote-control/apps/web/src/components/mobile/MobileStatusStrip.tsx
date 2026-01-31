@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useCallback, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ChevronDown, Plus, Search, HelpCircle, Settings, Wifi, Monitor } from 'lucide-react';
+import { ChevronDown, Plus, Search, Settings, Monitor } from 'lucide-react';
 import { PushNotificationButton } from '@/components/PushNotificationButton';
 import { cn } from '@/lib/utils';
 import { SessionMiniCard } from './SessionMiniCard';
@@ -24,8 +24,6 @@ export interface MobileStatusStripProps {
   } | null;
   onSelectSession: (machineId: string, name: string, project: string) => void;
   onNewSession: () => void;
-  onOpenGuide?: () => void;
-  onOpenEnvironments?: () => void;
   /** Called to open connection settings modal */
   onConnectionSettingsClick?: () => void;
   /** Called when a session is killed or archived */
@@ -53,8 +51,6 @@ export function MobileStatusStrip({
   currentSession,
   onSelectSession,
   onNewSession,
-  onOpenGuide,
-  onOpenEnvironments,
   onConnectionSettingsClick,
   onSessionKilled,
   onKillSession,
@@ -238,28 +234,8 @@ export function MobileStatusStrip({
             )}
           </div>
 
-          {/* Utility buttons - Guide & Environments */}
+          {/* Utility buttons */}
           <div className="flex items-center gap-0.5">
-            {onOpenGuide && (
-              <button
-                onClick={onOpenGuide}
-                className="flex h-8 w-8 items-center justify-center rounded-lg text-white/30 transition-colors hover:bg-white/5 hover:text-white/60"
-                aria-label="Guide"
-                data-testid="guide-button"
-              >
-                <HelpCircle className="h-4 w-4" />
-              </button>
-            )}
-            {onOpenEnvironments && (
-              <button
-                onClick={onOpenEnvironments}
-                className="flex h-8 w-8 items-center justify-center rounded-lg text-white/30 transition-colors hover:bg-white/5 hover:text-white/60"
-                aria-label="Environments"
-                data-testid="environments-button"
-              >
-                <Settings className="h-4 w-4" />
-              </button>
-            )}
             {onConnectionSettingsClick && (
               <button
                 onClick={onConnectionSettingsClick}
@@ -267,7 +243,7 @@ export function MobileStatusStrip({
                 aria-label="Connection settings"
                 data-testid="connection-settings-button"
               >
-                <Wifi className="h-4 w-4" />
+                <Settings className="h-4 w-4" />
               </button>
             )}
             <PushNotificationButton isMobile={true} />

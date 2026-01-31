@@ -487,7 +487,6 @@ export function HomeContent() {
         currentSession={selectedSession}
         onSelectSession={handleSelectSession}
         onNewSession={() => setNewSessionOpen(true)}
-        onOpenGuide={() => setGuideOpen(true)}
         onConnectionSettingsClick={() => setUnifiedManagerOpen(true)}
         onSessionKilled={handleSessionKilled}
         // Session actions from shared hook
