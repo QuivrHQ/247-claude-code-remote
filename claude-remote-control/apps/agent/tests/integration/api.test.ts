@@ -65,6 +65,48 @@ vi.mock('@homebridge/node-pty-prebuilt-multiarch', () => ({
   }),
 }));
 
+// Mock database modules (avoid real SQLite which causes "database is locked" in parallel tests)
+vi.mock('../../src/db/index.js', () => ({
+  initDatabase: vi.fn().mockReturnValue({}),
+  closeDatabase: vi.fn(),
+  RETENTION_CONFIG: {
+    sessionMaxAge: 24 * 60 * 60 * 1000,
+    historyMaxAge: 7 * 24 * 60 * 60 * 1000,
+    cleanupInterval: 60 * 60 * 1000,
+  },
+}));
+
+vi.mock('../../src/db/environments.js', () => ({
+  getEnvironmentsMetadata: vi.fn().mockReturnValue([]),
+  getEnvironmentMetadata: vi.fn().mockReturnValue(undefined),
+  getEnvironment: vi.fn().mockReturnValue(undefined),
+  createEnvironment: vi.fn().mockReturnValue({ id: 'test-env' }),
+  updateEnvironment: vi.fn().mockReturnValue(null),
+  deleteEnvironment: vi.fn().mockReturnValue(false),
+  getEnvironmentVariables: vi.fn().mockReturnValue({}),
+  setSessionEnvironment: vi.fn(),
+  getSessionEnvironment: vi.fn().mockReturnValue(undefined),
+  clearSessionEnvironment: vi.fn(),
+  ensureDefaultEnvironment: vi.fn(),
+}));
+
+vi.mock('../../src/db/sessions.js', () => ({
+  getAllSessions: vi.fn().mockReturnValue([]),
+  getSession: vi.fn().mockReturnValue(null),
+  upsertSession: vi.fn(),
+  deleteSession: vi.fn().mockReturnValue(true),
+  cleanupStaleSessions: vi.fn().mockReturnValue(0),
+  reconcileWithTmux: vi.fn(),
+  toHookStatus: vi.fn().mockReturnValue({}),
+  clearSessionEnvironmentId: vi.fn(),
+}));
+
+vi.mock('../../src/db/history.js', () => ({
+  recordStatusChange: vi.fn(),
+  getSessionHistory: vi.fn().mockReturnValue([]),
+  cleanupOldHistory: vi.fn().mockReturnValue(0),
+}));
+
 // Mock terminal
 vi.mock('../../src/terminal.js', () => ({
   createTerminal: vi.fn(() => ({
