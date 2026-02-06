@@ -23,7 +23,6 @@
     "http-proxy": "^1.18.1",
     "pino": "^9.6.0",
     "pino-pretty": "^13.0.0",
-    "web-push": "^3.6.7",
     "ws": "^8.18.0"
   },
   "devDependencies": {
@@ -33,7 +32,6 @@
     "@types/http-proxy": "^1.17.17",
     "@types/node": "^22.10.5",
     "@types/supertest": "^6.0.3",
-    "@types/web-push": "^3.6.4",
     "@types/ws": "^8.5.0",
     "execa": "^9.6.1",
     "supertest": "^7.2.2",

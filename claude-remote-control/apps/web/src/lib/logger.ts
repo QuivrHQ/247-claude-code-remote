@@ -61,7 +61,5 @@ export function createLogger(tag: string) {
 // Pre-configured loggers for common use cases
 export const wsLogger = createLogger('WS');
 export const pollingLogger = createLogger('Polling');
-export const pushLogger = createLogger('Push');
-export const deeplinkLogger = createLogger('Deeplink');
 export const terminalLogger = createLogger('Terminal');
 export const archivedLogger = createLogger('Archived');

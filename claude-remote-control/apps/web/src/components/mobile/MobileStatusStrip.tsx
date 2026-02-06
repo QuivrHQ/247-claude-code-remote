@@ -2,37 +2,35 @@
 
 import { useState, useMemo, useCallback, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ChevronDown, Plus, Search, HelpCircle, Settings, Wifi } from 'lucide-react';
-import { PushNotificationButton } from '@/components/PushNotificationButton';
+import { ChevronDown, Plus, Search, HelpCircle, Wifi } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn, buildApiUrl } from '@/lib/utils';
 import { SessionMiniCard } from './SessionMiniCard';
-import { type SessionWithMachine } from '@/contexts/SessionPollingContext';
+import type { SessionInfo } from '@/lib/types';
 
 export interface MobileStatusStripProps {
-  sessions: SessionWithMachine[];
+  sessions: SessionInfo[];
   currentSession: {
-    machineId: string;
     sessionName: string;
     project: string;
   } | null;
-  onSelectSession: (machineId: string, name: string, project: string) => void;
+  agentUrl: string;
+  onSelectSession: (name: string, project: string) => void;
   onNewSession: () => void;
   onOpenGuide?: () => void;
-  onOpenEnvironments?: () => void;
   /** Called to open connection settings modal */
   onConnectionSettingsClick?: () => void;
   /** Called when a session is killed (to deselect if it was selected) */
-  onSessionKilled?: (machineId: string, sessionName: string) => void;
+  onSessionKilled?: (sessionName: string) => void;
 }
 
 export function MobileStatusStrip({
   sessions,
   currentSession,
+  agentUrl,
   onSelectSession,
   onNewSession,
   onOpenGuide,
-  onOpenEnvironments,
   onConnectionSettingsClick,
   onSessionKilled,
 }: MobileStatusStripProps) {
@@ -41,18 +39,17 @@ export function MobileStatusStrip({
 
   // Kill session handler
   const handleKillSession = useCallback(
-    async (session: SessionWithMachine) => {
+    async (session: SessionInfo) => {
       try {
         const response = await fetch(
-          buildApiUrl(session.agentUrl, `/api/sessions/${encodeURIComponent(session.name)}`),
+          buildApiUrl(agentUrl, `/api/sessions/${encodeURIComponent(session.name)}`),
           { method: 'DELETE' }
         );
 
         if (response.ok) {
           toast.success('Session terminated');
-          // If we killed the selected session, notify parent
           if (currentSession?.sessionName === session.name) {
-            onSessionKilled?.(session.machineId, session.name);
+            onSessionKilled?.(session.name);
           }
         } else {
           toast.error('Failed to terminate session');
@@ -62,26 +59,22 @@ export function MobileStatusStrip({
         toast.error('Could not connect to agent');
       }
     },
-    [currentSession, onSessionKilled]
+    [agentUrl, currentSession, onSessionKilled]
   );
 
   // Archive session handler
   const handleArchiveSession = useCallback(
-    async (session: SessionWithMachine) => {
+    async (session: SessionInfo) => {
       try {
         const response = await fetch(
-          buildApiUrl(
-            session.agentUrl,
-            `/api/sessions/${encodeURIComponent(session.name)}/archive`
-          ),
+          buildApiUrl(agentUrl, `/api/sessions/${encodeURIComponent(session.name)}/archive`),
           { method: 'POST' }
         );
 
         if (response.ok) {
           toast.success('Session archived');
-          // If we archived the selected session, notify parent
           if (currentSession?.sessionName === session.name) {
-            onSessionKilled?.(session.machineId, session.name);
+            onSessionKilled?.(session.name);
           }
         } else {
           toast.error('Failed to archive session');
@@ -91,7 +84,7 @@ export function MobileStatusStrip({
         toast.error('Could not connect to agent');
       }
     },
-    [currentSession, onSessionKilled]
+    [agentUrl, currentSession, onSessionKilled]
   );
 
   // Close on Escape key
@@ -129,24 +122,23 @@ export function MobileStatusStrip({
   const filteredSessions = useMemo(() => {
     let result = [...sessions];
 
-    // Apply search filter
     if (search) {
       const query = search.toLowerCase();
       result = result.filter(
         (s) =>
-          s.name.toLowerCase().includes(query) ||
-          s.project.toLowerCase().includes(query) ||
-          s.machineName.toLowerCase().includes(query)
+          s.name.toLowerCase().includes(query) || s.project.toLowerCase().includes(query)
       );
     }
 
     // Sort by createdAt (newest first)
-    return result.sort((a, b) => b.createdAt - a.createdAt);
+    return result.sort(
+      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    );
   }, [sessions, search]);
 
   const handleSessionSelect = useCallback(
-    (machineId: string, name: string, project: string) => {
-      onSelectSession(machineId, name, project);
+    (name: string, project: string) => {
+      onSelectSession(name, project);
       setIsExpanded(false);
     },
     [onSelectSession]
@@ -229,7 +221,7 @@ export function MobileStatusStrip({
             )}
           </div>
 
-          {/* Utility buttons - Guide & Environments */}
+          {/* Utility buttons */}
           <div className="flex items-center gap-0.5">
             {onOpenGuide && (
               <button
@@ -239,16 +231,6 @@ export function MobileStatusStrip({
                 data-testid="guide-button"
               >
                 <HelpCircle className="h-4 w-4" />
-              </button>
-            )}
-            {onOpenEnvironments && (
-              <button
-                onClick={onOpenEnvironments}
-                className="flex h-8 w-8 items-center justify-center rounded-lg text-white/30 transition-colors hover:bg-white/5 hover:text-white/60"
-                aria-label="Environments"
-                data-testid="environments-button"
-              >
-                <Settings className="h-4 w-4" />
               </button>
             )}
             {onConnectionSettingsClick && (
@@ -261,7 +243,6 @@ export function MobileStatusStrip({
                 <Wifi className="h-4 w-4" />
               </button>
             )}
-            <PushNotificationButton isMobile={true} />
           </div>
 
           {/* Quick Add */}
@@ -340,12 +321,10 @@ export function MobileStatusStrip({
                 <div className="grid grid-cols-2 gap-2">
                   {filteredSessions.map((session) => (
                     <SessionMiniCard
-                      key={`${session.machineId}-${session.name}`}
+                      key={session.name}
                       session={session}
                       isActive={session.name === currentSession?.sessionName}
-                      onClick={() =>
-                        handleSessionSelect(session.machineId, session.name, session.project)
-                      }
+                      onClick={() => handleSessionSelect(session.name, session.project)}
                       onKill={() => handleKillSession(session)}
                       onArchive={() => handleArchiveSession(session)}
                     />

@@ -18,38 +18,13 @@ export interface AttentionNotification {
   eventType: string;
 }
 
-// ============================================================================
-// Machine types
-export interface Machine {
-  id: string;
-  name: string;
-  status: 'online' | 'offline';
-  lastSeen: Date | null;
-  config: MachineConfig | null;
-  createdAt: Date;
-}
-
-export interface MachineConfig {
-  projects: string[];
-  agentUrl?: string; // e.g., "localhost:4678" or "mac.tailnet.ts.net:4678"
-}
-
 // Session types
 export interface Session {
   id: string;
-  machineId: string;
   project: string | null;
   tmuxSession: string | null;
   startedAt: Date;
   endedAt: Date | null;
-}
-
-// User types
-export interface User {
-  id: string;
-  email: string;
-  name: string | null;
-  createdAt: Date;
 }
 
 // WebSocket message types - Client to Agent (Terminal)
@@ -93,17 +68,8 @@ export type WSSessionsMessageFromAgent =
   | { type: 'update-pending'; targetVersion: string; message: string };
 
 // API types
-export interface RegisterMachineRequest {
-  id: string;
-  name: string;
-  config?: MachineConfig;
-}
-
 export interface AgentInfo {
-  machine: {
-    id: string;
-    name: string;
-  };
+  name: string;
   status: 'online' | 'offline';
   projects: string[];
 }
@@ -141,10 +107,6 @@ export interface SessionInputResponse {
 
 // Agent configuration
 export interface AgentConfig {
-  machine: {
-    id: string;
-    name: string;
-  };
   agent?: {
     port: number;
     url: string; // e.g., "localhost:4678" or "mac.tailnet.ts.net:4678"
@@ -152,9 +114,5 @@ export interface AgentConfig {
   projects: {
     basePath: string;
     whitelist: string[];
-  };
-  dashboard: {
-    apiUrl: string;
-    apiKey: string;
   };
 }

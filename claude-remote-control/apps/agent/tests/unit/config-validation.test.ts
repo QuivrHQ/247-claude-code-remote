@@ -7,29 +7,17 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { AgentConfig } from '247-shared';
 
-// Type guard for AgentConfig validation (simplified - no editor field)
+// Type guard for AgentConfig validation (simplified - single machine model)
 function isValidAgentConfig(obj: unknown): obj is AgentConfig {
   if (typeof obj !== 'object' || obj === null) return false;
 
   const config = obj as Record<string, unknown>;
-
-  // Required: machine
-  if (typeof config.machine !== 'object' || config.machine === null) return false;
-  const machine = config.machine as Record<string, unknown>;
-  if (typeof machine.id !== 'string' || machine.id.length === 0) return false;
-  if (typeof machine.name !== 'string' || machine.name.length === 0) return false;
 
   // Required: projects
   if (typeof config.projects !== 'object' || config.projects === null) return false;
   const projects = config.projects as Record<string, unknown>;
   if (typeof projects.basePath !== 'string') return false;
   if (!Array.isArray(projects.whitelist)) return false;
-
-  // Required: dashboard
-  if (typeof config.dashboard !== 'object' || config.dashboard === null) return false;
-  const dashboard = config.dashboard as Record<string, unknown>;
-  if (typeof dashboard.apiUrl !== 'string') return false;
-  if (typeof dashboard.apiKey !== 'string') return false;
 
   // Optional: agent
   if (config.agent !== undefined) {
@@ -46,9 +34,7 @@ describe('AgentConfig Validation', () => {
   describe('Type Guard: isValidAgentConfig', () => {
     it('validates minimal valid config', () => {
       const config = {
-        machine: { id: 'machine-1', name: 'Test Machine' },
         projects: { basePath: '~/Dev', whitelist: [] },
-        dashboard: { apiUrl: 'http://localhost:3001/api', apiKey: 'test-key' },
       };
 
       expect(isValidAgentConfig(config)).toBe(true);
@@ -56,71 +42,23 @@ describe('AgentConfig Validation', () => {
 
     it('validates full config with all optional fields', () => {
       const config: AgentConfig = {
-        machine: { id: 'machine-1', name: 'Test Machine' },
         agent: { port: 4678, url: 'localhost:4678' },
         projects: { basePath: '~/Dev', whitelist: ['project-a', 'project-b'] },
-        dashboard: { apiUrl: 'http://localhost:3001/api', apiKey: 'test-key' },
       };
 
       expect(isValidAgentConfig(config)).toBe(true);
     });
 
-    describe('machine field validation', () => {
-      it('rejects config without machine', () => {
-        const config = {
-          projects: { basePath: '~/Dev', whitelist: [] },
-          dashboard: { apiUrl: 'http://localhost:3001/api', apiKey: 'test-key' },
-        };
-
-        expect(isValidAgentConfig(config)).toBe(false);
-      });
-
-      it('rejects config with empty machine.id', () => {
-        const config = {
-          machine: { id: '', name: 'Test' },
-          projects: { basePath: '~/Dev', whitelist: [] },
-          dashboard: { apiUrl: 'http://localhost:3001/api', apiKey: 'test-key' },
-        };
-
-        expect(isValidAgentConfig(config)).toBe(false);
-      });
-
-      it('rejects config with empty machine.name', () => {
-        const config = {
-          machine: { id: 'machine-1', name: '' },
-          projects: { basePath: '~/Dev', whitelist: [] },
-          dashboard: { apiUrl: 'http://localhost:3001/api', apiKey: 'test-key' },
-        };
-
-        expect(isValidAgentConfig(config)).toBe(false);
-      });
-
-      it('rejects config with non-string machine.id', () => {
-        const config = {
-          machine: { id: 123, name: 'Test' },
-          projects: { basePath: '~/Dev', whitelist: [] },
-          dashboard: { apiUrl: 'http://localhost:3001/api', apiKey: 'test-key' },
-        };
-
-        expect(isValidAgentConfig(config)).toBe(false);
-      });
-    });
-
     describe('projects field validation', () => {
       it('rejects config without projects', () => {
-        const config = {
-          machine: { id: 'machine-1', name: 'Test' },
-          dashboard: { apiUrl: 'http://localhost:3001/api', apiKey: 'test-key' },
-        };
+        const config = {};
 
         expect(isValidAgentConfig(config)).toBe(false);
       });
 
       it('rejects config without projects.basePath', () => {
         const config = {
-          machine: { id: 'machine-1', name: 'Test' },
           projects: { whitelist: [] },
-          dashboard: { apiUrl: 'http://localhost:3001/api', apiKey: 'test-key' },
         };
 
         expect(isValidAgentConfig(config)).toBe(false);
@@ -128,40 +66,7 @@ describe('AgentConfig Validation', () => {
 
       it('rejects config with non-array whitelist', () => {
         const config = {
-          machine: { id: 'machine-1', name: 'Test' },
           projects: { basePath: '~/Dev', whitelist: 'project-a' },
-          dashboard: { apiUrl: 'http://localhost:3001/api', apiKey: 'test-key' },
-        };
-
-        expect(isValidAgentConfig(config)).toBe(false);
-      });
-    });
-
-    describe('dashboard field validation', () => {
-      it('rejects config without dashboard', () => {
-        const config = {
-          machine: { id: 'machine-1', name: 'Test' },
-          projects: { basePath: '~/Dev', whitelist: [] },
-        };
-
-        expect(isValidAgentConfig(config)).toBe(false);
-      });
-
-      it('rejects config without dashboard.apiUrl', () => {
-        const config = {
-          machine: { id: 'machine-1', name: 'Test' },
-          projects: { basePath: '~/Dev', whitelist: [] },
-          dashboard: { apiKey: 'test-key' },
-        };
-
-        expect(isValidAgentConfig(config)).toBe(false);
-      });
-
-      it('rejects config without dashboard.apiKey', () => {
-        const config = {
-          machine: { id: 'machine-1', name: 'Test' },
-          projects: { basePath: '~/Dev', whitelist: [] },
-          dashboard: { apiUrl: 'http://localhost:3001/api' },
         };
 
         expect(isValidAgentConfig(config)).toBe(false);
@@ -171,9 +76,7 @@ describe('AgentConfig Validation', () => {
     describe('optional agent field validation', () => {
       it('accepts config without agent', () => {
         const config = {
-          machine: { id: 'machine-1', name: 'Test' },
           projects: { basePath: '~/Dev', whitelist: [] },
-          dashboard: { apiUrl: 'http://localhost:3001/api', apiKey: 'test-key' },
         };
 
         expect(isValidAgentConfig(config)).toBe(true);
@@ -181,10 +84,8 @@ describe('AgentConfig Validation', () => {
 
       it('accepts config with partial agent', () => {
         const config = {
-          machine: { id: 'machine-1', name: 'Test' },
           agent: { port: 4678 },
           projects: { basePath: '~/Dev', whitelist: [] },
-          dashboard: { apiUrl: 'http://localhost:3001/api', apiKey: 'test-key' },
         };
 
         expect(isValidAgentConfig(config)).toBe(true);
@@ -192,10 +93,8 @@ describe('AgentConfig Validation', () => {
 
       it('rejects config with non-number agent.port', () => {
         const config = {
-          machine: { id: 'machine-1', name: 'Test' },
           agent: { port: '4678' },
           projects: { basePath: '~/Dev', whitelist: [] },
-          dashboard: { apiUrl: 'http://localhost:3001/api', apiKey: 'test-key' },
         };
 
         expect(isValidAgentConfig(config)).toBe(false);
@@ -239,20 +138,10 @@ describe('Config Loading (mocked)', () => {
     vi.restoreAllMocks();
   });
 
-  // Note: These tests mock the fs module to test config loading logic
-  // without requiring actual filesystem access
-
   it('constructs correct default config path', () => {
     const expectedPath = '/tmp/test-home/.247/config.json';
     const actualPath = `/tmp/test-home/.247/config.json`;
     expect(actualPath).toBe(expectedPath);
-  });
-
-  it('constructs correct profile config path', () => {
-    const profileName = 'production';
-    const expectedPath = `/tmp/test-home/.247/profiles/${profileName}.json`;
-    expect(expectedPath).toContain('profiles');
-    expect(expectedPath).toContain(profileName);
   });
 
   it('validates config directory structure', () => {
@@ -260,7 +149,6 @@ describe('Config Loading (mocked)', () => {
     const configDir = '~/.247';
     const expectedStructure = {
       'config.json': 'default config',
-      'profiles/': 'named profiles',
       'data/': 'database files',
     };
 
@@ -274,23 +162,13 @@ describe('Config Schema Documentation', () => {
 
   it('documents required fields', () => {
     const requiredFields = {
-      machine: {
-        id: 'string - unique identifier for this machine',
-        name: 'string - human-readable display name',
-      },
       projects: {
         basePath: 'string - path to projects directory (supports ~)',
         whitelist: 'string[] - allowed project names (empty = allow all)',
       },
-      dashboard: {
-        apiUrl: 'string - dashboard API URL',
-        apiKey: 'string - API key for authentication',
-      },
     };
 
-    expect(requiredFields.machine).toBeDefined();
     expect(requiredFields.projects).toBeDefined();
-    expect(requiredFields.dashboard).toBeDefined();
   });
 
   it('documents optional fields', () => {
@@ -306,17 +184,9 @@ describe('Config Schema Documentation', () => {
 
   it('documents example minimal config', () => {
     const minimalConfig = {
-      machine: {
-        id: 'my-macbook',
-        name: 'MacBook Pro',
-      },
       projects: {
         basePath: '~/Dev',
         whitelist: [],
-      },
-      dashboard: {
-        apiUrl: 'https://247.quivr.com/api',
-        apiKey: 'your-api-key',
       },
     };
 
@@ -325,10 +195,6 @@ describe('Config Schema Documentation', () => {
 
   it('documents example full config', () => {
     const fullConfig: AgentConfig = {
-      machine: {
-        id: 'my-macbook',
-        name: 'MacBook Pro',
-      },
       agent: {
         port: 4678,
         url: 'my-macbook.local:4678',
@@ -336,10 +202,6 @@ describe('Config Schema Documentation', () => {
       projects: {
         basePath: '~/Dev',
         whitelist: ['project-a', 'project-b'],
-      },
-      dashboard: {
-        apiUrl: 'https://247.quivr.com/api',
-        apiKey: 'your-api-key',
       },
     };
 

@@ -3,7 +3,6 @@ import { renderHook, act } from '@testing-library/react';
 import { useNotificationPreferences } from '@/hooks/useNotificationPreferences';
 
 const STORAGE_KEY_SOUND = '247-notification-sound-enabled';
-const STORAGE_KEY_PUSH = '247-notification-push-enabled';
 const STORAGE_KEY_SOUND_CHOICE = '247-notification-sound-choice';
 
 describe('useNotificationPreferences hook', () => {
@@ -30,10 +29,9 @@ describe('useNotificationPreferences hook', () => {
   });
 
   describe('initial state', () => {
-    it('should default soundEnabled to false, pushEnabled to true, and selectedSound to chime', () => {
+    it('should default soundEnabled to false and selectedSound to chime', () => {
       const { result } = renderHook(() => useNotificationPreferences());
       expect(result.current.soundEnabled).toBe(false);
-      expect(result.current.pushEnabled).toBe(true);
       expect(result.current.selectedSound).toBe('chime');
     });
 
@@ -42,13 +40,6 @@ describe('useNotificationPreferences hook', () => {
       const { result, rerender } = renderHook(() => useNotificationPreferences());
       rerender();
       expect(result.current.soundEnabled).toBe(true);
-    });
-
-    it('should load stored push preference on mount', () => {
-      mockStorage[STORAGE_KEY_PUSH] = 'false';
-      const { result, rerender } = renderHook(() => useNotificationPreferences());
-      rerender();
-      expect(result.current.pushEnabled).toBe(false);
     });
   });
 
@@ -81,35 +72,6 @@ describe('useNotificationPreferences hook', () => {
     });
   });
 
-  describe('togglePush function', () => {
-    it('should toggle push from true to false', () => {
-      const { result } = renderHook(() => useNotificationPreferences());
-      expect(result.current.pushEnabled).toBe(true);
-
-      act(() => {
-        result.current.togglePush();
-      });
-
-      expect(result.current.pushEnabled).toBe(false);
-      expect(mockStorage[STORAGE_KEY_PUSH]).toBe('false');
-    });
-
-    it('should toggle push from false to true', () => {
-      const { result } = renderHook(() => useNotificationPreferences());
-
-      act(() => {
-        result.current.togglePush();
-      });
-      expect(result.current.pushEnabled).toBe(false);
-
-      act(() => {
-        result.current.togglePush();
-      });
-      expect(result.current.pushEnabled).toBe(true);
-      expect(mockStorage[STORAGE_KEY_PUSH]).toBe('true');
-    });
-  });
-
   describe('setSoundPreference function', () => {
     it('should set sound preference to true', () => {
       const { result } = renderHook(() => useNotificationPreferences());
@@ -137,51 +99,21 @@ describe('useNotificationPreferences hook', () => {
     });
   });
 
-  describe('setPushPreference function', () => {
-    it('should set push preference to false', () => {
-      const { result } = renderHook(() => useNotificationPreferences());
-
-      act(() => {
-        result.current.setPushPreference(false);
-      });
-
-      expect(result.current.pushEnabled).toBe(false);
-      expect(mockStorage[STORAGE_KEY_PUSH]).toBe('false');
-    });
-
-    it('should set push preference to true', () => {
-      const { result } = renderHook(() => useNotificationPreferences());
-
-      act(() => {
-        result.current.setPushPreference(false);
-      });
-      act(() => {
-        result.current.setPushPreference(true);
-      });
-
-      expect(result.current.pushEnabled).toBe(true);
-      expect(mockStorage[STORAGE_KEY_PUSH]).toBe('true');
-    });
-  });
-
   describe('localStorage persistence', () => {
     it('should persist preferences across hook instances', () => {
       const { result: hook1 } = renderHook(() => useNotificationPreferences());
 
       act(() => {
         hook1.current.setSoundPreference(true);
-        hook1.current.setPushPreference(false);
       });
 
       expect(mockStorage[STORAGE_KEY_SOUND]).toBe('true');
-      expect(mockStorage[STORAGE_KEY_PUSH]).toBe('false');
 
       // Create a new hook instance - should read from storage
       const { result: hook2, rerender } = renderHook(() => useNotificationPreferences());
       rerender();
 
       expect(hook2.current.soundEnabled).toBe(true);
-      expect(hook2.current.pushEnabled).toBe(false);
     });
   });
 
@@ -191,9 +123,7 @@ describe('useNotificationPreferences hook', () => {
 
       const {
         toggleSound: toggleSound1,
-        togglePush: togglePush1,
         setSoundPreference: setSoundPreference1,
-        setPushPreference: setPushPreference1,
         setSelectedSound: setSelectedSound1,
       } = result.current;
 
@@ -201,16 +131,12 @@ describe('useNotificationPreferences hook', () => {
 
       const {
         toggleSound: toggleSound2,
-        togglePush: togglePush2,
         setSoundPreference: setSoundPreference2,
-        setPushPreference: setPushPreference2,
         setSelectedSound: setSelectedSound2,
       } = result.current;
 
       expect(toggleSound1).toBe(toggleSound2);
-      expect(togglePush1).toBe(togglePush2);
       expect(setSoundPreference1).toBe(setSoundPreference2);
-      expect(setPushPreference1).toBe(setPushPreference2);
       expect(setSelectedSound1).toBe(setSelectedSound2);
     });
   });

@@ -118,23 +118,11 @@ describe('CLI Process', () => {
       expect(result.error).toContain('Configuration not found');
     });
 
-    it('returns error if profile not found', async () => {
-      const { loadConfig } = await import('../../src/lib/config.js');
-      vi.mocked(loadConfig).mockReturnValue(null);
-
-      const { startAgentDaemon } = await import('../../src/lib/process.js');
-      const result = await startAgentDaemon('nonexistent');
-
-      expect(result.success).toBe(false);
-      expect(result.error).toContain("Profile 'nonexistent' not found");
-    });
-
     it('returns error if agent already running', async () => {
       const { existsSync, readFileSync } = await import('fs');
       const { loadConfig } = await import('../../src/lib/config.js');
 
       vi.mocked(loadConfig).mockReturnValue({
-        machine: { id: 'test', name: 'Test' },
         projects: { basePath: '~/Dev', whitelist: [] },
         agent: { port: 4678 },
       });
@@ -156,7 +144,6 @@ describe('CLI Process', () => {
       const { loadConfig } = await import('../../src/lib/config.js');
 
       vi.mocked(loadConfig).mockReturnValue({
-        machine: { id: 'test', name: 'Test' },
         projects: { basePath: '~/Dev', whitelist: [] },
         agent: { port: 4678 },
       });
@@ -180,7 +167,6 @@ describe('CLI Process', () => {
       const { spawn } = await import('child_process');
 
       vi.mocked(loadConfig).mockReturnValue({
-        machine: { id: 'test', name: 'Test' },
         projects: { basePath: '~/Dev', whitelist: [] },
         agent: { port: 4678 },
       });
@@ -329,7 +315,6 @@ describe('CLI Process', () => {
       const { spawn } = await import('child_process');
 
       vi.mocked(loadConfig).mockReturnValue({
-        machine: { id: 'test', name: 'Test' },
         projects: { basePath: '~/Dev', whitelist: [] },
         agent: { port: 4678 },
       });

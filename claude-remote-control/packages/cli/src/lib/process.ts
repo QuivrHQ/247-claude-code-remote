@@ -42,16 +42,12 @@ export function isAgentRunning(): { running: boolean; pid?: number } {
 
 /**
  * Start the agent as a background daemon
- * @param profileName - Optional profile name to use
  */
-export async function startAgentDaemon(profileName?: string | null): Promise<{ success: boolean; pid?: number; error?: string }> {
+export async function startAgentDaemon(): Promise<{ success: boolean; pid?: number; error?: string }> {
   const paths = getAgentPaths();
-  const config = loadConfig(profileName);
+  const config = loadConfig();
 
   if (!config) {
-    if (profileName) {
-      return { success: false, error: `Profile '${profileName}' not found. Run: 247 profile create ${profileName}` };
-    }
     return { success: false, error: 'Configuration not found. Run: 247 init' };
   }
 
@@ -101,7 +97,6 @@ export async function startAgentDaemon(profileName?: string | null): Promise<{ s
     env: {
       ...process.env,
       AGENT_247_DATA: paths.dataDir,
-      AGENT_247_PROFILE: profileName || '',
     },
   });
 
@@ -148,7 +143,6 @@ export function stopAgent(): { success: boolean; error?: string } {
       try {
         process.kill(status.pid, 0);
         // Still running, wait more
-        // Use synchronous wait
         const waitTime = 100;
         const end = Date.now() + waitTime;
         while (Date.now() < end) {

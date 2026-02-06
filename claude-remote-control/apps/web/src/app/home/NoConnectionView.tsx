@@ -19,10 +19,7 @@ import {
   User,
 } from 'lucide-react';
 import { useState, useEffect, useRef } from 'react';
-import {
-  AgentConnectionSettings,
-  type saveAgentConnection,
-} from '@/components/AgentConnectionSettings';
+import { AgentConnectionSettings } from '@/components/AgentConnectionSettings';
 import { InstallationGuide } from '@/components/InstallationGuide';
 import { authClient } from '@/lib/auth-client';
 import { AnimatePresence } from 'framer-motion';
@@ -30,7 +27,7 @@ import { AnimatePresence } from 'framer-motion';
 interface NoConnectionViewProps {
   modalOpen: boolean;
   onModalOpenChange: (open: boolean) => void;
-  onConnectionSaved: (connection: ReturnType<typeof saveAgentConnection>) => void;
+  onConnectionSaved: (url: string) => void;
 }
 
 // Animation variants

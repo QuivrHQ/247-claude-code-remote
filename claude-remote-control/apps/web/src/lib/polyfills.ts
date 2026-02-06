@@ -6,7 +6,7 @@ if (typeof crypto !== 'undefined' && typeof crypto.randomUUID !== 'function') {
         +c ^
         (crypto.getRandomValues(new Uint8Array(1))[0] & (15 >> (+c / 4)))
       ).toString(16)
-    );
+    ) as `${string}-${string}-${string}-${string}-${string}`;
   };
 }
 

@@ -28,11 +28,8 @@ export interface CapturedOutput {
 export const mockPaths = {
   cliRoot: '/mock/cli',
   agentRoot: '/mock/agent',
-  hooksSource: '/mock/hooks',
-  hooksDestination: '/mock/.claude-plugins/247-hooks',
   configDir: '/mock/.247',
   configPath: '/mock/.247/config.json',
-  profilesDir: '/mock/.247/profiles',
   dataDir: '/mock/.247/data',
   logDir: '/mock/.247/logs',
   pidFile: '/mock/.247/agent.pid',
@@ -43,7 +40,6 @@ export const mockPaths = {
 // ============= TEST FIXTURES =============
 
 export const validConfig = {
-  machine: { id: 'test-uuid-1234', name: 'Test Machine' },
   agent: { port: 4678 },
   projects: { basePath: '~/Dev', whitelist: [] },
 };
@@ -109,20 +105,13 @@ export function captureConsole(): CapturedOutput {
 export function setupDefaultDirectories(state: MockFsState) {
   state.directories.add('/mock');
   state.directories.add('/mock/.247');
-  state.directories.add('/mock/.247/profiles');
   state.directories.add('/mock/.247/data');
   state.directories.add('/mock/.247/logs');
   state.directories.add('/mock/agent');
-  state.directories.add('/mock/hooks');
 }
 
 export function setupAgentEntryPoint(state: MockFsState) {
   state.files.set('/mock/agent/dist/index.js', '// agent entry point');
-}
-
-export function setupHooksSource(state: MockFsState) {
-  state.directories.add('/mock/hooks/.claude-plugin');
-  state.files.set('/mock/hooks/.claude-plugin/plugin.json', JSON.stringify({ version: '1.0.0' }));
 }
 
 export function setupExistingConfig(state: MockFsState, config = validConfig) {

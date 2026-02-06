@@ -76,7 +76,7 @@ describe('Version Command', () => {
     expect(consoleLogs.some((log) => log.includes(`247 v${TEST_VERSION}`))).toBe(true);
     expect(consoleLogs.some((log) => log.includes('[yellow]Update available'))).toBe(true);
     expect(consoleLogs.some((log) => log.includes('9.9.9'))).toBe(true);
-    expect(consoleLogs.some((log) => log.includes('247 update'))).toBe(true);
+    expect(consoleLogs.some((log) => log.includes('npm install -g 247-cli'))).toBe(true);
   });
 
   it('shows version with warning when npm check fails', async () => {

@@ -14,10 +14,8 @@ const config: KnipConfig = {
       ignoreDependencies: [
         'pino-pretty',
         'http-proxy',
-        'web-push',
         'execa',
         '@types/http-proxy',
-        '@types/web-push',
       ],
     },
     'apps/web': {
@@ -45,10 +43,8 @@ const config: KnipConfig = {
         'http-proxy',
         'pino',
         'pino-pretty',
-        'web-push',
         'fs-extra',
         '@types/fs-extra',
-        '@types/web-push',
       ],
     },
   },

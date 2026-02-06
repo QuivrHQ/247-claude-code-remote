@@ -1,58 +1,19 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { useSessionPolling } from '@/contexts/SessionPollingContext';
-import {
-  useAgentConnections,
-  type AgentConnection as DbAgentConnection,
-} from '@/hooks/useAgentConnections';
-import type { LocalMachine, SelectedSession } from './types';
-import { DEFAULT_MACHINE_ID } from './types';
-
-// Legacy type for backward compatibility with AgentConnectionSettings component
-export interface AgentConnection {
-  url: string;
-  name?: string;
-  method: 'localhost' | 'tailscale' | 'custom' | 'cloud';
-  isCloud?: boolean;
-  cloudAgentId?: string;
-}
-
-// Type for stored connections (from API)
-export type StoredAgentConnection = DbAgentConnection;
-
-// Helper to convert StoredAgentConnection to LocalMachine
-function connectionToMachine(connection: StoredAgentConnection): LocalMachine {
-  return {
-    id: connection.id,
-    name: connection.name,
-    status: 'online',
-    color: connection.color,
-    config: {
-      projects: [],
-      agentUrl: connection.url,
-    },
-  };
-}
+import { useAgentConnection } from '@/hooks/useAgentConnections';
+import { stripProtocol } from '@/lib/utils';
+import type { SelectedSession } from './types';
 
 export function useHomeState() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const {
-    setMachines: setPollingMachines,
-    getAllSessions,
-    getArchivedSessions,
-  } = useSessionPolling();
+  const { sessions, agentUrl: pollingAgentUrl, setAgentUrl: setPollingAgentUrl } =
+    useSessionPolling();
 
-  // Use the API-based hook for agent connections
-  const {
-    connections: agentConnections,
-    loading: connectionsLoading,
-    addConnection,
-    removeConnection,
-    updateConnection,
-  } = useAgentConnections();
+  const { agentUrl, loading: agentLoading, setAgentUrl, clearAgentUrl } = useAgentConnection();
 
   const [connectionModalOpen, setConnectionModalOpen] = useState(false);
   const [newSessionOpen, setNewSessionOpen] = useState(false);
@@ -60,48 +21,26 @@ export function useHomeState() {
   const [isFullscreen, setIsFullscreen] = useState(false);
 
   const hasRestoredFromUrl = useRef(false);
-  const allSessions = getAllSessions();
 
-  // Sync connections to polling context when they change
+  // Sync agent URL to polling context
   useEffect(() => {
-    if (agentConnections.length > 0) {
-      const machines = agentConnections.map(connectionToMachine);
-      setPollingMachines(machines);
-    } else {
-      setPollingMachines([]);
-    }
-  }, [agentConnections, setPollingMachines]);
+    setPollingAgentUrl(agentUrl);
+  }, [agentUrl, setPollingAgentUrl]);
 
-  // Loading state
-  const loading = connectionsLoading;
+  const loading = agentLoading;
 
-  // Legacy compatibility: get first connection as "agentConnection"
-  const agentConnection = useMemo(() => {
-    if (agentConnections.length === 0) return null;
-    const first = agentConnections[0];
-    return {
-      url: first.url,
-      name: first.name,
-      method: first.method,
-      isCloud: first.isCloud,
-      cloudAgentId: first.cloudAgentId,
-    };
-  }, [agentConnections]);
-
-  // Restore session from URL on load OR create new session from URL params
+  // Restore session from URL on load
   useEffect(() => {
     if (hasRestoredFromUrl.current) return;
 
     const sessionParam = searchParams.get('session');
-    const machineParam = searchParams.get('machine') || DEFAULT_MACHINE_ID;
     const createParam = searchParams.get('create') === 'true';
     const projectParam = searchParams.get('project');
     const planningProjectIdParam = searchParams.get('planningProjectId');
 
-    // Handle session creation from URL (e.g., from planning modal)
+    // Handle session creation from URL
     if (createParam && sessionParam && projectParam) {
       setSelectedSession({
-        machineId: machineParam,
         sessionName: sessionParam,
         project: projectParam,
         planningProjectId: planningProjectIdParam || undefined,
@@ -111,27 +50,24 @@ export function useHomeState() {
     }
 
     // Handle restoring existing session from URL
-    if (sessionParam && allSessions.length > 0) {
-      const session = allSessions.find(
-        (s) => s.name === sessionParam && s.machineId === machineParam
-      );
+    if (sessionParam && sessions.length > 0) {
+      const session = sessions.find((s) => s.name === sessionParam);
       if (session) {
         setSelectedSession({
-          machineId: machineParam,
           sessionName: sessionParam,
           project: session.project,
         });
         hasRestoredFromUrl.current = true;
       }
     }
-  }, [searchParams, allSessions]);
+  }, [searchParams, sessions]);
 
   // Keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
         e.preventDefault();
-        if (agentConnection) {
+        if (agentUrl) {
           setNewSessionOpen(true);
         } else {
           setConnectionModalOpen(true);
@@ -143,7 +79,6 @@ export function useHomeState() {
         setSelectedSession(null);
         const params = new URLSearchParams(window.location.search);
         params.delete('session');
-        params.delete('machine');
         const newUrl = params.toString() ? `?${params.toString()}` : '/';
         window.history.replaceState({}, '', newUrl);
       }
@@ -156,33 +91,30 @@ export function useHomeState() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [agentConnection, selectedSession, isFullscreen]);
+  }, [agentUrl, selectedSession, isFullscreen]);
 
   const clearSessionFromUrl = useCallback(() => {
     const params = new URLSearchParams(searchParams.toString());
     params.delete('session');
-    params.delete('machine');
     const newUrl = params.toString() ? `?${params.toString()}` : '/';
     router.replace(newUrl, { scroll: false });
   }, [searchParams, router]);
 
   const handleSelectSession = useCallback(
-    (machineId: string, sessionName: string, project: string) => {
-      setSelectedSession({ machineId, sessionName, project });
+    (sessionName: string, project: string) => {
+      setSelectedSession({ sessionName, project });
 
       const params = new URLSearchParams(searchParams.toString());
       params.set('session', sessionName);
-      params.set('machine', machineId);
       router.replace(`?${params.toString()}`, { scroll: false });
     },
     [searchParams, router]
   );
 
   const handleStartSession = useCallback(
-    (machineId: string, project: string, environmentId?: string) => {
+    (project: string, environmentId?: string) => {
       const newSessionName = `${project}--new`;
       setSelectedSession({
-        machineId,
         sessionName: newSessionName,
         project,
         environmentId,
@@ -191,7 +123,6 @@ export function useHomeState() {
 
       const params = new URLSearchParams(searchParams.toString());
       params.set('session', newSessionName);
-      params.set('machine', machineId);
       params.set('create', 'true');
       router.replace(`?${params.toString()}`, { scroll: false });
     },
@@ -212,7 +143,7 @@ export function useHomeState() {
   );
 
   const handleSessionKilled = useCallback(
-    (machineId: string, sessionName: string) => {
+    (sessionName: string) => {
       if (selectedSession?.sessionName === sessionName) {
         setSelectedSession(null);
         clearSessionFromUrl();
@@ -222,7 +153,7 @@ export function useHomeState() {
   );
 
   const handleSessionArchived = useCallback(
-    (machineId: string, sessionName: string) => {
+    (sessionName: string) => {
       if (selectedSession?.sessionName === sessionName) {
         setSelectedSession(null);
         clearSessionFromUrl();
@@ -231,92 +162,28 @@ export function useHomeState() {
     [selectedSession, clearSessionFromUrl]
   );
 
-  // Add a new connection (uses API)
   const handleConnectionSaved = useCallback(
-    async (connection: AgentConnection) => {
-      try {
-        await addConnection({
-          url: connection.url,
-          name: connection.name || 'Agent',
-          method: connection.method,
-        });
-        // The hook automatically updates the connections state
-      } catch (error) {
-        console.error('Failed to save connection:', error);
-      }
+    (url: string) => {
+      setAgentUrl(stripProtocol(url));
     },
-    [addConnection]
+    [setAgentUrl]
   );
 
-  // Remove a specific connection by ID (uses API)
-  const handleConnectionRemoved = useCallback(
-    async (connectionId: string) => {
-      try {
-        await removeConnection(connectionId);
-
-        // If selected session was on this machine, clear it
-        if (selectedSession?.machineId === connectionId) {
-          setSelectedSession(null);
-          clearSessionFromUrl();
-        }
-      } catch (error) {
-        console.error('Failed to remove connection:', error);
-      }
-    },
-    [selectedSession, clearSessionFromUrl, removeConnection]
-  );
-
-  // Legacy: clear all connections (kept for backward compatibility)
-  const handleConnectionCleared = useCallback(async () => {
-    // Remove all connections one by one
-    for (const conn of agentConnections) {
-      try {
-        await removeConnection(conn.id);
-      } catch (error) {
-        console.error('Failed to remove connection:', error);
-      }
-    }
+  const handleDisconnect = useCallback(() => {
+    clearAgentUrl();
     setSelectedSession(null);
     clearSessionFromUrl();
-  }, [agentConnections, removeConnection, clearSessionFromUrl]);
-
-  // Edit an existing connection (name, color, etc.)
-  const handleConnectionEdited = useCallback(
-    async (connectionId: string, data: { name?: string; color?: string }) => {
-      try {
-        await updateConnection(connectionId, data);
-      } catch (error) {
-        console.error('Failed to update connection:', error);
-        throw error;
-      }
-    },
-    [updateConnection]
-  );
-
-  const getAgentUrl = useCallback(() => {
-    if (!selectedSession) return '';
-    const connection = agentConnections.find((c) => c.id === selectedSession.machineId);
-    return connection?.url || '';
-  }, [selectedSession, agentConnections]);
+  }, [clearAgentUrl, clearSessionFromUrl]);
 
   const getSelectedSessionInfo = useCallback(() => {
     if (!selectedSession) return undefined;
-    return allSessions.find(
-      (s) => s.name === selectedSession.sessionName && s.machineId === selectedSession.machineId
-    );
-  }, [selectedSession, allSessions]);
-
-  // All machines from all connections
-  const machines: LocalMachine[] = agentConnections.map(connectionToMachine);
-
-  // Legacy: currentMachine is the first machine (for backward compatibility)
-  const currentMachine: LocalMachine | null = machines.length > 0 ? machines[0] : null;
+    return sessions.find((s) => s.name === selectedSession.sessionName);
+  }, [selectedSession, sessions]);
 
   return {
     // State
     loading,
-    agentConnection, // Legacy: first connection
-    agentConnections, // NEW: all connections
+    agentUrl,
     connectionModalOpen,
     setConnectionModalOpen,
     newSessionOpen,
@@ -325,13 +192,9 @@ export function useHomeState() {
     setSelectedSession,
     isFullscreen,
     setIsFullscreen,
-    allSessions,
-    currentMachine, // Legacy: first machine
-    machines, // NEW: all machines
+    sessions,
 
     // Data fetchers
-    getArchivedSessions,
-    getAgentUrl,
     getSelectedSessionInfo,
 
     // Handlers
@@ -341,9 +204,7 @@ export function useHomeState() {
     handleSessionKilled,
     handleSessionArchived,
     handleConnectionSaved,
-    handleConnectionRemoved, // NEW: remove specific connection
-    handleConnectionEdited, // NEW: edit connection (name, color)
-    handleConnectionCleared,
+    handleDisconnect,
     clearSessionFromUrl,
   };
 }

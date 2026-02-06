@@ -5,14 +5,9 @@ import express from 'express';
 
 // Mock config
 const mockConfig = {
-  machine: { id: 'test-machine', name: 'Test Machine' },
   projects: {
     basePath: '/tmp/test-projects',
     whitelist: ['allowed-project', 'another-project'],
-  },
-  dashboard: {
-    apiUrl: 'http://localhost:3001/api',
-    apiKey: 'test-key',
   },
 };
 

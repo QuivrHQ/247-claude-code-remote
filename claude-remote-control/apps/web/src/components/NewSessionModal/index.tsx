@@ -3,63 +3,66 @@
 import { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Plus, Sparkles } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { cn, buildApiUrl } from '@/lib/utils';
 
-import { useFolders, useClone } from './hooks';
-import { MachineSelector } from './MachineSelector';
 import { SelectFolderTab } from './SelectFolderTab';
 import { TabSelector, TabType } from './TabSelector';
 import { CloneRepoTab } from './CloneRepoTab';
 import { TERMINAL_AT_ROOT } from './ProjectDropdown';
 
-interface Machine {
-  id: string;
-  name: string;
-  status: string;
-  config?: {
-    projects: string[];
-    agentUrl?: string;
-  };
-}
-
 interface NewSessionModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  machines: Machine[];
-  onStartSession: (machineId: string, project: string, environmentId?: string) => void;
+  agentUrl: string;
+  onStartSession: (project: string, environmentId?: string) => void;
 }
 
 export function NewSessionModal({
   open,
   onOpenChange,
-  machines,
+  agentUrl,
   onStartSession,
 }: NewSessionModalProps) {
-  const [selectedMachine, setSelectedMachine] = useState<Machine | null>(null);
   const [activeTab, setActiveTab] = useState<TabType>('existing');
+  const [folders, setFolders] = useState<string[]>([]);
+  const [selectedProject, setSelectedProject] = useState<string | null>(null);
+  const [loadingFolders, setLoadingFolders] = useState(false);
+  const [cloning, setCloning] = useState(false);
+  const [cloneError, setCloneError] = useState<string | null>(null);
 
-  // Custom hooks
-  const { folders, selectedProject, setSelectedProject, loadingFolders, addFolder } =
-    useFolders(selectedMachine);
-  const { cloneRepo, cloning, cloneError, clearError } = useClone(selectedMachine);
+  // Fetch folders from agent
+  useEffect(() => {
+    if (!open || !agentUrl) return;
+
+    setLoadingFolders(true);
+    fetch(buildApiUrl(agentUrl, '/api/folders'))
+      .then((res) => (res.ok ? res.json() : []))
+      .then((data: string[]) => {
+        setFolders(data);
+        setLoadingFolders(false);
+      })
+      .catch(() => {
+        setFolders([]);
+        setLoadingFolders(false);
+      });
+  }, [open, agentUrl]);
 
   // Reset state when modal closes
   useEffect(() => {
     if (!open) {
-      setSelectedMachine(null);
       setActiveTab('existing');
-      clearError();
+      setSelectedProject(null);
+      setCloneError(null);
     }
-  }, [open, clearError]);
+  }, [open]);
 
   const handleStartSession = useCallback(() => {
-    if (selectedMachine && selectedProject) {
-      // Pass empty string for root, otherwise pass the project name
+    if (selectedProject) {
       const project = selectedProject === TERMINAL_AT_ROOT ? '' : selectedProject;
-      onStartSession(selectedMachine.id, project);
+      onStartSession(project);
       onOpenChange(false);
     }
-  }, [selectedMachine, selectedProject, onStartSession, onOpenChange]);
+  }, [selectedProject, onStartSession, onOpenChange]);
 
   // Keyboard shortcuts
   const handleKeyDown = useCallback(
@@ -67,12 +70,11 @@ export function NewSessionModal({
       if (e.key === 'Escape') {
         onOpenChange(false);
       }
-      // Only handle Enter on existing tab (clone tab has its own Enter handler)
-      if (e.key === 'Enter' && activeTab === 'existing' && selectedMachine && selectedProject) {
+      if (e.key === 'Enter' && activeTab === 'existing' && selectedProject) {
         handleStartSession();
       }
     },
-    [onOpenChange, activeTab, selectedMachine, selectedProject, handleStartSession]
+    [onOpenChange, activeTab, selectedProject, handleStartSession]
   );
 
   useEffect(() => {
@@ -83,14 +85,42 @@ export function NewSessionModal({
   }, [open, handleKeyDown]);
 
   const handleClone = async (url: string) => {
-    const result = await cloneRepo(url);
-    if (result.success && result.project && selectedMachine) {
+    if (!agentUrl) return { success: false, error: 'No agent connected' };
+
+    setCloning(true);
+    setCloneError(null);
+
+    try {
+      const res = await fetch(buildApiUrl(agentUrl, '/api/clone'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok || !data.success) {
+        const error = data.error || 'Clone failed';
+        setCloneError(error);
+        setCloning(false);
+        return { success: false, error };
+      }
+
       // Add the new folder to the list and start session
-      addFolder(result.project);
-      onStartSession(selectedMachine.id, result.project);
-      onOpenChange(false);
+      if (data.project) {
+        setFolders((prev) => [...prev, data.project]);
+        onStartSession(data.project);
+        onOpenChange(false);
+      }
+
+      setCloning(false);
+      return { success: true, project: data.project };
+    } catch {
+      const error = 'Failed to connect to agent';
+      setCloneError(error);
+      setCloning(false);
+      return { success: false, error };
     }
-    return result;
   };
 
   return (
@@ -132,7 +162,7 @@ export function NewSessionModal({
                   <h2 id="new-session-title" className="text-lg font-semibold text-white">
                     New Session
                   </h2>
-                  <p className="text-sm text-white/40">Select a machine and project</p>
+                  <p className="text-sm text-white/40">Select a project to start</p>
                 </div>
               </div>
               <button
@@ -146,32 +176,17 @@ export function NewSessionModal({
 
             {/* Content */}
             <div className="flex-1 space-y-6 overflow-y-auto p-6">
-              <MachineSelector
-                machines={machines}
-                selectedMachine={selectedMachine}
-                onSelectMachine={setSelectedMachine}
-              />
+              <TabSelector activeTab={activeTab} onTabChange={setActiveTab} />
 
-              {selectedMachine && (
-                <motion.div
-                  initial={{ opacity: 0, y: -10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.2 }}
-                  className="space-y-4"
-                >
-                  <TabSelector activeTab={activeTab} onTabChange={setActiveTab} />
-
-                  {activeTab === 'existing' ? (
-                    <SelectFolderTab
-                      folders={folders}
-                      selectedProject={selectedProject}
-                      onSelectProject={setSelectedProject}
-                      loadingFolders={loadingFolders}
-                    />
-                  ) : (
-                    <CloneRepoTab onClone={handleClone} loading={cloning} error={cloneError} />
-                  )}
-                </motion.div>
+              {activeTab === 'existing' ? (
+                <SelectFolderTab
+                  folders={folders}
+                  selectedProject={selectedProject ?? ''}
+                  onSelectProject={setSelectedProject}
+                  loadingFolders={loadingFolders}
+                />
+              ) : (
+                <CloneRepoTab onClone={handleClone} loading={cloning} error={cloneError} />
               )}
             </div>
 
@@ -187,11 +202,11 @@ export function NewSessionModal({
                 </p>
                 <button
                   onClick={handleStartSession}
-                  disabled={!selectedMachine || !selectedProject}
+                  disabled={!selectedProject}
                   className={cn(
                     'touch-manipulation active:scale-[0.98]',
                     'flex items-center gap-2 rounded-xl px-5 py-2.5 font-medium transition-all',
-                    selectedMachine && selectedProject
+                    selectedProject
                       ? 'bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-lg shadow-orange-500/25 hover:from-orange-400 hover:to-amber-400'
                       : 'cursor-not-allowed bg-white/5 text-white/30'
                   )}

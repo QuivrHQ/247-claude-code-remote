@@ -5,19 +5,9 @@ import type { AddressInfo } from 'net';
 
 // Mock config
 const mockConfig = {
-  machine: { id: 'test-machine', name: 'Test Machine' },
   projects: {
     basePath: '/tmp/test-projects',
     whitelist: ['allowed-project'],
-  },
-  editor: {
-    enabled: false,
-    portRange: { start: 4680, end: 4699 },
-    idleTimeout: 60000,
-  },
-  dashboard: {
-    apiUrl: 'http://localhost:3001/api',
-    apiKey: 'test-key',
   },
 };
 
@@ -50,26 +40,11 @@ vi.mock('fs/promises', () => ({
 vi.mock('../../src/db/index.js', () => ({
   initDatabase: vi.fn().mockReturnValue({}),
   closeDatabase: vi.fn(),
-  migrateEnvironmentsFromJson: vi.fn().mockReturnValue(false),
   RETENTION_CONFIG: {
     sessionMaxAge: 24 * 60 * 60 * 1000,
-    historyMaxAge: 7 * 24 * 60 * 60 * 1000,
+    archivedMaxAge: 30 * 24 * 60 * 60 * 1000,
     cleanupInterval: 60 * 60 * 1000,
   },
-}));
-
-vi.mock('../../src/db/environments.js', () => ({
-  getEnvironmentsMetadata: vi.fn().mockReturnValue([]),
-  getEnvironmentMetadata: vi.fn().mockReturnValue(undefined),
-  getEnvironment: vi.fn().mockReturnValue(undefined),
-  createEnvironment: vi.fn().mockReturnValue({ id: 'test-env' }),
-  updateEnvironment: vi.fn().mockReturnValue(null),
-  deleteEnvironment: vi.fn().mockReturnValue(false),
-  getEnvironmentVariables: vi.fn().mockReturnValue({}),
-  setSessionEnvironment: vi.fn(),
-  getSessionEnvironment: vi.fn().mockReturnValue(undefined),
-  clearSessionEnvironment: vi.fn(),
-  ensureDefaultEnvironment: vi.fn(),
 }));
 
 vi.mock('../../src/db/sessions.js', () => ({
@@ -77,16 +52,7 @@ vi.mock('../../src/db/sessions.js', () => ({
   getSession: vi.fn().mockReturnValue(null),
   upsertSession: vi.fn(),
   deleteSession: vi.fn().mockReturnValue(true),
-  cleanupStaleSessions: vi.fn().mockReturnValue(0),
   reconcileWithTmux: vi.fn(),
-  toHookStatus: vi.fn().mockReturnValue({}),
-  clearSessionEnvironmentId: vi.fn(),
-}));
-
-vi.mock('../../src/db/history.js', () => ({
-  recordStatusChange: vi.fn(),
-  getSessionHistory: vi.fn().mockReturnValue([]),
-  cleanupOldHistory: vi.fn().mockReturnValue(0),
 }));
 
 // Create shared mock terminal
@@ -145,17 +111,6 @@ vi.mock('@homebridge/node-pty-prebuilt-multiarch', () => ({
     proc.onExit = (cb: any) => proc.on('exit', cb);
     return proc;
   }),
-}));
-
-// Mock editor
-vi.mock('../../src/editor.js', () => ({
-  initEditor: vi.fn(),
-  getOrStartEditor: vi.fn(),
-  stopEditor: vi.fn(),
-  getEditorStatus: vi.fn().mockReturnValue({ running: false }),
-  getAllEditors: vi.fn().mockReturnValue([]),
-  updateEditorActivity: vi.fn(),
-  shutdownAllEditors: vi.fn(),
 }));
 
 describe('WebSocket Terminal', () => {

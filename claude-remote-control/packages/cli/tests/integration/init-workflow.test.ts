@@ -8,7 +8,6 @@ import {
   createMockFsState,
   captureConsole,
   setupDefaultDirectories,
-  setupHooksSource,
   type MockFsState,
   type CapturedOutput,
 } from '../helpers/mock-system.js';
@@ -25,7 +24,6 @@ vi.mock('../../src/lib/paths.js', () => ({
   getAgentPaths: () => mockPaths,
   ensureDirectories: vi.fn(() => {
     fsState.directories.add(mockPaths.configDir);
-    fsState.directories.add(mockPaths.profilesDir);
     fsState.directories.add(mockPaths.dataDir);
     fsState.directories.add(mockPaths.logDir);
   }),
@@ -156,7 +154,7 @@ describe('247 init workflow', () => {
     // Reset state
     fsState = createMockFsState();
     setupDefaultDirectories(fsState);
-    setupHooksSource(fsState);
+
     promptResponses = [];
     output = captureConsole();
 
@@ -172,7 +170,7 @@ describe('247 init workflow', () => {
 
   describe('fresh installation', () => {
     it('creates config with prompted values', async () => {
-      promptResponses = [{ machineName: 'my-awesome-mac' }, { projectsPath: '~/Projects' }];
+      promptResponses = [{ projectsPath: '~/Projects' }];
 
       const { initCommand } = await import('../../src/commands/init.js');
       await initCommand.parseAsync(['node', '247', 'init']);
@@ -181,8 +179,6 @@ describe('247 init workflow', () => {
       expect(fsState.files.has(mockPaths.configPath)).toBe(true);
 
       const savedConfig = JSON.parse(fsState.files.get(mockPaths.configPath)!);
-      expect(savedConfig.machine.name).toBe('my-awesome-mac');
-      expect(savedConfig.machine.id).toBe('generated-uuid-1234');
       expect(savedConfig.projects.basePath).toBe('~/Projects');
       expect(savedConfig.agent.port).toBe(4678);
     });
@@ -196,8 +192,6 @@ describe('247 init workflow', () => {
         'node',
         '247',
         'init',
-        '--name',
-        'cli-provided-name',
         '--port',
         '5000',
         '--projects',
@@ -205,13 +199,12 @@ describe('247 init workflow', () => {
       ]);
 
       const savedConfig = JSON.parse(fsState.files.get(mockPaths.configPath)!);
-      expect(savedConfig.machine.name).toBe('cli-provided-name');
       expect(savedConfig.agent.port).toBe(5000);
       expect(savedConfig.projects.basePath).toBe('/custom/path');
     });
 
-    it('prompts for machine name only if not provided', async () => {
-      promptResponses = [{ machineName: 'prompted-name' }, { projectsPath: '~/Dev' }];
+    it('prompts for projects path if not provided', async () => {
+      promptResponses = [{ projectsPath: '~/Dev' }];
 
       const enquirer = await import('enquirer');
 
@@ -236,7 +229,7 @@ describe('247 init workflow', () => {
 
       // Config should not have been modified
       const savedConfig = JSON.parse(fsState.files.get(mockPaths.configPath)!);
-      expect(savedConfig.machine.id).toBe(validConfig.machine.id);
+      expect(savedConfig.agent.port).toBe(validConfig.agent.port);
     });
 
     it('overwrites config when --force is used', async () => {
@@ -245,11 +238,11 @@ describe('247 init workflow', () => {
       promptResponses = [];
 
       const { initCommand } = await import('../../src/commands/init.js');
-      await initCommand.parseAsync(['node', '247', 'init', '--force', '--name', 'new-name']);
+      await initCommand.parseAsync(['node', '247', 'init', '--force', '--port', '9999', '--projects', '/new/path']);
 
       const savedConfig = JSON.parse(fsState.files.get(mockPaths.configPath)!);
-      expect(savedConfig.machine.name).toBe('new-name');
-      expect(savedConfig.machine.id).toBe('generated-uuid-1234'); // New UUID
+      expect(savedConfig.agent.port).toBe(9999);
+      expect(savedConfig.projects.basePath).toBe('/new/path');
     });
   });
 
@@ -261,37 +254,21 @@ describe('247 init workflow', () => {
         throw new Error('command not found');
       });
 
-      promptResponses = [{ machineName: 'test' }, { projectsPath: '~/Dev' }];
+      promptResponses = [{ projectsPath: '~/Dev' }];
 
       const { initCommand } = await import('../../src/commands/init.js');
 
       await expect(
-        initCommand.parseAsync(['node', '247', 'init', '--name', 'test'])
+        initCommand.parseAsync(['node', '247', 'init'])
       ).rejects.toThrow('process.exit(1)');
 
       expect(output.logs.some((l) => l.toLowerCase().includes('tmux'))).toBe(true);
     });
   });
 
-  describe('profile support', () => {
-    it('creates profile in profiles directory when --profile is used', async () => {
-      promptResponses = [{ machineName: 'dev-machine' }, { projectsPath: '~/Dev' }];
-
-      const { initCommand } = await import('../../src/commands/init.js');
-      await initCommand.parseAsync(['node', '247', 'init', '--profile', 'dev']);
-
-      // Profile should be created in profiles directory
-      const profilePath = `${mockPaths.profilesDir}/dev.json`;
-      expect(fsState.files.has(profilePath)).toBe(true);
-
-      const savedConfig = JSON.parse(fsState.files.get(profilePath)!);
-      expect(savedConfig.machine.name).toBe('dev-machine');
-    });
-  });
-
   describe('statusLine configuration', () => {
     it('completes without mentioning hooks (deprecated)', async () => {
-      promptResponses = [{ machineName: 'test' }, { projectsPath: '~/Dev' }];
+      promptResponses = [{ projectsPath: '~/Dev' }];
 
       const { initCommand } = await import('../../src/commands/init.js');
       await initCommand.parseAsync(['node', '247', 'init']);
@@ -307,7 +284,7 @@ describe('247 init workflow', () => {
 
   describe('success output', () => {
     it('shows success message and next steps', async () => {
-      promptResponses = [{ machineName: 'test' }, { projectsPath: '~/Dev' }];
+      promptResponses = [{ projectsPath: '~/Dev' }];
 
       const { initCommand } = await import('../../src/commands/init.js');
       await initCommand.parseAsync(['node', '247', 'init']);

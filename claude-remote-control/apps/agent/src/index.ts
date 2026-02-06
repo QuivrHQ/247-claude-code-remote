@@ -5,7 +5,7 @@ import { logger } from './logger.js';
 const PORT = config.agent?.port || 4678;
 
 async function main() {
-  logger.main.info({ machine: config.machine.name }, 'Starting 247 Agent');
+  logger.main.info('Starting 247 Agent');
 
   const server = await createServer();
 

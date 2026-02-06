@@ -12,42 +12,6 @@ import type {
 } from '247-shared';
 import * as sessionsDb from '../db/sessions.js';
 import { broadcastStatusUpdate } from '../websocket-handlers.js';
-import { loadConfig } from '../config.js';
-
-const WEB_PUSH_URL = 'https://247.quivr.com/api/push/notify';
-
-/**
- * Send push notification to web API
- */
-async function sendPushNotification(sessionName: string): Promise<void> {
-  try {
-    const config = loadConfig();
-    const machineId = config.machine.id;
-
-    if (!machineId) {
-      console.log('[Hooks] No machineId configured, skipping push');
-      return;
-    }
-
-    const response = await fetch(WEB_PUSH_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ machineId, sessionName }),
-    });
-
-    if (!response.ok) {
-      const error = await response.text();
-      console.error(`[Hooks] Push notification failed: ${response.status} ${error}`);
-      return;
-    }
-
-    const result = await response.json();
-    console.log(`[Hooks] Push notification: ${result.sent} sent`);
-  } catch (_err) {
-    // Don't log full error to avoid noise - push is best effort
-    console.log('[Hooks] Push notification skipped (web unreachable)');
-  }
-}
 
 /**
  * Validate that a value is a valid SessionStatus
@@ -154,12 +118,6 @@ export function createHooksRoutes(): Router {
         attentionReason: session.attention_reason ?? undefined,
         lastStatusChange: session.last_status_change ?? undefined,
       });
-
-      // Send push notification if needs_attention
-      if (notification.status === 'needs_attention') {
-        // Fire and forget - don't block the response
-        sendPushNotification(sessionName).catch(() => {});
-      }
 
       res.json({
         success: true,

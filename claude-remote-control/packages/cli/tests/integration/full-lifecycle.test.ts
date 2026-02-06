@@ -12,7 +12,6 @@ import {
   captureConsole,
   setupDefaultDirectories,
   setupAgentEntryPoint,
-  setupHooksSource,
   type MockFsState,
   type CapturedOutput,
 } from '../helpers/mock-system.js';
@@ -31,7 +30,6 @@ vi.mock('../../src/lib/paths.js', () => ({
   getAgentPaths: () => mockPaths,
   ensureDirectories: vi.fn(() => {
     fsState.directories.add(mockPaths.configDir);
-    fsState.directories.add(mockPaths.profilesDir);
     fsState.directories.add(mockPaths.dataDir);
     fsState.directories.add(mockPaths.logDir);
   }),
@@ -163,7 +161,7 @@ describe('full 247 lifecycle', () => {
     promptResponses = [];
     setupDefaultDirectories(fsState);
     setupAgentEntryPoint(fsState);
-    setupHooksSource(fsState);
+
     output = captureConsole();
 
     // Mock process.kill
@@ -183,7 +181,7 @@ describe('full 247 lifecycle', () => {
   it('init → start → stop workflow completes successfully', async () => {
     // ============= STEP 1: INIT =============
 
-    promptResponses = [{ machineName: 'lifecycle-test-machine' }, { projectsPath: '~/Dev' }];
+    promptResponses = [{ projectsPath: '~/Dev' }];
 
     const { initCommand } = await import('../../src/commands/init.js');
     await initCommand.parseAsync(['node', '247', 'init']);
@@ -191,8 +189,7 @@ describe('full 247 lifecycle', () => {
     // Verify: config was created
     expect(fsState.files.has(mockPaths.configPath)).toBe(true);
     const savedConfig = JSON.parse(fsState.files.get(mockPaths.configPath)!);
-    expect(savedConfig.machine.name).toBe('lifecycle-test-machine');
-    expect(savedConfig.machine.id).toBe('lifecycle-test-uuid');
+    expect(savedConfig.agent.port).toBe(4678);
 
     // Reset modules for fresh imports with new state
     vi.resetModules();
@@ -254,7 +251,7 @@ describe('full 247 lifecycle', () => {
 
   it('start after stop works correctly', async () => {
     // Setup: init first
-    promptResponses = [{ machineName: 'restart-test' }, { projectsPath: '~/Dev' }];
+    promptResponses = [{ projectsPath: '~/Dev' }];
 
     const { initCommand } = await import('../../src/commands/init.js');
     await initCommand.parseAsync(['node', '247', 'init']);

@@ -4,16 +4,9 @@ import { verifyToken, createToken, generateCode, pairingCodes } from '../../src/
 // Mock the config module
 vi.mock('../../src/config.js', () => ({
   config: {
-    machine: {
-      id: 'test-machine-id',
-      name: 'Test Machine',
-    },
     agent: {
       port: 4678,
       url: 'localhost:4678',
-    },
-    dashboard: {
-      apiUrl: 'http://localhost:3001/api',
     },
     projects: {
       basePath: '~/Dev',
@@ -34,7 +27,7 @@ describe('Pairing Routes', () => {
 
   describe('createToken', () => {
     it('should create a valid token', () => {
-      const payload = { mid: 'test-id', mn: 'Test', url: 'localhost:4678' };
+      const payload = { url: 'localhost:4678' };
       const secret = 'test-secret';
       const token = createToken(payload, secret, 10 * 60 * 1000);
 
@@ -43,7 +36,7 @@ describe('Pairing Routes', () => {
     });
 
     it('should include expiry in token payload', () => {
-      const payload = { mid: 'test-id' };
+      const payload = { url: 'localhost:4678' };
       const secret = 'test-secret';
       const token = createToken(payload, secret, 10 * 60 * 1000);
 
@@ -52,25 +45,24 @@ describe('Pairing Routes', () => {
 
       expect(decodedPayload.exp).toBeDefined();
       expect(decodedPayload.iat).toBeDefined();
-      expect(decodedPayload.mid).toBe('test-id');
+      expect(decodedPayload.url).toBe('localhost:4678');
     });
   });
 
   describe('verifyToken', () => {
     it('should verify a valid token', () => {
-      const payload = { mid: 'test-id', mn: 'Test', url: 'localhost:4678' };
+      const payload = { url: 'localhost:4678' };
       const secret = 'test-secret';
       const token = createToken(payload, secret, 10 * 60 * 1000);
 
       const result = verifyToken(token, secret);
 
       expect(result.valid).toBe(true);
-      expect(result.payload?.mid).toBe('test-id');
-      expect(result.payload?.mn).toBe('Test');
+      expect(result.payload?.url).toBe('localhost:4678');
     });
 
     it('should reject token with wrong secret', () => {
-      const payload = { mid: 'test-id' };
+      const payload = { url: 'localhost:4678' };
       const token = createToken(payload, 'correct-secret', 10 * 60 * 1000);
 
       const result = verifyToken(token, 'wrong-secret');
@@ -80,7 +72,7 @@ describe('Pairing Routes', () => {
     });
 
     it('should reject expired token', async () => {
-      const payload = { mid: 'test-id' };
+      const payload = { url: 'localhost:4678' };
       const secret = 'test-secret';
       // Create token that expires immediately (negative expiry)
       const token = createToken(payload, secret, -1000);
@@ -122,8 +114,6 @@ describe('Pairing Routes', () => {
       const code = '123456';
       pairingCodes.set(code, {
         code,
-        machineId: 'test-machine',
-        machineName: 'Test Machine',
         agentUrl: 'localhost:4678',
         createdAt: Date.now(),
         expiresAt: Date.now() + 10 * 60 * 1000,
@@ -132,8 +122,7 @@ describe('Pairing Routes', () => {
       const retrieved = pairingCodes.get(code);
 
       expect(retrieved).toBeDefined();
-      expect(retrieved?.machineId).toBe('test-machine');
-      expect(retrieved?.machineName).toBe('Test Machine');
+      expect(retrieved?.agentUrl).toBe('localhost:4678');
     });
 
     it('should return undefined for non-existent codes', () => {

@@ -29,7 +29,7 @@ export const versionCommand = new Command('version')
       console.log(`247 v${currentVersion}`);
       console.log();
       console.log(chalk.yellow(`Update available: ${currentVersion} → ${latestVersion}`));
-      console.log(chalk.dim('Run "247 update" to install.'));
+      console.log(chalk.dim('Run "npm install -g 247-cli" to update.'));
     } else if (latestVersion) {
       console.log(`247 v${currentVersion} ${chalk.green('(latest)')}`);
     } else {

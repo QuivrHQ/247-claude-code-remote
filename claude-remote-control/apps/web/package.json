@@ -17,7 +17,6 @@
   "dependencies": {
     "247-shared": "workspace:*",
     "@neondatabase/auth": "0.1.0-beta.21",
-    "@neondatabase/serverless": "^1.0.2",
     "@radix-ui/react-alert-dialog": "^1.1.15",
     "@radix-ui/react-slot": "^1.2.4",
     "@xterm/addon-canvas": "^0.7.0",
@@ -28,7 +27,6 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "date-fns": "^4.1.0",
-    "drizzle-orm": "^0.45.1",
     "framer-motion": "^11.15.0",
     "geist": "^1.5.1",
     "lucide-react": "^0.562.0",
@@ -37,8 +35,7 @@
     "react-dom": "^19.0.0",
     "sonner": "^2.0.7",
     "tailwind-merge": "^3.4.0",
-    "tailwindcss-animate": "^1.0.7",
-    "web-push": "^3.6.7"
+    "tailwindcss-animate": "^1.0.7"
   },
   "devDependencies": {
     "@testing-library/dom": "^10.4.1",
@@ -46,9 +43,7 @@
     "@types/node": "^22.10.5",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
-    "@types/web-push": "^3.6.4",
     "autoprefixer": "^10.4.0",
-    "drizzle-kit": "^0.31.8",
     "happy-dom": "^20.0.11",
     "postcss": "^8.4.0",
     "tailwindcss": "^3.4.0",

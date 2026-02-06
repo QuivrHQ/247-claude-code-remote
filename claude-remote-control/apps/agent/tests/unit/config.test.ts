@@ -15,7 +15,6 @@ describe('Agent Config', () => {
     vi.resetModules();
     vi.clearAllMocks();
     process.env.HOME = mockHome;
-    delete process.env.AGENT_247_PROFILE;
   });
 
   afterEach(() => {
@@ -23,7 +22,6 @@ describe('Agent Config', () => {
   });
 
   const validConfig = {
-    machine: { id: 'test-id', name: 'Test Machine' },
     projects: { basePath: '~/Dev', whitelist: [] },
   };
 
@@ -41,45 +39,6 @@ describe('Agent Config', () => {
 
       expect(config).toEqual(validConfig);
       expect(mockedExistsSync).toHaveBeenCalledWith(resolve(mockHome, '.247', 'config.json'));
-    });
-
-    it('loads profile config from ~/.247/profiles/<name>.json', async () => {
-      process.env.AGENT_247_PROFILE = 'dev';
-
-      const { existsSync, readFileSync } = await import('fs');
-      const mockedExistsSync = vi.mocked(existsSync);
-      const mockedReadFileSync = vi.mocked(readFileSync);
-
-      const profileConfig = { ...validConfig, machine: { id: 'dev-id', name: 'Dev Machine' } };
-      mockedExistsSync.mockReturnValue(true);
-      mockedReadFileSync.mockReturnValue(JSON.stringify(profileConfig));
-
-      const { loadConfig } = await import('../../src/config.js');
-      const config = loadConfig();
-
-      expect(config).toEqual(profileConfig);
-      expect(mockedExistsSync).toHaveBeenCalledWith(
-        resolve(mockHome, '.247', 'profiles', 'dev.json')
-      );
-    });
-
-    it('falls back to default config if profile not found', async () => {
-      process.env.AGENT_247_PROFILE = 'nonexistent';
-
-      const { existsSync, readFileSync } = await import('fs');
-      const mockedExistsSync = vi.mocked(existsSync);
-      const mockedReadFileSync = vi.mocked(readFileSync);
-
-      // Profile doesn't exist, but default does
-      mockedExistsSync.mockImplementation((path) => {
-        return String(path).includes('config.json') && !String(path).includes('profiles');
-      });
-      mockedReadFileSync.mockReturnValue(JSON.stringify(validConfig));
-
-      const { loadConfig } = await import('../../src/config.js');
-      const config = loadConfig();
-
-      expect(config).toEqual(validConfig);
     });
 
     it('throws error if no config found', async () => {

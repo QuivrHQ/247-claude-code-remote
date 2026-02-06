@@ -9,9 +9,7 @@ import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import type { SessionInfo } from '@/lib/types';
 
 export interface SessionMiniCardProps {
-  session: SessionInfo & {
-    machineId: string;
-  };
+  session: SessionInfo;
   isActive: boolean;
   onClick: () => void;
   onKill?: () => Promise<void>;

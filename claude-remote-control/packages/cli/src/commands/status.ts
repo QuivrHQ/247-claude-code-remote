@@ -47,7 +47,6 @@ export const statusCommand = new Command('status')
 
     // Configuration info
     console.log(chalk.dim('Configuration:'));
-    console.log(`  Machine: ${config.machine.name}`);
     console.log(`  Port: ${config.agent.port}`);
     console.log(`  Projects: ${config.projects.basePath}`);
     console.log(`  Config: ${paths.configPath}`);

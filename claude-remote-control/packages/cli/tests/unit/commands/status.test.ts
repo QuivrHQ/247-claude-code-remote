@@ -82,11 +82,9 @@ describe('Status Command', () => {
 
     vi.mocked(configExists).mockReturnValue(true);
     vi.mocked(loadConfig).mockReturnValue({
-      machine: { id: 'test-id', name: 'Test Machine' },
       agent: { port: 4678 },
       projects: { basePath: '/test/projects', whitelist: [] },
-      editor: { enabled: false },
-    } as any);
+    });
     vi.mocked(getAgentPaths).mockReturnValue({
       configPath: '/test/.247/config.json',
     } as any);
@@ -108,11 +106,9 @@ describe('Status Command', () => {
 
     vi.mocked(configExists).mockReturnValue(true);
     vi.mocked(loadConfig).mockReturnValue({
-      machine: { id: 'test-id', name: 'Test Machine' },
       agent: { port: 4678 },
       projects: { basePath: '/test/projects', whitelist: [] },
-      editor: { enabled: false },
-    } as any);
+    });
     vi.mocked(getAgentPaths).mockReturnValue({
       configPath: '/test/.247/config.json',
     } as any);
@@ -131,11 +127,9 @@ describe('Status Command', () => {
 
     vi.mocked(configExists).mockReturnValue(true);
     vi.mocked(loadConfig).mockReturnValue({
-      machine: { id: 'test-id', name: 'Test Machine' },
       agent: { port: 4678 },
       projects: { basePath: '/test/projects', whitelist: [] },
-      editor: { enabled: false },
-    } as any);
+    });
     vi.mocked(getAgentPaths).mockReturnValue({
       configPath: '/test/.247/config.json',
     } as any);
@@ -159,11 +153,9 @@ describe('Status Command', () => {
 
     vi.mocked(configExists).mockReturnValue(true);
     vi.mocked(loadConfig).mockReturnValue({
-      machine: { id: 'test-id', name: 'Test Machine' },
       agent: { port: 4678 },
       projects: { basePath: '/test/projects', whitelist: [] },
-      editor: { enabled: false },
-    } as any);
+    });
     vi.mocked(getAgentPaths).mockReturnValue({
       configPath: '/home/user/.247/config.json',
     } as any);
@@ -172,7 +164,6 @@ describe('Status Command', () => {
     const { statusCommand } = await import('../../../src/commands/status.js');
     await statusCommand.parseAsync(['node', 'status']);
 
-    expect(consoleLogs.some((log) => log.includes('Machine: Test Machine'))).toBe(true);
     expect(consoleLogs.some((log) => log.includes('Port: 4678'))).toBe(true);
     expect(consoleLogs.some((log) => log.includes('/test/projects'))).toBe(true);
   });

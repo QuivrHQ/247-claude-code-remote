@@ -1,8 +1,7 @@
 'use client';
 
-import { Bell, Volume2, AlertCircle, CheckCircle, Play } from 'lucide-react';
+import { Volume2, Play } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { usePushNotifications } from '@/hooks/usePushNotifications';
 import {
   useNotificationPreferences,
   NOTIFICATION_SOUNDS,
@@ -43,16 +42,6 @@ function ToggleSwitch({ enabled, onChange, disabled }: ToggleSwitchProps) {
 
 export function NotificationSettingsPanel() {
   const {
-    isSupported: isPushSupported,
-    isSubscribed: isPushSubscribed,
-    permission: pushPermission,
-    isLoading: isPushLoading,
-    error: pushError,
-    subscribe: subscribeToPush,
-    unsubscribe: unsubscribeFromPush,
-  } = usePushNotifications();
-
-  const {
     soundEnabled,
     setSoundPreference,
     selectedSound,
@@ -61,14 +50,6 @@ export function NotificationSettingsPanel() {
   } = useNotificationPreferences();
 
   const { previewSound } = useSoundNotifications({ soundPath: getSelectedSoundPath() });
-
-  const handlePushToggle = async () => {
-    if (isPushSubscribed) {
-      await unsubscribeFromPush();
-    } else {
-      await subscribeToPush();
-    }
-  };
 
   const handleSoundToggle = () => {
     setSoundPreference(!soundEnabled);
@@ -85,29 +66,6 @@ export function NotificationSettingsPanel() {
     }
   };
 
-  const getPushStatusMessage = () => {
-    if (!isPushSupported) {
-      return 'Browser notifications are not supported on this device.';
-    }
-    if (pushPermission === 'denied') {
-      return 'Notifications are blocked. Please enable them in your browser settings.';
-    }
-    if (isPushSubscribed) {
-      return 'You will receive browser notifications when sessions need attention.';
-    }
-    return 'Enable to receive browser notifications when sessions need attention.';
-  };
-
-  const getPushStatusIcon = () => {
-    if (!isPushSupported || pushPermission === 'denied') {
-      return <AlertCircle className="h-4 w-4 text-amber-400" />;
-    }
-    if (isPushSubscribed) {
-      return <CheckCircle className="h-4 w-4 text-emerald-400" />;
-    }
-    return null;
-  };
-
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -115,46 +73,6 @@ export function NotificationSettingsPanel() {
         <p className="text-sm text-white/60">
           Configure how you want to be notified when sessions need your attention.
         </p>
-      </div>
-
-      {/* Browser Push Notifications */}
-      <div className="rounded-xl border border-white/10 bg-white/5 p-4">
-        <div className="flex items-start justify-between gap-4">
-          <div className="flex items-start gap-3">
-            <div className="rounded-lg bg-blue-500/10 p-2">
-              <Bell className="h-5 w-5 text-blue-400" />
-            </div>
-            <div className="space-y-1">
-              <h3 className="font-medium text-white">Browser Notifications</h3>
-              <p className="text-sm text-white/50">
-                Receive push notifications even when the browser is in the background.
-              </p>
-            </div>
-          </div>
-          <ToggleSwitch
-            enabled={isPushSubscribed}
-            onChange={handlePushToggle}
-            disabled={!isPushSupported || isPushLoading || pushPermission === 'denied'}
-          />
-        </div>
-
-        {/* Status message */}
-        <div className="mt-3 flex items-center gap-2 text-sm">
-          {getPushStatusIcon()}
-          <span
-            className={cn(
-              !isPushSupported || pushPermission === 'denied'
-                ? 'text-amber-400'
-                : isPushSubscribed
-                  ? 'text-emerald-400'
-                  : 'text-white/50'
-            )}
-          >
-            {isPushLoading ? 'Loading...' : getPushStatusMessage()}
-          </span>
-        </div>
-
-        {pushError && <div className="mt-2 text-sm text-red-400">Error: {pushError}</div>}
       </div>
 
       {/* Sound Notifications */}
@@ -167,7 +85,7 @@ export function NotificationSettingsPanel() {
             <div className="space-y-1">
               <h3 className="font-medium text-white">Sound Notifications</h3>
               <p className="text-sm text-white/50">
-                Play a sound when a notification appears while the app is in the foreground.
+                Play a sound when a session needs your attention.
               </p>
             </div>
           </div>
@@ -207,15 +125,6 @@ export function NotificationSettingsPanel() {
             </div>
           </div>
         )}
-      </div>
-
-      {/* Info */}
-      <div className="rounded-xl bg-white/5 p-4 text-sm text-white/50">
-        <p>
-          <strong className="text-white/70">Tip:</strong> You can enable both notification types.
-          Browser notifications work in the background, while sound notifications are great for when
-          the app is visible.
-        </p>
       </div>
     </div>
   );

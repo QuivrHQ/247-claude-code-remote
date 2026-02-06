@@ -1,23 +1,24 @@
 /**
- * Pairing routes: Allow users to pair their agent with the dashboard.
+ * Pairing routes: Allow users to pair their browser with the agent.
  * Provides a web page with pairing link, QR code, and 6-digit fallback code.
  */
 
 import { Router } from 'express';
-import { createHmac } from 'crypto';
+import { createHmac, randomUUID } from 'crypto';
 import { config } from '../config.js';
 
 // In-memory store for pairing codes (6-digit codes with 10-minute expiry)
 interface PairingCode {
   code: string;
-  machineId: string;
-  machineName: string;
   agentUrl: string;
   createdAt: number;
   expiresAt: number;
 }
 
 const pairingCodes = new Map<string, PairingCode>();
+
+// Secret for signing tokens (generated per agent instance)
+const TOKEN_SECRET = randomUUID();
 
 // Clean up expired codes every minute
 setInterval(() => {
@@ -87,19 +88,11 @@ function getAgentUrl(): string {
 
 // Get dashboard URL
 function getDashboardUrl(): string {
-  // Use config if available, otherwise default to production
-  if (config.dashboard?.apiUrl) {
-    // Extract base URL from API URL (remove /api suffix)
-    return config.dashboard.apiUrl.replace(/\/api\/?$/, '');
-  }
   return 'https://247.quivr.com';
 }
 
 // Generate QR code as SVG using a simple implementation
 function generateQRCodeSVG(data: string): string {
-  // Use a simple QR code approach - encode the URL in a data URI
-  // For production, you'd use a proper QR library like 'qrcode'
-  // Here we'll use Google Charts API as a simple fallback
   const encoded = encodeURIComponent(data);
   return `<img src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encoded}" alt="QR Code" width="200" height="200" style="image-rendering: pixelated;" />`;
 }
@@ -109,26 +102,22 @@ export function createPairRoutes(): Router {
 
   // GET /pair - HTML page with pairing info
   router.get('/', (_req, res) => {
-    const machineId = config.machine.id;
-    const machineName = config.machine.name;
     const agentUrl = getAgentUrl();
     const dashboardUrl = getDashboardUrl();
 
     // Create token (10 minute expiry)
     const token = createToken(
       {
-        mid: machineId,
-        mn: machineName,
         url: agentUrl,
       },
-      machineId,
+      TOKEN_SECRET,
       10 * 60 * 1000
     );
 
-    // Generate or reuse existing code for this machine
+    // Generate or reuse existing code
     let existingCode: string | undefined;
     for (const [code, data] of pairingCodes.entries()) {
-      if (data.machineId === machineId && data.expiresAt > Date.now()) {
+      if (data.agentUrl === agentUrl && data.expiresAt > Date.now()) {
         existingCode = code;
         break;
       }
@@ -140,8 +129,6 @@ export function createPairRoutes(): Router {
         const newCode = generateCode();
         pairingCodes.set(newCode, {
           code: newCode,
-          machineId,
-          machineName,
           agentUrl,
           createdAt: Date.now(),
           expiresAt: Date.now() + 10 * 60 * 1000,
@@ -161,7 +148,7 @@ export function createPairRoutes(): Router {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Pair Agent - ${machineName}</title>
+  <title>Pair Agent - 247</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
@@ -197,12 +184,6 @@ export function createPairRoutes(): Router {
     h1 {
       font-size: 24px;
       font-weight: 600;
-      margin-bottom: 8px;
-    }
-    .machine-name {
-      color: #f97316;
-      font-size: 20px;
-      font-weight: 500;
       margin-bottom: 32px;
     }
     .qr-section {
@@ -290,7 +271,6 @@ export function createPairRoutes(): Router {
   <div class="container">
     <div class="machine-icon">💻</div>
     <h1>Pair Your Agent</h1>
-    <p class="machine-name">${machineName}</p>
 
     <div class="qr-section">
       ${qrCodeSvg}
@@ -311,8 +291,7 @@ export function createPairRoutes(): Router {
     <p class="refresh-note">Page will auto-refresh when code expires</p>
 
     <p class="agent-info">
-      Agent URL: ${agentUrl}<br>
-      Machine ID: ${machineId}
+      Agent URL: ${agentUrl}
     </p>
   </div>
 
@@ -340,26 +319,22 @@ export function createPairRoutes(): Router {
 
   // GET /pair/info - JSON API for pairing info
   router.get('/info', (_req, res) => {
-    const machineId = config.machine.id;
-    const machineName = config.machine.name;
     const agentUrl = getAgentUrl();
     const dashboardUrl = getDashboardUrl();
 
     // Create token (10 minute expiry)
     const token = createToken(
       {
-        mid: machineId,
-        mn: machineName,
         url: agentUrl,
       },
-      machineId,
+      TOKEN_SECRET,
       10 * 60 * 1000
     );
 
     // Generate or reuse existing code
     let existingCode: string | undefined;
     for (const [code, data] of pairingCodes.entries()) {
-      if (data.machineId === machineId && data.expiresAt > Date.now()) {
+      if (data.agentUrl === agentUrl && data.expiresAt > Date.now()) {
         existingCode = code;
         break;
       }
@@ -371,8 +346,6 @@ export function createPairRoutes(): Router {
         const newCode = generateCode();
         pairingCodes.set(newCode, {
           code: newCode,
-          machineId,
-          machineName,
           agentUrl,
           createdAt: Date.now(),
           expiresAt: Date.now() + 10 * 60 * 1000,
@@ -383,8 +356,6 @@ export function createPairRoutes(): Router {
     const codeData = pairingCodes.get(code)!;
 
     res.json({
-      machineId,
-      machineName,
       agentUrl,
       token,
       code,
@@ -403,8 +374,6 @@ export function createPairRoutes(): Router {
     }
 
     res.json({
-      machineId: data.machineId,
-      machineName: data.machineName,
       agentUrl: data.agentUrl,
       expiresAt: data.expiresAt,
     });
@@ -418,8 +387,7 @@ export function createPairRoutes(): Router {
       return res.status(400).json({ error: 'Token is required' });
     }
 
-    const machineId = config.machine.id;
-    const result = verifyToken(token, machineId);
+    const result = verifyToken(token, TOKEN_SECRET);
 
     if (!result.valid) {
       return res.status(401).json({ error: result.error });
@@ -427,8 +395,6 @@ export function createPairRoutes(): Router {
 
     res.json({
       valid: true,
-      machineId: result.payload?.mid,
-      machineName: result.payload?.mn,
       agentUrl: result.payload?.url,
     });
   });
@@ -437,4 +403,4 @@ export function createPairRoutes(): Router {
 }
 
 // Export for testing
-export { pairingCodes, generateCode, createToken, getAgentUrl, getDashboardUrl };
+export { pairingCodes, generateCode, createToken, getAgentUrl, getDashboardUrl, TOKEN_SECRET };

@@ -21,7 +21,6 @@ export interface SessionListItem {
   createdAt: Date;
   model?: string;
   cost?: number;
-  machineId?: string;
 }
 
 interface DateGroup {

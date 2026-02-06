@@ -4,7 +4,7 @@ import ora from 'ora';
 import { spawn } from 'child_process';
 import { join } from 'path';
 import { existsSync } from 'fs';
-import { loadConfig, configExists, getProfilePath } from '../lib/config.js';
+import { loadConfig, configExists } from '../lib/config.js';
 import { getAgentPaths } from '../lib/paths.js';
 import { startAgentDaemon, isAgentRunning } from '../lib/process.js';
 import { isAbiVersionChanged, ensureNativeModules } from '../lib/prerequisites.js';
@@ -12,25 +12,14 @@ import { isAbiVersionChanged, ensureNativeModules } from '../lib/prerequisites.j
 export const startCommand = new Command('start')
   .description('Start the 247 agent')
   .option('-f, --foreground', 'Run in foreground (not as daemon)')
-  .option('-P, --profile <name>', 'Use a specific profile')
-  .action(async (options, cmd) => {
-    // Get profile from command option or parent (global) option
-    const profileName = options.profile || cmd.parent?.opts().profile;
-    const profileLabel = profileName ? ` (profile: ${profileName})` : '';
-
+  .action(async (options) => {
     // Check configuration
-    if (!configExists(profileName)) {
-      if (profileName) {
-        console.log(
-          chalk.red(`Profile '${profileName}' not found. Run: 247 profile create ${profileName}\n`)
-        );
-      } else {
-        console.log(chalk.red('Configuration not found. Run: 247 init\n'));
-      }
+    if (!configExists()) {
+      console.log(chalk.red('Configuration not found. Run: 247 init\n'));
       process.exit(1);
     }
 
-    const config = loadConfig(profileName);
+    const config = loadConfig();
     if (!config) {
       console.log(chalk.red('Failed to load configuration.\n'));
       process.exit(1);
@@ -58,18 +47,17 @@ export const startCommand = new Command('start')
     const status = isAgentRunning();
     if (status.running) {
       console.log(chalk.yellow(`Agent is already running (PID: ${status.pid})\n`));
-      console.log('Use "247 restart" to restart or "247 stop" to stop.\n');
+      console.log('Use "247 stop" to stop first.\n');
       return;
     }
 
     if (options.foreground) {
       // Run in foreground
       console.log(
-        chalk.blue(`Starting agent${profileLabel} in foreground on port ${config.agent.port}...\n`)
+        chalk.blue(`Starting agent in foreground on port ${config.agent.port}...\n`)
       );
 
       const paths = getAgentPaths();
-      const configPath = getProfilePath(profileName);
       const entryPoint = paths.isDev
         ? join(paths.agentRoot, 'src', 'index.ts')
         : join(paths.agentRoot, 'dist', 'index.js');
@@ -95,9 +83,8 @@ export const startCommand = new Command('start')
         stdio: 'inherit',
         env: {
           ...process.env,
-          AGENT_247_CONFIG: configPath,
+          AGENT_247_CONFIG: paths.configPath,
           AGENT_247_DATA: paths.dataDir,
-          AGENT_247_PROFILE: profileName || '',
         },
       });
 
@@ -116,12 +103,12 @@ export const startCommand = new Command('start')
       });
     } else {
       // Run as daemon
-      const spinner = ora(`Starting agent${profileLabel}...`).start();
+      const spinner = ora('Starting agent...').start();
 
-      const result = await startAgentDaemon(profileName);
+      const result = await startAgentDaemon();
 
       if (result.success) {
-        spinner.succeed(`Agent started${profileLabel} (PID: ${result.pid})`);
+        spinner.succeed(`Agent started (PID: ${result.pid})`);
 
         const paths = getAgentPaths();
         console.log(chalk.dim(`  Logs: ${join(paths.logDir, 'agent.log')}`));

@@ -1,4 +1,4 @@
-#!/bin/bash
+t#!/bin/bash
 
 # Tailscale Funnel Helper Script
 # This script helps you get your Tailscale Funnel URL for connecting to your agent

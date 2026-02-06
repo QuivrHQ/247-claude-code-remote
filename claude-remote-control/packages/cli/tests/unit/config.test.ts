@@ -22,11 +22,6 @@ vi.mock('fs', () => ({
   unlinkSync: vi.fn(),
 }));
 
-// Mock crypto
-vi.mock('crypto', () => ({
-  randomUUID: () => 'test-uuid-1234',
-}));
-
 describe('CLI Config', () => {
   const originalEnv = { ...process.env };
 
@@ -40,27 +35,9 @@ describe('CLI Config', () => {
   });
 
   const validConfig = {
-    machine: { id: 'test-id', name: 'Test Machine' },
     agent: { port: 4678 },
     projects: { basePath: '~/Dev', whitelist: [] },
   };
-
-  describe('getProfilePath', () => {
-    it('returns default config path for undefined profile', async () => {
-      const { getProfilePath } = await import('../../src/lib/config.js');
-      expect(getProfilePath()).toBe('/mock/.247/config.json');
-    });
-
-    it('returns default config path for "default" profile', async () => {
-      const { getProfilePath } = await import('../../src/lib/config.js');
-      expect(getProfilePath('default')).toBe('/mock/.247/config.json');
-    });
-
-    it('returns profile path for named profile', async () => {
-      const { getProfilePath } = await import('../../src/lib/config.js');
-      expect(getProfilePath('dev')).toBe('/mock/.247/profiles/dev.json');
-    });
-  });
 
   describe('loadConfig', () => {
     it('returns null if config file does not exist', async () => {
@@ -132,106 +109,13 @@ describe('CLI Config', () => {
         'utf-8'
       );
     });
-
-    it('creates profiles directory for named profile', async () => {
-      const { existsSync, writeFileSync, mkdirSync } = await import('fs');
-      vi.mocked(existsSync).mockReturnValue(false);
-
-      const { saveConfig } = await import('../../src/lib/config.js');
-      saveConfig(validConfig, 'dev');
-
-      expect(mkdirSync).toHaveBeenCalledWith('/mock/.247/profiles', { recursive: true });
-      expect(writeFileSync).toHaveBeenCalledWith(
-        '/mock/.247/profiles/dev.json',
-        JSON.stringify(validConfig, null, 2),
-        'utf-8'
-      );
-    });
-  });
-
-  describe('listProfiles', () => {
-    it('returns empty array if no profiles exist', async () => {
-      const { existsSync } = await import('fs');
-      vi.mocked(existsSync).mockReturnValue(false);
-
-      const { listProfiles } = await import('../../src/lib/config.js');
-      expect(listProfiles()).toEqual([]);
-    });
-
-    it('includes default if config.json exists', async () => {
-      const { existsSync, readdirSync } = await import('fs');
-      vi.mocked(existsSync).mockImplementation((path) => {
-        return String(path).endsWith('config.json');
-      });
-      vi.mocked(readdirSync).mockReturnValue([]);
-
-      const { listProfiles } = await import('../../src/lib/config.js');
-      expect(listProfiles()).toContain('default');
-    });
-
-    it('lists named profiles from profiles directory', async () => {
-      const { existsSync, readdirSync } = await import('fs');
-      vi.mocked(existsSync).mockReturnValue(true);
-      vi.mocked(readdirSync).mockReturnValue(['dev.json', 'prod.json'] as any);
-
-      const { listProfiles } = await import('../../src/lib/config.js');
-      const profiles = listProfiles();
-
-      expect(profiles).toContain('default');
-      expect(profiles).toContain('dev');
-      expect(profiles).toContain('prod');
-    });
-  });
-
-  describe('profileExists', () => {
-    it('returns true if profile file exists', async () => {
-      const { existsSync } = await import('fs');
-      vi.mocked(existsSync).mockReturnValue(true);
-
-      const { profileExists } = await import('../../src/lib/config.js');
-      expect(profileExists('dev')).toBe(true);
-    });
-
-    it('returns false if profile file does not exist', async () => {
-      const { existsSync } = await import('fs');
-      vi.mocked(existsSync).mockReturnValue(false);
-
-      const { profileExists } = await import('../../src/lib/config.js');
-      expect(profileExists('nonexistent')).toBe(false);
-    });
-  });
-
-  describe('deleteProfile', () => {
-    it('throws error when trying to delete default profile', async () => {
-      const { deleteProfile } = await import('../../src/lib/config.js');
-      expect(() => deleteProfile('default')).toThrow('Cannot delete default profile');
-    });
-
-    it('returns false if profile does not exist', async () => {
-      const { existsSync } = await import('fs');
-      vi.mocked(existsSync).mockReturnValue(false);
-
-      const { deleteProfile } = await import('../../src/lib/config.js');
-      expect(deleteProfile('nonexistent')).toBe(false);
-    });
-
-    it('deletes profile and returns true', async () => {
-      const { existsSync, unlinkSync } = await import('fs');
-      vi.mocked(existsSync).mockReturnValue(true);
-
-      const { deleteProfile } = await import('../../src/lib/config.js');
-      expect(deleteProfile('dev')).toBe(true);
-      expect(unlinkSync).toHaveBeenCalledWith('/mock/.247/profiles/dev.json');
-    });
   });
 
   describe('createConfig', () => {
-    it('creates config with defaults and provided options', async () => {
+    it('creates config with defaults', async () => {
       const { createConfig } = await import('../../src/lib/config.js');
-      const config = createConfig({ machineName: 'My Machine' });
+      const config = createConfig({});
 
-      expect(config.machine.id).toBe('test-uuid-1234');
-      expect(config.machine.name).toBe('My Machine');
       expect(config.agent.port).toBe(4678);
       expect(config.projects.basePath).toBe('~/Dev');
     });
@@ -239,7 +123,6 @@ describe('CLI Config', () => {
     it('uses provided port and projects path', async () => {
       const { createConfig } = await import('../../src/lib/config.js');
       const config = createConfig({
-        machineName: 'My Machine',
         port: 5000,
         projectsPath: '/custom/path',
       });

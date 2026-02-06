@@ -8,11 +8,11 @@ import {
   Settings,
   User,
   LogOut,
-  ChevronRight,
   Bell,
   Maximize2,
   Minimize2,
   Loader2,
+  Wifi,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { spring } from '@/lib/animations';
@@ -27,12 +27,12 @@ interface AppHeaderProps {
   sidebarCollapsed?: boolean;
   isMobile?: boolean;
   onMenuClick?: () => void;
-  currentMachineName?: string;
   currentProjectName?: string;
   onNewSession?: () => void;
   onToggleFullscreen?: () => void;
   isFullscreen?: boolean;
   onOpenNotificationSettings?: () => void;
+  onConnectionSettings?: () => void;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -239,12 +239,12 @@ export function AppHeader({
   sidebarCollapsed,
   isMobile,
   onMenuClick,
-  currentMachineName,
   currentProjectName,
   onNewSession,
   onToggleFullscreen,
   isFullscreen,
   onOpenNotificationSettings,
+  onConnectionSettings,
 }: AppHeaderProps) {
   return (
     <header
@@ -282,15 +282,9 @@ export function AppHeader({
       </div>
 
       {/* Center - Breadcrumb (desktop only) */}
-      {!isMobile && (currentMachineName || currentProjectName) && (
+      {!isMobile && currentProjectName && (
         <div className="flex items-center gap-2 text-sm">
-          {currentMachineName && <span className="text-white/50">{currentMachineName}</span>}
-          {currentMachineName && currentProjectName && (
-            <ChevronRight className="h-4 w-4 text-white/20" />
-          )}
-          {currentProjectName && (
-            <span className="font-medium text-white/70">{currentProjectName}</span>
-          )}
+          <span className="font-medium text-white/70">{currentProjectName}</span>
         </div>
       )}
 
@@ -298,10 +292,16 @@ export function AppHeader({
       <div className="flex items-center gap-2">
         {!isMobile && (
           <>
+            {onConnectionSettings && (
+              <IconButton
+                icon={<Wifi className="h-5 w-5" />}
+                label="Connection Settings"
+                onClick={onConnectionSettings}
+              />
+            )}
             <IconButton
               icon={<Bell className="h-5 w-5" />}
               label="Notifications"
-              badge={2}
               onClick={onOpenNotificationSettings}
             />
             {onToggleFullscreen && (

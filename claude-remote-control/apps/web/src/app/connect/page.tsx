@@ -133,21 +133,15 @@ function ConnectContent() {
     setStatus('connecting');
 
     try {
-      // Create the connection via API
-      const res = await fetch('/api/connections', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          url: agentInfo.agentUrl,
-          name: agentInfo.machineName,
-          machineId: agentInfo.machineId,
-          method: agentInfo.agentUrl.includes('.ts.net') ? 'tailscale' : 'custom',
-        }),
-      });
+      // Save the connection to localStorage
+      // Strip protocol if present
+      let url = agentInfo.agentUrl;
+      if (url.startsWith('https://')) url = url.slice(8);
+      else if (url.startsWith('http://')) url = url.slice(7);
+      else if (url.startsWith('wss://')) url = url.slice(6);
+      else if (url.startsWith('ws://')) url = url.slice(5);
 
-      if (!res.ok) {
-        throw new Error('Failed to save connection');
-      }
+      localStorage.setItem('agentUrl', url);
 
       setStatus('success');
 

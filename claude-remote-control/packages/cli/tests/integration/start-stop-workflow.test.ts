@@ -12,7 +12,6 @@ import {
   setupDefaultDirectories,
   setupAgentEntryPoint,
   setupExistingConfig,
-  setupHooksSource,
   type MockFsState,
   type CapturedOutput,
 } from '../helpers/mock-system.js';
@@ -133,7 +132,7 @@ describe('247 start workflow', () => {
     runningPids = new Set();
     setupDefaultDirectories(fsState);
     setupAgentEntryPoint(fsState);
-    setupHooksSource(fsState);
+
     output = captureConsole();
 
     // Mock process.kill
@@ -163,18 +162,6 @@ describe('247 start workflow', () => {
       expect(output.logs.some((l) => l.includes('247 init'))).toBe(true);
     });
 
-    it('shows profile-specific error when profile not found', async () => {
-      // Default config exists but not the requested profile
-      setupExistingConfig(fsState);
-
-      const { startCommand } = await import('../../src/commands/start.js');
-
-      await expect(
-        startCommand.parseAsync(['node', '247', 'start', '--profile', 'nonexistent'])
-      ).rejects.toThrow('process.exit(1)');
-
-      expect(output.logs.some((l) => l.includes('nonexistent'))).toBe(true);
-    });
   });
 
   describe('with configuration', () => {
@@ -232,22 +219,6 @@ describe('247 start workflow', () => {
       );
     });
 
-    it('loads profile config when --profile is specified', async () => {
-      // Create profile config
-      const profileConfig = { ...validConfig, agent: { port: 5000 } };
-      fsState.files.set(`${mockPaths.profilesDir}/dev.json`, JSON.stringify(profileConfig));
-
-      const { spawn } = await import('child_process');
-      const mockChild = createMockChild({ pid: 88888 });
-      vi.mocked(spawn).mockReturnValue(mockChild as any);
-      runningPids.add(88888);
-
-      const { startCommand } = await import('../../src/commands/start.js');
-      await startCommand.parseAsync(['node', '247', 'start', '--profile', 'dev']);
-
-      // Should start successfully
-      expect(spawn).toHaveBeenCalled();
-    });
   });
 });
 

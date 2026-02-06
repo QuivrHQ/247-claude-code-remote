@@ -13,11 +13,3 @@ export interface SessionInfo extends WSSessionInfo {
   costUsd?: number;
 }
 
-/**
- * Session info with machine context
- */
-export interface SessionWithMachine extends SessionInfo {
-  machineId: string;
-  machineName: string;
-  agentUrl: string;
-}

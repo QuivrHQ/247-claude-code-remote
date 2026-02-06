@@ -12,14 +12,9 @@ import type { WSSessionInfo, ArchiveSessionResponse } from '247-shared';
 
 // Mock config
 const mockConfig = {
-  machine: { id: 'test-machine', name: 'Test Machine' },
   projects: {
     basePath: '/tmp/test-projects',
     whitelist: ['allowed-project'],
-  },
-  dashboard: {
-    apiUrl: 'http://localhost:3001/api',
-    apiKey: 'test-key',
   },
 };
 

@@ -3,7 +3,6 @@
 import { useState, useCallback, useEffect } from 'react';
 
 const STORAGE_KEY_SOUND = '247-notification-sound-enabled';
-const STORAGE_KEY_PUSH = '247-notification-push-enabled';
 const STORAGE_KEY_SOUND_CHOICE = '247-notification-sound-choice';
 
 export type NotificationSoundId = 'default' | 'chime' | 'pop' | 'bell' | 'ding' | 'soft';
@@ -25,12 +24,10 @@ export const NOTIFICATION_SOUNDS: NotificationSound[] = [
 
 /**
  * Hook to manage notification preferences with localStorage persistence.
- * Allows users to independently toggle sound and push notifications.
- * Default: push=true, sound=false
+ * Sound on/off toggle with sound choice selector.
  */
 export function useNotificationPreferences() {
   const [soundEnabled, setSoundEnabled] = useState(false);
-  const [pushEnabled, setPushEnabled] = useState(true);
   const [selectedSound, setSelectedSoundState] = useState<NotificationSoundId>('chime');
 
   // Load persisted state on mount
@@ -40,11 +37,6 @@ export function useNotificationPreferences() {
     const storedSound = localStorage.getItem(STORAGE_KEY_SOUND);
     if (storedSound !== null) {
       setSoundEnabled(storedSound === 'true');
-    }
-
-    const storedPush = localStorage.getItem(STORAGE_KEY_PUSH);
-    if (storedPush !== null) {
-      setPushEnabled(storedPush === 'true');
     }
 
     const storedSoundChoice = localStorage.getItem(STORAGE_KEY_SOUND_CHOICE);
@@ -61,22 +53,9 @@ export function useNotificationPreferences() {
     });
   }, []);
 
-  const togglePush = useCallback(() => {
-    setPushEnabled((prev) => {
-      const next = !prev;
-      localStorage.setItem(STORAGE_KEY_PUSH, String(next));
-      return next;
-    });
-  }, []);
-
   const setSoundPreference = useCallback((enabled: boolean) => {
     setSoundEnabled(enabled);
     localStorage.setItem(STORAGE_KEY_SOUND, String(enabled));
-  }, []);
-
-  const setPushPreference = useCallback((enabled: boolean) => {
-    setPushEnabled(enabled);
-    localStorage.setItem(STORAGE_KEY_PUSH, String(enabled));
   }, []);
 
   const setSelectedSound = useCallback((soundId: NotificationSoundId) => {
@@ -91,12 +70,9 @@ export function useNotificationPreferences() {
 
   return {
     soundEnabled,
-    pushEnabled,
     selectedSound,
     toggleSound,
-    togglePush,
     setSoundPreference,
-    setPushPreference,
     setSelectedSound,
     getSelectedSoundPath,
   };
