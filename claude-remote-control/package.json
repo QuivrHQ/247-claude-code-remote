@@ -35,8 +35,8 @@
   "scripts": {
     "dev": "turbo dev",
     "build": "turbo build",
-    "lint": "eslint .",
-    "lint:fix": "eslint . --fix",
+    "lint": "eslint . --ignore-pattern apps/web/public/sw.js",
+    "lint:fix": "eslint . --ignore-pattern apps/web/public/sw.js --fix",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "typecheck": "turbo typecheck",

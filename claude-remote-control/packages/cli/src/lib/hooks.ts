@@ -8,15 +8,18 @@ import {
   unlinkSync,
 } from 'fs';
 import { join, dirname } from 'path';
-import { homedir } from 'os';
 import { fileURLToPath } from 'url';
+import { getTestableHomedir } from './paths.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
-// Paths
-const CLAUDE_SETTINGS_PATH = join(homedir(), '.claude', 'settings.json');
-const CODEX_CONFIG_PATH = join(homedir(), '.codex', 'config.toml');
-const HOOKS_DIR = join(homedir(), '.247', 'hooks');
+// Paths. Use getTestableHomedir() (not os.homedir directly) so the hooks
+// surface honors the AGENT_247_HOME override the rest of the CLI already
+// respects — keeping E2E runs isolated and never touching the real
+// ~/.claude or ~/.247 unless that is genuinely the resolved home.
+const CLAUDE_SETTINGS_PATH = join(getTestableHomedir(), '.claude', 'settings.json');
+const CODEX_CONFIG_PATH = join(getTestableHomedir(), '.codex', 'config.toml');
+const HOOKS_DIR = join(getTestableHomedir(), '.247', 'hooks');
 const HOOK_SCRIPT_NAME = 'notify-247.sh';
 const HOOK_SCRIPT_PATH = join(HOOKS_DIR, HOOK_SCRIPT_NAME);
 const CODEX_NOTIFY_LINE = `notify = ["bash", "~/.247/hooks/${HOOK_SCRIPT_NAME}"]`;
