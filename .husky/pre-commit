@@ -1,1 +1,21 @@
-cd claude-remote-control && pnpm lint-staged && pnpm typecheck && pnpm deadcode && pnpm build
+#!/usr/bin/env sh
+set -e
+
+cd claude-remote-control
+
+# knip resolves .gitignore relative to the git worktree root. When this repo is
+# checked out as a linked worktree under a git-ignored path (e.g. the app's
+# .claude/worktrees/*), that resolution treats the whole tree as ignored and
+# falsely reports entry files (apps/agent, packages/cli, scripts/release) as
+# unused, failing the hook. Run knip without gitignore filtering there — its own
+# project/entry globs already scope the analyzed file set, so detection is
+# unchanged (verified on the primary checkout and against a planted unused file).
+case "$(git rev-parse --show-toplevel 2>/dev/null)" in
+  */.claude/worktrees/*) deadcode="pnpm exec knip --no-gitignore" ;;
+  *) deadcode="pnpm deadcode" ;;
+esac
+
+pnpm lint-staged
+pnpm typecheck
+$deadcode
+pnpm build
