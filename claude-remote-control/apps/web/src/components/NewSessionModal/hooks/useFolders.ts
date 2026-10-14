@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { buildApiUrl } from '@/lib/utils';
+import { authHeaders } from '@/lib/agent-auth';
 
 interface Machine {
   id: string;
@@ -10,6 +11,7 @@ interface Machine {
   config?: {
     projects: string[];
     agentUrl?: string;
+    authToken?: string;
   };
 }
 
@@ -29,7 +31,9 @@ export function useFolders(selectedMachine: Machine | null) {
       setLoadingFolders(true);
       try {
         const agentUrl = selectedMachine.config?.agentUrl || 'localhost:4678';
-        const response = await fetch(buildApiUrl(agentUrl, '/api/folders'));
+        const response = await fetch(buildApiUrl(agentUrl, '/api/folders'), {
+          headers: authHeaders(selectedMachine.config?.authToken),
+        });
         if (response.ok) {
           const folderList: string[] = await response.json();
           setFolders(folderList);

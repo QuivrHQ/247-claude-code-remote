@@ -32,6 +32,7 @@ export interface Machine {
 export interface MachineConfig {
   projects: string[];
   agentUrl?: string; // e.g., "localhost:4678" or "mac.tailnet.ts.net:4678"
+  authToken?: string; // Bearer token the agent requires (entered by the user)
 }
 
 // Session types

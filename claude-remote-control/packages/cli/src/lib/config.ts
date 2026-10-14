@@ -1,6 +1,14 @@
-import { existsSync, readFileSync, writeFileSync, mkdirSync, readdirSync, unlinkSync } from 'fs';
+import {
+  existsSync,
+  readFileSync,
+  writeFileSync,
+  mkdirSync,
+  readdirSync,
+  unlinkSync,
+  chmodSync,
+} from 'fs';
 import { join } from 'path';
-import { randomUUID } from 'crypto';
+import { randomUUID, randomBytes } from 'crypto';
 import { getAgentPaths, ensureDirectories } from './paths.js';
 
 export interface AgentConfig {
@@ -10,6 +18,11 @@ export interface AgentConfig {
   };
   agent: {
     port: number;
+    /**
+     * Shared secret the agent requires. Generated and shown by `247 init`;
+     * the user enters it into the dashboard (out of band).
+     */
+    authToken?: string;
   };
   projects: {
     basePath: string;
@@ -162,8 +175,20 @@ export function saveConfig(config: AgentConfig, profileName?: string | null): vo
     }
   }
 
+  // The config holds the agent's bearer token, so keep it readable only by the
+  // owner (the writeFileSync mode applies only on create; chmod covers an
+  // existing file written under a more permissive umask).
   const content = JSON.stringify(config, null, 2);
-  writeFileSync(configPath, content, 'utf-8');
+  writeFileSync(configPath, content, { encoding: 'utf-8', mode: 0o600 });
+  chmodSync(configPath, 0o600);
+}
+
+/**
+ * Generate the agent's auth token: 32 random bytes as hex. Hex is safe to carry
+ * in a WebSocket subprotocol, which is how the dashboard sends it to the agent.
+ */
+export function generateAuthToken(): string {
+  return randomBytes(32).toString('hex');
 }
 
 /**
@@ -182,6 +207,7 @@ export function createConfig(options: {
     },
     agent: {
       port: options.port ?? DEFAULT_CONFIG.agent.port,
+      authToken: generateAuthToken(),
     },
     projects: {
       basePath: options.projectsPath ?? DEFAULT_CONFIG.projects.basePath,

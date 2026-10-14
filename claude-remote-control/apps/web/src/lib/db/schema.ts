@@ -14,6 +14,7 @@ export const agentConnection = pgTable(
     isCloud: boolean('is_cloud').default(false),
     cloudAgentId: text('cloud_agent_id'),
     color: text('color'), // Hex color code, e.g. '#f97316'
+    authToken: text('auth_token'), // Bearer token the agent requires (entered by the user)
     createdAt: timestamp('created_at').defaultNow(),
     updatedAt: timestamp('updated_at').defaultNow(),
   },

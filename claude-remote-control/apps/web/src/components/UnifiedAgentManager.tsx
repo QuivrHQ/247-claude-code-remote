@@ -24,6 +24,7 @@ import {
   Pencil,
 } from 'lucide-react';
 import { cn, buildWebSocketUrl, stripProtocol } from '@/lib/utils';
+import { wsSubprotocols } from '@/lib/agent-auth';
 import type { StoredAgentConnection } from './AgentConnectionSettings';
 import { EditAgentModal } from './EditAgentModal';
 
@@ -346,6 +347,7 @@ function AddAgentForm({
   onSubmit: (connection: Omit<StoredAgentConnection, 'id' | 'createdAt'>) => void;
 }) {
   const [url, setUrl] = useState(type === 'local' ? '4678' : '');
+  const [authToken, setAuthToken] = useState('');
   const [testState, setTestState] = useState<'idle' | 'testing' | 'success' | 'error'>('idle');
 
   const getFullUrl = useCallback(() => {
@@ -366,7 +368,7 @@ function AddAgentForm({
     setTestState('testing');
     try {
       const wsUrl = buildWebSocketUrl(fullUrl, '/terminal?project=test&session=test-connection');
-      const ws = new WebSocket(wsUrl);
+      const ws = new WebSocket(wsUrl, wsSubprotocols(authToken.trim() || undefined));
 
       const timeout = setTimeout(() => {
         ws.close();
@@ -396,6 +398,7 @@ function AddAgentForm({
       url: fullUrl,
       name: getName(),
       method: type === 'local' ? 'localhost' : type,
+      authToken: authToken.trim() || undefined,
     });
   };
 
@@ -467,6 +470,23 @@ function AddAgentForm({
             />
           </div>
         )}
+
+        <div>
+          <label className="mb-2 block text-xs font-medium text-white/60">
+            Agent token <span className="text-white/30">(from `247 init`)</span>
+          </label>
+          <input
+            type="password"
+            value={authToken}
+            onChange={(e) => setAuthToken(e.target.value)}
+            placeholder="Paste the token shown by 247 init"
+            autoComplete="off"
+            className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2.5 font-mono text-sm text-white placeholder:text-white/30 focus:border-orange-500/50 focus:outline-none focus:ring-2 focus:ring-orange-500/20"
+          />
+          <p className="mt-1 text-[11px] text-white/30">
+            Leave blank for an agent without authentication.
+          </p>
+        </div>
 
         {type === 'tailscale' && <TailscaleGuide />}
 

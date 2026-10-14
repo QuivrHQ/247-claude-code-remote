@@ -169,26 +169,33 @@ describe.skipIf(skipE2E)('247 CLI E2E Tests', () => {
   });
 
   describe('hooks command', () => {
-    it('shows statusLine API status after init', async () => {
+    // NOTE: these assert the hooks behavior the CLI actually ships today —
+    // the notification hook is installed on demand via `247 hooks install`,
+    // and `247 init` does not install it. An earlier revision of these tests
+    // targeted a "statusLine API" migration that was never implemented in the
+    // CLI; if that migration lands, update these expectations accordingly.
+    it('reports not-installed status after init (init does not install hooks)', async () => {
       const port = await getFreePort();
       await env.runCli(['init', '--name', 'hooks-test', '--port', String(port)]);
 
       const result = await env.runCli(['hooks', 'status']);
 
-      // New statusLine-based system shows this message
-      expect(result.stdout).toContain('Using new statusLine API');
+      expect(result.stdout).toContain('247 Hooks Status');
+      expect(result.stdout).toContain('Hooks not installed');
     });
 
-    it('shows deprecation warning on hooks install', async () => {
+    it('installs the notification hook and reports it in status', async () => {
       const port = await getFreePort();
       await env.runCli(['init', '--name', 'hooks-test', '--port', String(port)]);
 
       const installResult = await env.runCli(['hooks', 'install']);
-      // hooks install now shows deprecation warning
-      expect(installResult.stdout).toContain('deprecated');
+      // The ora success line ("✔ Hooks installed") is written to stderr; the
+      // confirmation body goes to stdout.
+      expect(installResult.stdout).toContain('Claude Code will now notify 247');
 
       const statusResult = await env.runCli(['hooks', 'status']);
-      expect(statusResult.stdout).toContain('Using new statusLine API');
+      expect(statusResult.stdout).toContain('Hooks installed');
+      expect(statusResult.stdout).toContain('Notification hook registered');
     });
   });
 

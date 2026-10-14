@@ -6,6 +6,7 @@ export interface LocalMachine {
   config?: {
     projects: string[];
     agentUrl: string;
+    authToken?: string;
   };
 }
 

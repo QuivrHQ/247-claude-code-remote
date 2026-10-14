@@ -17,6 +17,7 @@ export interface AgentConnection {
   method: 'localhost' | 'tailscale' | 'custom' | 'cloud';
   isCloud?: boolean;
   cloudAgentId?: string;
+  authToken?: string;
 }
 
 // Type for stored connections (from API)
@@ -32,6 +33,7 @@ function connectionToMachine(connection: StoredAgentConnection): LocalMachine {
     config: {
       projects: [],
       agentUrl: connection.url,
+      authToken: connection.authToken,
     },
   };
 }
@@ -239,6 +241,7 @@ export function useHomeState() {
           url: connection.url,
           name: connection.name || 'Agent',
           method: connection.method,
+          authToken: connection.authToken,
         });
         // The hook automatically updates the connections state
       } catch (error) {
@@ -299,6 +302,12 @@ export function useHomeState() {
     return connection?.url || '';
   }, [selectedSession, agentConnections]);
 
+  const getAuthToken = useCallback(() => {
+    if (!selectedSession) return undefined;
+    const connection = agentConnections.find((c) => c.id === selectedSession.machineId);
+    return connection?.authToken;
+  }, [selectedSession, agentConnections]);
+
   const getSelectedSessionInfo = useCallback(() => {
     if (!selectedSession) return undefined;
     return allSessions.find(
@@ -332,6 +341,7 @@ export function useHomeState() {
     // Data fetchers
     getArchivedSessions,
     getAgentUrl,
+    getAuthToken,
     getSelectedSessionInfo,
 
     // Handlers

@@ -43,6 +43,8 @@ export interface StoredAgentConnection {
   isCloud?: boolean;
   cloudAgentId?: string;
   color?: string;
+  /** Bearer token the agent requires (entered by the user when connecting). */
+  authToken?: string;
 }
 
 // Generate a unique ID for connections

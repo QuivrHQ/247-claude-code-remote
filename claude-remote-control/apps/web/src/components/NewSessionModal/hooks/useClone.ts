@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { buildApiUrl } from '@/lib/utils';
+import { authHeaders } from '@/lib/agent-auth';
 
 interface Machine {
   id: string;
@@ -10,6 +11,7 @@ interface Machine {
   config?: {
     projects: string[];
     agentUrl?: string;
+    authToken?: string;
   };
 }
 
@@ -38,6 +40,7 @@ export function useClone(selectedMachine: Machine | null) {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          ...authHeaders(selectedMachine.config?.authToken),
         },
         body: JSON.stringify({ url }),
       });

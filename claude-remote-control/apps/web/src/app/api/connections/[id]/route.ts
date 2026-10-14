@@ -41,6 +41,9 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
         url: body.url,
         method: body.method,
         color: body.color,
+        // Only overwrite the token when the request actually carries one, so
+        // editing a connection's name/color does not wipe its stored token.
+        ...(body.authToken !== undefined ? { authToken: body.authToken } : {}),
         updatedAt: new Date(),
       })
       .where(and(eq(agentConnection.id, id), eq(agentConnection.userId, user.id)))

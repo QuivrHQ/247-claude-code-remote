@@ -20,4 +20,5 @@ export interface SessionWithMachine extends SessionInfo {
   machineId: string;
   machineName: string;
   agentUrl: string;
+  authToken?: string;
 }

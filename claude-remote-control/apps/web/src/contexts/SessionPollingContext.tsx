@@ -11,6 +11,7 @@ import {
 } from 'react';
 import { SessionInfo, SessionWithMachine } from '@/lib/types';
 import { buildWebSocketUrl, buildApiUrl } from '@/lib/utils';
+import { authHeaders, wsSubprotocols } from '@/lib/agent-auth';
 import { requestNotificationPermission } from '@/lib/notifications';
 import { wsLogger, pollingLogger, archivedLogger } from '@/lib/logger';
 import type { WSSessionsMessageFromAgent } from '247-shared';
@@ -22,6 +23,7 @@ export interface Machine {
   config?: {
     projects: string[];
     agentUrl?: string;
+    authToken?: string;
   };
 }
 
@@ -132,6 +134,7 @@ export function SessionPollingProvider({ children }: { children: ReactNode }) {
   const fetchSessionsForMachine = useCallback(
     async (machine: Machine): Promise<MachineSessionData> => {
       const agentUrl = machine.config?.agentUrl || 'localhost:4678';
+      const authToken = machine.config?.authToken;
 
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT);
@@ -142,6 +145,7 @@ export function SessionPollingProvider({ children }: { children: ReactNode }) {
       try {
         const response = await fetch(buildApiUrl(agentUrl, '/api/sessions'), {
           signal: controller.signal,
+          headers: authHeaders(authToken),
         });
 
         if (!response.ok) throw new Error('Failed to fetch sessions');
@@ -251,7 +255,9 @@ export function SessionPollingProvider({ children }: { children: ReactNode }) {
     const agentUrl = machine.config?.agentUrl || 'localhost:4678';
 
     try {
-      const response = await fetch(buildApiUrl(agentUrl, '/api/sessions/archived'));
+      const response = await fetch(buildApiUrl(agentUrl, '/api/sessions/archived'), {
+        headers: authHeaders(machine.config?.authToken),
+      });
       if (!response.ok) return;
 
       const sessions: SessionInfo[] = await response.json();
@@ -289,7 +295,7 @@ export function SessionPollingProvider({ children }: { children: ReactNode }) {
       wsLogger.info(`Connecting to ${wsUrl} for machine ${machine.name}`);
 
       try {
-        const ws = new WebSocket(wsUrl);
+        const ws = new WebSocket(wsUrl, wsSubprotocols(machine.config?.authToken));
         wsConnectionsRef.current.set(machine.id, ws);
 
         ws.onopen = () => {

@@ -57,7 +57,12 @@ export const profileCommand = new Command('profile')
 
         console.log(chalk.bold(`\nProfile: ${chalk.cyan(name)}`));
         console.log(chalk.dim(`Path: ${getProfilePath(profileName)}\n`));
-        console.log(JSON.stringify(config, null, 2));
+        // Never print the bearer token (scrollback, screenshots, CI logs):
+        // redact it while still showing it is set.
+        const display = config.agent?.authToken
+          ? { ...config, agent: { ...config.agent, authToken: '***redacted***' } }
+          : config;
+        console.log(JSON.stringify(display, null, 2));
         console.log();
       })
   )

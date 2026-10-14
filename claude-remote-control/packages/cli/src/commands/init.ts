@@ -104,6 +104,17 @@ export const initCommand = new Command('init')
 
       const configPath = getProfilePath(profileName);
       console.log(chalk.dim(`  → ${configPath}`));
+
+      // Show the auth token so the user can paste it into the dashboard. It is
+      // delivered out of band on purpose: the agent never serves it over the
+      // network, so it cannot be read by anyone who merely reaches the agent.
+      if (config.agent.authToken) {
+        console.log(chalk.bold('\n  Agent token (paste this into the dashboard when connecting):'));
+        console.log(`  ${chalk.yellow(config.agent.authToken)}`);
+        console.log(
+          chalk.dim(`  Keep it secret. It is stored in ${configPath} (shown redacted elsewhere).`)
+        );
+      }
     } catch (err) {
       configSpinner.fail(`Failed to create configuration: ${(err as Error).message}`);
       process.exit(1);

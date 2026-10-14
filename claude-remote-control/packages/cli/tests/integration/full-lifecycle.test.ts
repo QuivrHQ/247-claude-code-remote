@@ -55,6 +55,7 @@ vi.mock('fs', () => ({
     fsState?.files.delete(path);
   }),
   readdirSync: vi.fn(() => []),
+  chmodSync: vi.fn(),
   lstatSync: vi.fn(() => ({ isSymbolicLink: () => false })),
   rmSync: vi.fn(),
   copyFileSync: vi.fn(),
@@ -65,6 +66,7 @@ vi.mock('fs', () => ({
 // Mock crypto
 vi.mock('crypto', () => ({
   randomUUID: () => 'lifecycle-test-uuid',
+  randomBytes: (size: number) => Buffer.alloc(size, 1),
 }));
 
 // Mock child_process
@@ -124,6 +126,7 @@ vi.mock('chalk', () => ({
     blue: (s: string) => s,
     cyan: (s: string) => s,
     dim: (s: string) => s,
+    bold: (s: string) => s,
   },
 }));
 

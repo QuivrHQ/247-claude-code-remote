@@ -9,6 +9,13 @@ export interface AgentConfig {
   agent?: {
     port?: number;
     url?: string;
+    /**
+     * Shared secret the agent requires on its HTTP routes and WebSocket
+     * upgrades. Generated and shown by `247 init`; entered into the dashboard
+     * by the user (out of band). When absent the agent runs without
+     * authentication (see `server.ts`), preserving older installs.
+     */
+    authToken?: string;
   };
   projects: {
     basePath: string;

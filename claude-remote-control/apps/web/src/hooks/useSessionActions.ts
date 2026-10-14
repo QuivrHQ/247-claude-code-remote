@@ -3,6 +3,7 @@
 import { useCallback } from 'react';
 import { toast } from 'sonner';
 import { buildApiUrl } from '@/lib/utils';
+import { authHeaders } from '@/lib/agent-auth';
 import type { AgentConnection } from './useAgentConnections';
 
 export interface UseSessionActionsReturn {
@@ -37,7 +38,7 @@ export function useSessionActions(agentConnections: AgentConnection[]): UseSessi
       try {
         const response = await fetch(
           buildApiUrl(machine.url, `/api/sessions/${encodeURIComponent(sessionName)}`),
-          { method: 'DELETE' }
+          { method: 'DELETE', headers: authHeaders(machine.authToken) }
         );
 
         if (response.ok) {
@@ -66,7 +67,7 @@ export function useSessionActions(agentConnections: AgentConnection[]): UseSessi
       try {
         const response = await fetch(
           buildApiUrl(machine.url, `/api/sessions/${encodeURIComponent(sessionName)}/archive`),
-          { method: 'POST' }
+          { method: 'POST', headers: authHeaders(machine.authToken) }
         );
 
         if (response.ok) {
@@ -94,7 +95,7 @@ export function useSessionActions(agentConnections: AgentConnection[]): UseSessi
       try {
         const response = await fetch(
           buildApiUrl(machine.url, `/api/sessions/${encodeURIComponent(sessionName)}/acknowledge`),
-          { method: 'POST' }
+          { method: 'POST', headers: authHeaders(machine.authToken) }
         );
         return response.ok;
       } catch (err) {

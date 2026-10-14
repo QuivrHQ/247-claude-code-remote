@@ -15,11 +15,14 @@ import {
   WS_ACTIVITY_PAUSE,
 } from '../constants';
 import { buildWebSocketUrl } from '@/lib/utils';
+import { authHeaders, wsSubprotocols } from '@/lib/agent-auth';
 import { terminalLogger } from '@/lib/logger';
 
 interface UseTerminalConnectionProps {
   terminalRef: React.RefObject<HTMLDivElement | null>;
   agentUrl: string;
+  /** Bearer token the agent requires (from the connection record). */
+  authToken?: string;
   project: string;
   sessionName: string;
   environmentId?: string;
@@ -34,6 +37,7 @@ interface UseTerminalConnectionProps {
 export function useTerminalConnection({
   terminalRef,
   agentUrl,
+  authToken,
   project,
   sessionName,
   environmentId,
@@ -368,7 +372,7 @@ export function useTerminalConnection({
       if (isNewSession) wsUrl += '&create=true';
       if (planningProjectId) wsUrl += `&planningProjectId=${encodeURIComponent(planningProjectId)}`;
 
-      ws = new WebSocket(wsUrl);
+      ws = new WebSocket(wsUrl, wsSubprotocols(authToken));
       wsRef.current = ws;
       const currentTerm = term;
       const currentWs = ws;
@@ -497,7 +501,7 @@ export function useTerminalConnection({
           );
           if (environmentId) newWsUrl += `&environment=${encodeURIComponent(environmentId)}`;
 
-          const newWs = new WebSocket(newWsUrl);
+          const newWs = new WebSocket(newWsUrl, wsSubprotocols(authToken));
           ws = newWs;
           wsRef.current = newWs;
           newWs.onopen = currentWs.onopen;
@@ -526,6 +530,7 @@ export function useTerminalConnection({
             hasAcknowledgedRef.current = true;
             fetch(`${agentUrl}/api/sessions/${sessionName}/acknowledge`, {
               method: 'POST',
+              headers: authHeaders(authToken),
             }).catch(console.error);
           }
         }
@@ -688,7 +693,7 @@ export function useTerminalConnection({
     // from deps - they are refs/callbacks that shouldn't cause reconnection
     // ralphConfig is intentionally excluded - it's only used on initial connection for new sessions
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [agentUrl, project, sessionName, environmentId, planningProjectId]);
+  }, [agentUrl, authToken, project, sessionName, environmentId, planningProjectId]);
 
   // Separate effect to handle isMobile changes dynamically
   // This updates font size without recreating the terminal (more efficient)

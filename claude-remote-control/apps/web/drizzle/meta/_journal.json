@@ -15,6 +15,13 @@
       "when": 1768845520488,
       "tag": "0001_complex_omega_flight",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1769558400000,
+      "tag": "0002_add_auth_token",
+      "breakpoints": true
     }
   ]
 }

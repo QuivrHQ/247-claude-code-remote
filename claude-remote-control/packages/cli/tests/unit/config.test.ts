@@ -20,11 +20,13 @@ vi.mock('fs', () => ({
   mkdirSync: vi.fn(),
   readdirSync: vi.fn(),
   unlinkSync: vi.fn(),
+  chmodSync: vi.fn(),
 }));
 
 // Mock crypto
 vi.mock('crypto', () => ({
   randomUUID: () => 'test-uuid-1234',
+  randomBytes: (size: number) => Buffer.alloc(size, 1),
 }));
 
 describe('CLI Config', () => {
@@ -119,8 +121,8 @@ describe('CLI Config', () => {
   });
 
   describe('saveConfig', () => {
-    it('writes config to file', async () => {
-      const { existsSync, writeFileSync } = await import('fs');
+    it('writes config to file with owner-only permissions', async () => {
+      const { existsSync, writeFileSync, chmodSync } = await import('fs');
       vi.mocked(existsSync).mockReturnValue(true);
 
       const { saveConfig } = await import('../../src/lib/config.js');
@@ -129,12 +131,13 @@ describe('CLI Config', () => {
       expect(writeFileSync).toHaveBeenCalledWith(
         '/mock/.247/config.json',
         JSON.stringify(validConfig, null, 2),
-        'utf-8'
+        { encoding: 'utf-8', mode: 0o600 }
       );
+      expect(chmodSync).toHaveBeenCalledWith('/mock/.247/config.json', 0o600);
     });
 
     it('creates profiles directory for named profile', async () => {
-      const { existsSync, writeFileSync, mkdirSync } = await import('fs');
+      const { existsSync, writeFileSync, mkdirSync, chmodSync } = await import('fs');
       vi.mocked(existsSync).mockReturnValue(false);
 
       const { saveConfig } = await import('../../src/lib/config.js');
@@ -144,8 +147,9 @@ describe('CLI Config', () => {
       expect(writeFileSync).toHaveBeenCalledWith(
         '/mock/.247/profiles/dev.json',
         JSON.stringify(validConfig, null, 2),
-        'utf-8'
+        { encoding: 'utf-8', mode: 0o600 }
       );
+      expect(chmodSync).toHaveBeenCalledWith('/mock/.247/profiles/dev.json', 0o600);
     });
   });
 

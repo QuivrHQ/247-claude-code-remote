@@ -2,5 +2,8 @@ claude-remote-control/apps/agent/environments.json
 .playwright-mcp/
 .claude/ralph-loop.local.md
 
+# OS files
+.DS_Store
+
 # Force track settings.local.json (overrides global gitignore)
 !.claude/settings.local.json
