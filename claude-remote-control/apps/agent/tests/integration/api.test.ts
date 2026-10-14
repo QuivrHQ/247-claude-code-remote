@@ -175,4 +175,81 @@ describe('Agent REST API', () => {
       expect(res.body.error).toBe('Invalid session name');
     });
   });
+
+  describe('POST /api/clone', () => {
+    it('rejects a missing URL', async () => {
+      const res = await request(server).post('/api/clone').send({});
+
+      expect(res.status).toBe(400);
+      expect(res.body.success).toBe(false);
+    });
+
+    it('rejects a URL with an invalid format', async () => {
+      const { spawn } = await import('child_process');
+      const res = await request(server)
+        .post('/api/clone')
+        .send({ url: 'ftp://example.com/repo.git' });
+
+      expect(res.status).toBe(400);
+      expect(res.body.success).toBe(false);
+      expect(spawn).not.toHaveBeenCalled();
+    });
+
+    it('rejects a path-traversal repo name from an scp-style URL', async () => {
+      const { spawn } = await import('child_process');
+      const res = await request(server).post('/api/clone').send({ url: 'git@host:user/../../x' });
+
+      expect(res.status).toBe(400);
+      expect(res.body.success).toBe(false);
+      // Validation must fail before git is ever spawned
+      expect(spawn).not.toHaveBeenCalled();
+    });
+
+    it('rejects a repo name starting with a dash (git option injection)', async () => {
+      const { spawn } = await import('child_process');
+      const res = await request(server).post('/api/clone').send({ url: 'git@host:-oProxyCommand' });
+
+      expect(res.status).toBe(400);
+      expect(res.body.success).toBe(false);
+      expect(spawn).not.toHaveBeenCalled();
+    });
+
+    it('rejects a repo name containing shell metacharacters', async () => {
+      const { spawn } = await import('child_process');
+      const res = await request(server)
+        .post('/api/clone')
+        .send({ url: 'git@host:user/x$(id).git' });
+
+      expect(res.status).toBe(400);
+      expect(res.body.success).toBe(false);
+      expect(spawn).not.toHaveBeenCalled();
+    });
+
+    it('clones a valid URL with a "--" separator before the argv', async () => {
+      const { spawn } = await import('child_process');
+      vi.mocked(spawn).mockImplementationOnce(() => {
+        const proc = new EventEmitter() as any;
+        proc.stdout = new EventEmitter();
+        proc.stderr = new EventEmitter();
+        proc.kill = vi.fn();
+        proc.pid = 12345;
+        // Emit close after the route has attached its handlers
+        setImmediate(() => proc.emit('close', 0));
+        return proc;
+      });
+
+      const res = await request(server)
+        .post('/api/clone')
+        .send({ url: 'https://github.com/user/myrepo.git' });
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(res.body.project).toBe('myrepo');
+      expect(spawn).toHaveBeenCalledWith(
+        'git',
+        ['clone', '--', 'https://github.com/user/myrepo.git', 'myrepo'],
+        expect.objectContaining({ cwd: '/tmp/test-projects' })
+      );
+    });
+  });
 });

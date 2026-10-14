@@ -124,6 +124,38 @@ describe('init-script', () => {
       expect(script).toContain('247');
     });
 
+    it('doubles # to ## in the tmux status-left project name (format injection)', async () => {
+      const { generateInitScript } = await import('../../src/lib/init-script.js');
+
+      const script = generateInitScript({
+        sessionName: 'test',
+        projectName: 'evil#(touch /tmp/pwned)',
+      });
+
+      const statusLeftLine = script.split('\n').find((line) => line.includes('status-left'));
+
+      expect(statusLeftLine).toBeDefined();
+      // '#' is doubled so tmux renders it literally instead of running #(...)
+      expect(statusLeftLine).toContain('evil##(touch /tmp/pwned)');
+      // The intentional tmux color directives we author stay single-'#'
+      expect(statusLeftLine).toContain('#[fg=#f97316,bold]');
+    });
+
+    it('does not double # outside tmux status strings', async () => {
+      const { generateInitScript } = await import('../../src/lib/init-script.js');
+
+      const script = generateInitScript({
+        sessionName: 'test',
+        projectName: 'proj#1',
+      });
+
+      // The project env export is a plain bash double-quoted string: '#' stays single
+      expect(script).toContain('export CLAUDE_PROJECT="proj#1"');
+      // The tmux status-left line, by contrast, doubles the '#'
+      const statusLeftLine = script.split('\n').find((line) => line.includes('status-left'));
+      expect(statusLeftLine).toContain('proj##1');
+    });
+
     it('includes welcome message with session info', async () => {
       const { generateInitScript } = await import('../../src/lib/init-script.js');
 

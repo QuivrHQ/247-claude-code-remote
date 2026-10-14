@@ -6,6 +6,28 @@ import { Router } from 'express';
 import { spawn } from 'child_process';
 import { config } from '../config.js';
 
+/**
+ * Validates a repository directory name derived from a client-supplied git URL.
+ *
+ * The name becomes both a path segment under the projects base directory and an
+ * argument to `git clone`, so it must not enable path traversal, escape the base
+ * directory, or inject extra git options. We reject empty names, the `.`/`..`
+ * specials, any name containing a path separator, names beginning with `-`
+ * (git option injection) or `.` (hidden/relative), names containing NUL or other
+ * control characters, and anything outside a conservative character set.
+ */
+function isValidRepoName(name: string): boolean {
+  if (!name) return false;
+  if (name === '.' || name === '..') return false;
+  if (name.includes('/') || name.includes('\\')) return false;
+  if (name.startsWith('-') || name.startsWith('.')) return false;
+  for (let i = 0; i < name.length; i++) {
+    const code = name.charCodeAt(i);
+    if (code <= 0x1f || code === 0x7f) return false; // NUL / control chars
+  }
+  return /^[A-Za-z0-9._-]+$/.test(name);
+}
+
 export function createProjectRoutes(): Router {
   const router = Router();
 
@@ -71,10 +93,26 @@ export function createProjectRoutes(): Router {
       return res.status(400).json({ success: false, error: 'Invalid URL format' });
     }
 
+    // Reject crafted repo names (path traversal, option injection, odd chars)
+    // before the value is used as a path segment and a `git clone` argument.
+    if (!isValidRepoName(repoName)) {
+      return res
+        .status(400)
+        .json({ success: false, error: 'Invalid repository name derived from URL' });
+    }
+
     const fs = await import('fs/promises');
     const path = await import('path');
     const basePath = config.projects.basePath.replace('~', process.env.HOME!);
-    const targetPath = path.join(basePath, repoName);
+    const resolvedBase = path.resolve(basePath);
+    const targetPath = path.join(resolvedBase, repoName);
+
+    // Defense in depth: the resolved target must stay inside the base directory.
+    if (targetPath !== resolvedBase && !targetPath.startsWith(resolvedBase + path.sep)) {
+      return res
+        .status(400)
+        .json({ success: false, error: 'Resolved clone path escapes the projects directory' });
+    }
 
     // Check if folder already exists
     try {
@@ -89,8 +127,8 @@ export function createProjectRoutes(): Router {
 
     // Clone the repository
     return new Promise<void>((resolve) => {
-      const gitProcess = spawn('git', ['clone', url, repoName], {
-        cwd: basePath,
+      const gitProcess = spawn('git', ['clone', '--', url, repoName], {
+        cwd: resolvedBase,
         env: process.env,
       });
 
