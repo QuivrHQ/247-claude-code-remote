@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import {
   countSessionsUnder,
+  countSessionsByMachine,
   fetchAgentFolders,
   joinFolderPath,
   matchesProjectFilter,
@@ -40,6 +41,34 @@ describe('matchesProjectFilter', () => {
   it('does not confuse a literal "__" in a folder name with a path separator', () => {
     expect(matchesProjectFilter('group__app', 'group')).toBe(false);
     expect(matchesProjectFilter('group/app', 'group__app')).toBe(false);
+  });
+});
+
+describe('countSessionsByMachine', () => {
+  it('groups counts per machine and project', () => {
+    const result = countSessionsByMachine([
+      { machineId: 'a', project: 'app' },
+      { machineId: 'a', project: 'app' },
+      { machineId: 'a', project: 'lib' },
+      { machineId: 'b', project: 'app' },
+    ]);
+    expect(result.a).toEqual({ app: 2, lib: 1 });
+    expect(result.b).toEqual({ app: 1 });
+  });
+
+  it('handles folder and machine names like __proto__ without polluting prototypes', () => {
+    const result = countSessionsByMachine([
+      { machineId: '__proto__', project: '__proto__' },
+      { machineId: '__proto__', project: '__proto__' },
+    ]);
+    // The reserved name is a real, countable key…
+    expect(result['__proto__']['__proto__']).toBe(2);
+    // …and nothing leaked onto Object.prototype.
+    expect(({} as Record<string, unknown>).__proto__).toBe(Object.prototype);
+  });
+
+  it('returns an empty grouping for no sessions', () => {
+    expect(Object.keys(countSessionsByMachine([]))).toEqual([]);
   });
 });
 

@@ -27,7 +27,7 @@ import { useSessionPolling, type SessionWithMachine } from '@/contexts/SessionPo
 // New layout components
 import { AppShell } from '@/components/layout';
 import type { SidebarMachine, SidebarProject } from '@/components/layout/Sidebar';
-import { matchesProjectFilter } from '@/lib/folders';
+import { countSessionsByMachine, matchesProjectFilter } from '@/lib/folders';
 import type { SessionListItem } from '@/components/layout/SessionListPanel';
 import type { SessionStatus } from '@/components/ui/status-indicator';
 
@@ -183,14 +183,7 @@ export function HomeContent() {
 
   // Per-machine session counts keyed by project path, for machine-scoped
   // folder badges in the sidebar.
-  const sessionCountsByMachine = useMemo(() => {
-    const counts: Record<string, Record<string, number>> = {};
-    allSessions.forEach((s) => {
-      const forMachine = (counts[s.machineId] ??= {});
-      forMachine[s.project] = (forMachine[s.project] ?? 0) + 1;
-    });
-    return counts;
-  }, [allSessions]);
+  const sessionCountsByMachine = useMemo(() => countSessionsByMachine(allSessions), [allSessions]);
 
   // Compute selectedSessionId for the new layout
   const selectedSessionId = selectedSession

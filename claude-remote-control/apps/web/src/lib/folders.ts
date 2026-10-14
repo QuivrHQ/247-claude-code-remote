@@ -10,6 +10,22 @@ export function matchesProjectFilter(project: string, folder: string): boolean {
   return project === folder || project.startsWith(`${folder}/`);
 }
 
+/**
+ * Session counts per project path, grouped by machine id. Uses null-prototype
+ * objects so folder/machine names like `__proto__` are ordinary keys and can
+ * never write through the prototype chain.
+ */
+export function countSessionsByMachine(
+  sessions: ReadonlyArray<{ machineId: string; project: string }>
+): Record<string, Record<string, number>> {
+  const byMachine: Record<string, Record<string, number>> = Object.create(null);
+  for (const { machineId, project } of sessions) {
+    const forMachine = (byMachine[machineId] ??= Object.create(null));
+    forMachine[project] = (forMachine[project] ?? 0) + 1;
+  }
+  return byMachine;
+}
+
 /** Total sessions for a folder, including everything nested under it. */
 export function countSessionsUnder(
   countsByProject: Readonly<Record<string, number>>,
