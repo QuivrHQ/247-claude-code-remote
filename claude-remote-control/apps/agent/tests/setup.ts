@@ -19,7 +19,10 @@ import { mkdtempSync, rmSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
 
-if (!process.env.AGENT_DB_PATH) {
+// Trim-aware so a whitespace-only AGENT_DB_PATH (which getDefaultDbPath() also
+// treats as unset and would resolve back to the real database) still gets a
+// throwaway temp file here.
+if (!process.env.AGENT_DB_PATH?.trim()) {
   const tempDir = mkdtempSync(join(tmpdir(), '247-agent-test-'));
   process.env.AGENT_DB_PATH = join(tempDir, 'agent.db');
 

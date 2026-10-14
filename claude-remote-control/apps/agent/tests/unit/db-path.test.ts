@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { join, resolve } from 'path';
+import { join, resolve, sep } from 'path';
 import { getDefaultDbPath } from '../../src/db/index.js';
 
 /**
@@ -20,7 +20,9 @@ describe('agent database path (hermetic test environment)', () => {
   it('resolves the default db path outside the real ~/.247 data directory', () => {
     const resolved = getDefaultDbPath();
     expect(resolved).not.toBe(realDbPath);
-    expect(resolved.startsWith(realDataDir)).toBe(false);
+    // Boundary-aware containment: reject paths inside realDataDir without
+    // rejecting safe siblings such as ~/.247/data-backup/agent.db.
+    expect(resolved === realDataDir || resolved.startsWith(realDataDir + sep)).toBe(false);
   });
 
   it('falls back to ~/.247/data/agent.db in production (no override)', () => {

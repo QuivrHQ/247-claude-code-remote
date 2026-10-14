@@ -3,9 +3,10 @@ import type { KnipConfig } from 'knip';
 const config: KnipConfig = {
   workspaces: {
     '.': {
-      // scripts/** are real entrypoints run via pnpm scripts (e.g. release),
-      // and they use root devDependencies such as chalk/ora.
-      entry: ['tests/**/*.test.ts', 'scripts/**/*.ts'],
+      // scripts/release/index.ts is the entrypoint of the root `release`
+      // script (`tsx scripts/release/index.ts`); its import graph covers the
+      // release helpers and root devDependencies such as chalk/ora.
+      entry: ['tests/**/*.test.ts', 'scripts/release/index.ts'],
       project: ['tests/**/*.ts'],
     },
     'apps/agent': {
