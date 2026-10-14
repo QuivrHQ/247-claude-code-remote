@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
+import { buildSessionName, isValidSessionLabel, sanitizeSessionLabel } from '247-shared';
 import { useSessionPolling } from '@/contexts/SessionPollingContext';
 import {
   useAgentConnections,
@@ -180,8 +181,11 @@ export function useHomeState() {
   );
 
   const handleStartSession = useCallback(
-    (machineId: string, project: string, environmentId?: string) => {
-      const newSessionName = `${project}--new`;
+    (machineId: string, project: string, environmentId?: string, sessionLabel?: string) => {
+      const label = sessionLabel ? sanitizeSessionLabel(sessionLabel) : '';
+      const newSessionName = isValidSessionLabel(label)
+        ? buildSessionName(project, label)
+        : `${project}--new`;
       setSelectedSession({
         machineId,
         sessionName: newSessionName,

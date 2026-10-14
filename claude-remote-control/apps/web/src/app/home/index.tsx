@@ -338,6 +338,7 @@ export function HomeContent() {
         open={newSessionOpen}
         onOpenChange={setNewSessionOpen}
         machines={machines}
+        existingSessions={allSessions}
         onStartSession={handleStartSession}
       />
 

@@ -11,6 +11,8 @@ import * as sessionsDb from './db/sessions.js';
 import type { WSMessageToAgent, WSSessionInfo, WSSessionsMessageFromAgent } from '247-shared';
 import { getAgentVersion, needsUpdate } from './version.js';
 import { triggerUpdate, isUpdateInProgress } from './updater.js';
+import { projectSlug } from '247-shared';
+import { resolveProjectPath } from './lib/project-path.js';
 
 // Connection tracking
 const activeConnections = new Map<string, Set<WebSocket>>();
@@ -21,7 +23,7 @@ let sessionCounter = 0;
 function generateSessionName(project: string): string {
   const timestamp = Date.now().toString(36);
   const counter = (sessionCounter++).toString(36);
-  return `${project}--${timestamp}${counter}`;
+  return `${projectSlug(project)}--${timestamp}${counter}`;
 }
 
 /**
@@ -107,15 +109,23 @@ export function handleTerminalConnection(ws: WebSocket, url: URL): void {
   const hasWhitelist = whitelist && whitelist.length > 0;
   // Allow empty string for root, but reject null/undefined
   const isRootTerminal = project === '';
-  const isAllowed = isRootTerminal || (hasWhitelist ? whitelist.includes(project!) : true);
+  // Nested projects (group/app) are whitelisted by their top-level folder
+  const topLevelProject = project ? project.split('/')[0] : '';
+  const isAllowed =
+    isRootTerminal || (hasWhitelist ? whitelist.includes(topLevelProject) : true);
   if (project === null || project === undefined || !isAllowed) {
     ws.close(1008, 'Project not allowed');
     return;
   }
 
-  // For root terminal, use basePath directly; otherwise append project name
+  // For root terminal, use basePath directly; otherwise resolve the project
+  // inside basePath (rejects traversal such as "../..")
   const basePath = config.projects.basePath.replace('~', process.env.HOME!);
-  const projectPath = isRootTerminal ? basePath : `${basePath}/${project}`;
+  const projectPath = isRootTerminal ? basePath : resolveProjectPath(basePath, project);
+  if (projectPath === null) {
+    ws.close(1008, 'Project not allowed');
+    return;
+  }
 
   console.log(`New terminal connection for project: ${project}`);
   console.log(`Project path: ${projectPath}`);

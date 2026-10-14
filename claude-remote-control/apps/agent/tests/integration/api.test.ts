@@ -126,6 +126,39 @@ describe('Agent REST API', () => {
       expect(res.status).toBe(200);
       expect(res.body).toEqual([...res.body].sort());
     });
+
+    it('lists subfolders of a nested path', async () => {
+      const fsPromises = await import('fs/promises');
+
+      const res = await request(server).get('/api/folders').query({ path: 'allowed-project/src' });
+
+      expect(res.status).toBe(200);
+      expect(fsPromises.readdir).toHaveBeenLastCalledWith(
+        '/tmp/test-projects/allowed-project/src',
+        { withFileTypes: true }
+      );
+      expect(res.body).not.toContain('.hidden');
+    });
+
+    it.each(['../etc', 'allowed-project/../../etc', '/etc', '.hidden', 'a\\b'])(
+      'rejects unsafe path %s',
+      async (unsafePath) => {
+        const res = await request(server).get('/api/folders').query({ path: unsafePath });
+
+        expect(res.status).toBe(400);
+      }
+    );
+
+    it('returns 404 when the folder does not exist', async () => {
+      const fsPromises = await import('fs/promises');
+      vi.mocked(fsPromises.readdir).mockRejectedValueOnce(
+        Object.assign(new Error('missing'), { code: 'ENOENT' })
+      );
+
+      const res = await request(server).get('/api/folders').query({ path: 'gone' });
+
+      expect(res.status).toBe(404);
+    });
   });
 
   describe('GET /api/sessions', () => {

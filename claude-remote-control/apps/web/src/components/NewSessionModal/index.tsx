@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Plus, Sparkles } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -11,6 +11,7 @@ import { SelectFolderTab } from './SelectFolderTab';
 import { TabSelector, TabType } from './TabSelector';
 import { CloneRepoTab } from './CloneRepoTab';
 import { TERMINAL_AT_ROOT } from './ProjectDropdown';
+import { resolveSessionLabel } from './sessionLabel';
 
 interface Machine {
   id: string;
@@ -26,17 +27,28 @@ interface NewSessionModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   machines: Machine[];
-  onStartSession: (machineId: string, project: string, environmentId?: string) => void;
+  /** Sessions that already exist, used to reject duplicate custom names. */
+  existingSessions?: ReadonlyArray<{ name: string; machineId: string }>;
+  onStartSession: (
+    machineId: string,
+    project: string,
+    environmentId?: string,
+    sessionLabel?: string
+  ) => void;
 }
+
+const NO_SESSIONS: NonNullable<NewSessionModalProps['existingSessions']> = [];
 
 export function NewSessionModal({
   open,
   onOpenChange,
   machines,
+  existingSessions = NO_SESSIONS,
   onStartSession,
 }: NewSessionModalProps) {
   const [selectedMachine, setSelectedMachine] = useState<Machine | null>(null);
   const [activeTab, setActiveTab] = useState<TabType>('existing');
+  const [sessionLabel, setSessionLabel] = useState('');
 
   // Custom hooks
   const { folders, selectedProject, setSelectedProject, loadingFolders, addFolder } =
@@ -48,18 +60,35 @@ export function NewSessionModal({
     if (!open) {
       setSelectedMachine(null);
       setActiveTab('existing');
+      setSessionLabel('');
       clearError();
     }
   }, [open, clearError]);
 
+  // Pass empty string for root, otherwise pass the project name
+  const projectName = selectedProject === TERMINAL_AT_ROOT ? '' : selectedProject;
+
+  const takenSessionNames = useMemo(
+    () =>
+      new Set(
+        existingSessions.filter((s) => s.machineId === selectedMachine?.id).map((s) => s.name)
+      ),
+    [existingSessions, selectedMachine]
+  );
+
+  const labelState = useMemo(
+    () => resolveSessionLabel(sessionLabel, projectName, takenSessionNames),
+    [sessionLabel, projectName, takenSessionNames]
+  );
+
+  const canStart = Boolean(selectedMachine && selectedProject) && labelState.status !== 'invalid';
+
   const handleStartSession = useCallback(() => {
-    if (selectedMachine && selectedProject) {
-      // Pass empty string for root, otherwise pass the project name
-      const project = selectedProject === TERMINAL_AT_ROOT ? '' : selectedProject;
-      onStartSession(selectedMachine.id, project);
-      onOpenChange(false);
-    }
-  }, [selectedMachine, selectedProject, onStartSession, onOpenChange]);
+    if (!selectedMachine || !selectedProject || labelState.status === 'invalid') return;
+    const label = labelState.status === 'valid' ? labelState.label : undefined;
+    onStartSession(selectedMachine.id, projectName, undefined, label);
+    onOpenChange(false);
+  }, [selectedMachine, selectedProject, labelState, projectName, onStartSession, onOpenChange]);
 
   // Keyboard shortcuts
   const handleKeyDown = useCallback(
@@ -68,11 +97,11 @@ export function NewSessionModal({
         onOpenChange(false);
       }
       // Only handle Enter on existing tab (clone tab has its own Enter handler)
-      if (e.key === 'Enter' && activeTab === 'existing' && selectedMachine && selectedProject) {
+      if (e.key === 'Enter' && activeTab === 'existing' && canStart) {
         handleStartSession();
       }
     },
-    [onOpenChange, activeTab, selectedMachine, selectedProject, handleStartSession]
+    [onOpenChange, activeTab, canStart, handleStartSession]
   );
 
   useEffect(() => {
@@ -167,6 +196,9 @@ export function NewSessionModal({
                       selectedProject={selectedProject}
                       onSelectProject={setSelectedProject}
                       loadingFolders={loadingFolders}
+                      sessionLabel={sessionLabel}
+                      onSessionLabelChange={setSessionLabel}
+                      labelState={labelState}
                     />
                   ) : (
                     <CloneRepoTab onClone={handleClone} loading={cloning} error={cloneError} />
@@ -187,11 +219,11 @@ export function NewSessionModal({
                 </p>
                 <button
                   onClick={handleStartSession}
-                  disabled={!selectedMachine || !selectedProject}
+                  disabled={!canStart}
                   className={cn(
                     'touch-manipulation active:scale-[0.98]',
                     'flex items-center gap-2 rounded-xl px-5 py-2.5 font-medium transition-all',
-                    selectedMachine && selectedProject
+                    canStart
                       ? 'bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-lg shadow-orange-500/25 hover:from-orange-400 hover:to-amber-400'
                       : 'cursor-not-allowed bg-white/5 text-white/30'
                   )}
