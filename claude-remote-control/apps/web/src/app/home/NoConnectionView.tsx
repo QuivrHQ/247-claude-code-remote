@@ -24,7 +24,7 @@ import {
   type saveAgentConnection,
 } from '@/components/AgentConnectionSettings';
 import { InstallationGuide } from '@/components/InstallationGuide';
-import { authClient } from '@/lib/auth-client';
+import { authClient, getAuthSession } from '@/lib/auth-client';
 import { AnimatePresence } from 'framer-motion';
 
 interface NoConnectionViewProps {
@@ -154,7 +154,7 @@ function AuthButton() {
   useEffect(() => {
     const fetchUser = async () => {
       try {
-        const session = await authClient.getSession();
+        const session = await getAuthSession();
         if (session?.data?.user) {
           setUser({
             name: session.data.user.name,
@@ -530,7 +530,7 @@ export function NoConnectionView({
   useEffect(() => {
     const checkAuth = async () => {
       try {
-        const session = await authClient.getSession();
+        const session = await getAuthSession();
         setIsAuthenticated(!!session?.data?.user);
       } catch {
         setIsAuthenticated(false);

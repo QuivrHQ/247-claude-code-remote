@@ -16,7 +16,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { spring } from '@/lib/animations';
-import { authClient } from '@/lib/auth-client';
+import { authClient, getAuthSession } from '@/lib/auth-client';
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Types
@@ -52,7 +52,7 @@ function UserMenu({ onOpenNotificationSettings }: UserMenuProps) {
   useEffect(() => {
     const fetchUser = async () => {
       try {
-        const session = await authClient.getSession();
+        const session = await getAuthSession();
         if (session?.data?.user) {
           const name = session.data.user.name || '';
           const email = session.data.user.email || '';
