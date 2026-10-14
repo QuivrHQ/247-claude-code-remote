@@ -33,6 +33,8 @@ vi.mock('fs/promises', () => ({
   ]),
   access: vi.fn().mockRejectedValue(new Error('ENOENT')),
   rm: vi.fn().mockResolvedValue(undefined),
+  // Default: no symlinks — realpath is the identity, so targets stay in-root.
+  realpath: vi.fn(async (p: string) => p),
 }));
 
 // Mock child_process
@@ -154,10 +156,25 @@ describe('Agent REST API', () => {
       vi.mocked(fsPromises.readdir).mockRejectedValueOnce(
         Object.assign(new Error('missing'), { code: 'ENOENT' })
       );
+      vi.mocked(fsPromises.realpath).mockRejectedValueOnce(
+        Object.assign(new Error('missing'), { code: 'ENOENT' })
+      );
 
       const res = await request(server).get('/api/folders').query({ path: 'gone' });
 
       expect(res.status).toBe(404);
+    });
+
+    it('rejects a path whose symlink target escapes the base path', async () => {
+      const fsPromises = await import('fs/promises');
+      // basePath realpath is the identity; the nested target resolves outside it.
+      vi.mocked(fsPromises.realpath).mockImplementation(async (p) =>
+        String(p).endsWith('/link') ? '/etc/secret' : String(p)
+      );
+
+      const res = await request(server).get('/api/folders').query({ path: 'allowed-project/link' });
+
+      expect(res.status).toBe(400);
     });
   });
 

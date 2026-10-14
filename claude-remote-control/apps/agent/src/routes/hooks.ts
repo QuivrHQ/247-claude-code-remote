@@ -11,6 +11,7 @@ import type {
   StatusSource,
 } from '247-shared';
 import * as sessionsDb from '../db/sessions.js';
+import { sessionProject } from '../lib/project-path.js';
 import { broadcastStatusUpdate } from '../websocket-handlers.js';
 import { loadConfig } from '../config.js';
 
@@ -119,8 +120,8 @@ export function createHooksRoutes(): Router {
 
       if (!session) {
         // Session doesn't exist in DB yet - create it
-        // Extract project from session name (format: project--timestamp)
-        const [project] = sessionName.split('--');
+        // Extract project from session name (format: <project slug>--<label>)
+        const project = sessionProject(sessionName, null);
         session = sessionsDb.upsertSession(sessionName, {
           project,
           status: notification.status,

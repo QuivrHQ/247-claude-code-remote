@@ -1,5 +1,6 @@
 'use client';
 
+import { MAX_SESSION_LABEL_LENGTH } from '247-shared';
 import { cn } from '@/lib/utils';
 import { ProjectDropdown } from './ProjectDropdown';
 import type { SessionLabelState } from './sessionLabel';
@@ -52,7 +53,7 @@ export function SelectFolderTab({
           value={sessionLabel}
           onChange={(e) => onSessionLabelChange(e.target.value)}
           placeholder="e.g. api-refactor"
-          maxLength={80}
+          maxLength={MAX_SESSION_LABEL_LENGTH}
           autoComplete="off"
           aria-invalid={invalid}
           aria-describedby="session-name-hint"

@@ -12,7 +12,7 @@ import type { WSMessageToAgent, WSSessionInfo, WSSessionsMessageFromAgent } from
 import { getAgentVersion, needsUpdate } from './version.js';
 import { triggerUpdate, isUpdateInProgress } from './updater.js';
 import { projectSlug } from '247-shared';
-import { resolveProjectPath, sessionProject } from './lib/project-path.js';
+import { resolveProjectPath, resolveRealProjectPath, sessionProject } from './lib/project-path.js';
 
 // Connection tracking
 const activeConnections = new Map<string, Set<WebSocket>>();
@@ -154,11 +154,29 @@ export function handleTerminalConnection(ws: WebSocket, url: URL): void {
 
   // Async initialization
   (async () => {
-    const fs = await import('fs');
-    if (!fs.existsSync(projectPath)) {
-      console.error(`Path does not exist: ${projectPath}`);
-      ws.close(1008, 'Project path not found');
-      return;
+    // Verify the project directory exists and, for nested projects, that no
+    // symlink under basePath points the terminal outside the configured root.
+    if (isRootTerminal) {
+      const fs = await import('fs');
+      if (!fs.existsSync(projectPath)) {
+        console.error(`Path does not exist: ${projectPath}`);
+        ws.close(1008, 'Project path not found');
+        return;
+      }
+    } else {
+      // Rejects a missing directory (realpath throws) or one a symlink points
+      // outside basePath (returns null).
+      let realProjectPath: string | null = null;
+      try {
+        realProjectPath = await resolveRealProjectPath(basePath, project);
+      } catch {
+        realProjectPath = null;
+      }
+      if (realProjectPath === null) {
+        console.error(`Path missing or outside base path: ${projectPath}`);
+        ws.close(1008, 'Project path not found');
+        return;
+      }
     }
 
     // Check if session exists before attempting to create/connect
@@ -170,6 +188,16 @@ export function handleTerminalConnection(ws: WebSocket, url: URL): void {
         `[Terminal] Session '${sessionName}' not found and create flag not set, rejecting connection`
       );
       ws.close(4001, 'Session not found');
+      return;
+    }
+
+    // Creating a new session whose name already exists would silently attach to
+    // the existing tmux session (a different project/folder). Reject instead so
+    // a duplicate name never hijacks an unrelated session. Reconnects don't set
+    // the create flag, so this only blocks genuine create collisions.
+    if (sessionExists && createFlag) {
+      console.log(`[Terminal] Session '${sessionName}' already exists, rejecting create`);
+      ws.close(4002, 'Session already exists');
       return;
     }
 

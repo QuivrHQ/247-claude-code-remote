@@ -3,12 +3,7 @@
 import { useCallback } from 'react';
 import { ChevronRight, Folder, FolderOpen, Loader2, Plus } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import {
-  countSessionsUnder,
-  fetchAgentFolders,
-  isSameProject,
-  joinFolderPath,
-} from '@/lib/folders';
+import { countSessionsUnder, fetchAgentFolders, joinFolderPath } from '@/lib/folders';
 import { useFolderTree, type UseFolderTreeReturn } from '@/hooks/useFolderTree';
 
 interface FolderTreeProps {
@@ -82,7 +77,7 @@ function FolderList({
       {node.children.map((name) => {
         const path = joinFolderPath(parentPath, name);
         const isExpanded = tree.expanded.has(path);
-        const isSelected = selectedPath != null && isSameProject(selectedPath, path);
+        const isSelected = selectedPath === path;
         const sessionCount = countSessionsUnder(sessionCounts, path);
         const FolderIcon = isExpanded ? FolderOpen : Folder;
 

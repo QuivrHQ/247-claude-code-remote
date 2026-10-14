@@ -2,7 +2,6 @@ import { describe, it, expect, vi, afterEach } from 'vitest';
 import {
   countSessionsUnder,
   fetchAgentFolders,
-  isSameProject,
   joinFolderPath,
   matchesProjectFilter,
 } from '@/lib/folders';
@@ -34,24 +33,13 @@ describe('matchesProjectFilter', () => {
     expect(matchesProjectFilter('other', 'group')).toBe(false);
   });
 
-  it('matches the flattened slug form used in session names', () => {
-    expect(matchesProjectFilter('group__app', 'group')).toBe(true);
-    expect(matchesProjectFilter('group__app', 'group/app')).toBe(true);
-    expect(matchesProjectFilter('group__app__api', 'group/app')).toBe(true);
-  });
-
   it('does not match a different nested folder', () => {
-    expect(matchesProjectFilter('group__app', 'group/lib')).toBe(false);
-  });
-});
-
-describe('isSameProject', () => {
-  it('treats the path and slug of one folder as equal', () => {
-    expect(isSameProject('group/app', 'group__app')).toBe(true);
+    expect(matchesProjectFilter('group/app', 'group/lib')).toBe(false);
   });
 
-  it('distinguishes a folder from its parent', () => {
-    expect(isSameProject('group/app', 'group')).toBe(false);
+  it('does not confuse a literal "__" in a folder name with a path separator', () => {
+    expect(matchesProjectFilter('group__app', 'group')).toBe(false);
+    expect(matchesProjectFilter('group/app', 'group__app')).toBe(false);
   });
 });
 

@@ -305,12 +305,15 @@ export function useHomeState() {
 
   const getAgentUrl = useCallback(() => {
     if (!selectedSession) return '';
-    // Only the auto-seeded local agent may stand in for an unknown machine id;
-    // falling back to an arbitrary connection could route the terminal to the
-    // wrong host.
+    // Only the legacy default machine id maps onto the seeded local agent; any
+    // other unknown id (e.g. a stale link to a removed remote machine) stays
+    // unresolved instead of routing the terminal to the wrong host.
+    const { machineId } = selectedSession;
     const connection =
-      agentConnections.find((c) => c.id === selectedSession.machineId) ??
-      agentConnections.find((c) => c.id === LOCAL_DEFAULT_ID);
+      agentConnections.find((c) => c.id === machineId) ??
+      (machineId === DEFAULT_MACHINE_ID
+        ? agentConnections.find((c) => c.id === LOCAL_DEFAULT_ID)
+        : undefined);
     return connection?.url || '';
   }, [selectedSession, agentConnections]);
 

@@ -59,7 +59,8 @@ function Confetti() {
 function ConnectContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
-  const { addConnection } = useAgentConnections();
+  // The paired agent is this page's first connection; don't seed a default one next to it.
+  const { addConnection } = useAgentConnections({ seedDefault: false });
 
   const [status, setStatus] = useState<'loading' | 'ready' | 'connecting' | 'success' | 'error'>(
     'loading'

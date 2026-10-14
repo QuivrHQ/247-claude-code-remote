@@ -24,11 +24,13 @@ import {
   parseHostPort,
   getLocalAgentHost,
 } from '@/lib/utils';
+import { CONNECTIONS_STORAGE_KEY } from '@/lib/connection-storage';
 
 // Old storage key (for migration)
 const OLD_STORAGE_KEY = 'agentConnection';
-// New storage key for multiple connections
-const STORAGE_KEY = 'agentConnections';
+// Storage key for multiple connections, shared with useAgentConnections so the
+// dashboard and this modal always read and write the same list
+const STORAGE_KEY = CONNECTIONS_STORAGE_KEY;
 
 // Legacy single connection type (kept for migration, now extended for cloud)
 export interface AgentConnection {

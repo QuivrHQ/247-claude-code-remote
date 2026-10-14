@@ -3,25 +3,27 @@ import { renderHook, act, waitFor } from '@testing-library/react';
 import { useAgentConnections, LOCAL_DEFAULT_ID } from '@/hooks/useAgentConnections';
 
 const STORAGE_KEY = '247-local-connections';
+const LEGACY_LIST_KEY = 'agentConnections';
+const LEGACY_SINGLE_KEY = 'agentConnection';
 
 function storedConnections(): Array<{ id: string; url: string; name: string }> {
   return JSON.parse(window.localStorage.getItem(STORAGE_KEY) ?? 'null');
 }
 
-async function renderLoaded() {
-  const hook = renderHook(() => useAgentConnections());
+async function renderLoaded(options?: { seedDefault?: boolean }) {
+  const hook = renderHook(() => useAgentConnections(options));
   await waitFor(() => expect(hook.result.current.loading).toBe(false));
   return hook;
 }
 
 describe('useAgentConnections', () => {
   beforeEach(() => {
-    window.localStorage.removeItem(STORAGE_KEY);
+    window.localStorage.clear();
   });
 
   afterEach(() => {
     vi.unstubAllGlobals();
-    window.localStorage.removeItem(STORAGE_KEY);
+    window.localStorage.clear();
   });
 
   describe('first-run seeding', () => {
@@ -55,6 +57,60 @@ describe('useAgentConnections', () => {
 
       expect(result.current.connections).toHaveLength(1);
       expect(result.current.connections[0].id).toBe(LOCAL_DEFAULT_ID);
+    });
+
+    it('does not seed when seedDefault is false', async () => {
+      const { result } = await renderLoaded({ seedDefault: false });
+
+      expect(result.current.connections).toEqual([]);
+      expect(window.localStorage.getItem(STORAGE_KEY)).toBeNull();
+    });
+  });
+
+  describe('legacy migration', () => {
+    it('adopts an existing agentConnections list on first run', async () => {
+      window.localStorage.setItem(
+        LEGACY_LIST_KEY,
+        JSON.stringify([
+          { id: 'legacy-1', url: 'mac.example.com:4678', name: 'Mac', method: 'custom' },
+        ])
+      );
+
+      const { result } = await renderLoaded();
+
+      expect(result.current.connections).toHaveLength(1);
+      expect(result.current.connections[0]).toMatchObject({
+        id: 'legacy-1',
+        url: 'mac.example.com:4678',
+      });
+      expect(storedConnections().map((c) => c.id)).toEqual(['legacy-1']);
+    });
+
+    it('migrates the single-connection agentConnection key', async () => {
+      window.localStorage.setItem(
+        LEGACY_SINGLE_KEY,
+        JSON.stringify({ url: 'host.example.com:4678', name: 'Old', method: 'tailscale' })
+      );
+
+      const { result } = await renderLoaded();
+
+      expect(result.current.connections).toHaveLength(1);
+      expect(result.current.connections[0]).toMatchObject({
+        url: 'host.example.com:4678',
+        name: 'Old',
+        method: 'tailscale',
+      });
+    });
+
+    it('prefers migration over seeding the default agent', async () => {
+      window.localStorage.setItem(
+        LEGACY_LIST_KEY,
+        JSON.stringify([{ id: 'legacy-1', url: 'mac.example.com:4678', name: 'Mac' }])
+      );
+
+      const { result } = await renderLoaded();
+
+      expect(result.current.connections.map((c) => c.id)).toEqual(['legacy-1']);
     });
   });
 

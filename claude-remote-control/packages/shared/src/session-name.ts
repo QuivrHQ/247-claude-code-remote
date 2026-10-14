@@ -1,4 +1,4 @@
-import { projectSlug } from './project-path.js';
+import { decodeProjectSlug, projectSlug } from './project-path.js';
 
 /** Separates the project from the user-facing label in a session name. */
 export const SESSION_NAME_SEPARATOR = '--';
@@ -74,9 +74,19 @@ export function isValidSessionLabel(label: string): boolean {
 }
 
 /**
+ * Recover the project from a session name. The project is everything before
+ * the last `--` separator (labels never contain `--`), decoded from its slug.
+ */
+export function projectFromSessionName(sessionName: string): string {
+  const separatorIndex = sessionName.lastIndexOf(SESSION_NAME_SEPARATOR);
+  const slug = separatorIndex === -1 ? sessionName : sessionName.slice(0, separatorIndex);
+  return decodeProjectSlug(slug);
+}
+
+/**
  * Build the tmux session name for a project and an already-sanitized label.
- * Nested projects are flattened (`group/app` → `group__app`) because `/` is
- * not valid in a tmux session name.
+ * The project is slug-encoded (see `projectSlug`) so the name only contains
+ * letters, digits, `_` and `-`, and distinct projects never collide.
  */
 export function buildSessionName(project: string, label: string): string {
   return `${projectSlug(project) || 'root'}${SESSION_NAME_SEPARATOR}${label}`;

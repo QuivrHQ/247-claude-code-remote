@@ -3,6 +3,7 @@ import {
   MAX_SESSION_LABEL_LENGTH,
   buildSessionName,
   isValidSessionLabel,
+  projectFromSessionName,
   sanitizeSessionLabel,
 } from '../src/session-name.js';
 
@@ -66,6 +67,31 @@ describe('isValidSessionLabel', () => {
   });
 });
 
+describe('projectFromSessionName', () => {
+  it('recovers a top-level project', () => {
+    expect(projectFromSessionName('my-app--brave-lion-42')).toBe('my-app');
+  });
+
+  it('recovers a nested project from its slug', () => {
+    expect(projectFromSessionName('group__app--api')).toBe('group/app');
+  });
+
+  it('splits at the last separator so projects containing "--" survive', () => {
+    expect(projectFromSessionName(buildSessionName('my--app', 'calm-fox-1'))).toBe('my--app');
+    expect(projectFromSessionName('my--app--calm-fox-1')).toBe('my--app');
+  });
+
+  it('round-trips names built from awkward projects', () => {
+    for (const project of ['my app', 'my.app', 'Идеи/Проект', 'a_b/c-d']) {
+      expect(projectFromSessionName(buildSessionName(project, 'work'))).toBe(project);
+    }
+  });
+
+  it('treats a name without a separator as the project itself', () => {
+    expect(projectFromSessionName('scratch')).toBe('scratch');
+  });
+});
+
 describe('buildSessionName', () => {
   it('joins project and label with the session separator', () => {
     expect(buildSessionName('my-app', 'api-refactor')).toBe('my-app--api-refactor');
@@ -77,5 +103,14 @@ describe('buildSessionName', () => {
 
   it('flattens nested project paths so the name stays tmux-safe', () => {
     expect(buildSessionName('group/app', 'api')).toBe('group__app--api');
+  });
+
+  it('escapes spaces, dots and shell metacharacters in the project', () => {
+    expect(buildSessionName('my app', 'api')).toBe('my_20app--api');
+    expect(buildSessionName('a"$(x)', 'api')).toMatch(/^[A-Za-z0-9_-]+$/);
+  });
+
+  it('keeps nested projects and similarly named flat folders apart', () => {
+    expect(buildSessionName('group/app', 'work')).not.toBe(buildSessionName('group__app', 'work'));
   });
 });

@@ -20,6 +20,15 @@ describe('sessionProject', () => {
   it('treats the "unknown" placeholder as not stored', () => {
     expect(sessionProject('my-app--calm-fox-1', 'unknown')).toBe('my-app');
   });
+
+  it('decodes nested and awkward projects from the name when nothing is stored', () => {
+    expect(sessionProject('AI__Project__app--calm-fox-1', null)).toBe('AI/Project/app');
+    expect(sessionProject('my_20app--calm-fox-1', null)).toBe('my app');
+  });
+
+  it('keeps projects containing "--" intact by splitting at the last separator', () => {
+    expect(sessionProject('my--app--calm-fox-1', null)).toBe('my--app');
+  });
 });
 
 describe('resolveProjectPath', () => {
@@ -33,6 +42,12 @@ describe('resolveProjectPath', () => {
 
   it('tolerates a trailing slash on the base path', () => {
     expect(resolveProjectPath(`${BASE}/`, 'app')).toBe('/tmp/test-projects/app');
+  });
+
+  it('works when the base path is the filesystem root', () => {
+    expect(resolveProjectPath('/', 'srv')).toBe('/srv');
+    expect(resolveProjectPath('/', 'srv/app')).toBe('/srv/app');
+    expect(resolveProjectPath('/', '../etc')).toBeNull();
   });
 
   it.each([

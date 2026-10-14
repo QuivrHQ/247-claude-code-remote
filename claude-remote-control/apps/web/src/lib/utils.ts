@@ -23,11 +23,12 @@ export function stripProtocol(url: string): string {
 export function isPlaintextHost(cleanUrl: string): boolean {
   const { host } = parseHostPort(cleanUrl);
   if (host === 'localhost' || host.endsWith('.localhost') || host.endsWith('.local')) return true;
-  if (host === '::1' || isPrivateIPv6(host)) return true;
-  const octets = parseIPv4(host);
-  if (!octets) return false;
-  const [a, b] = octets;
-  return a === 127 || a === 10 || (a === 192 && b === 168) || (a === 172 && b >= 16 && b <= 31);
+
+  const ipv6 = parseIPv6(host);
+  if (ipv6) return isPrivateIPv6(ipv6);
+
+  const ipv4 = parseIPv4(host);
+  return ipv4 !== null && isPrivateIPv4(ipv4);
 }
 
 /**
@@ -54,11 +55,61 @@ export function parseHostPort(cleanUrl: string): { host: string; port: string } 
   return { host: authority.slice(0, colon).toLowerCase(), port: authority.slice(colon + 1) };
 }
 
-// Unique-local (fc00::/7) and link-local (fe80::/10) literals. Only a full
-// four-digit first group can fall in these ranges; the trailing colon rules
-// out DNS names such as `fdab.example.com`.
-function isPrivateIPv6(host: string): boolean {
-  return /^f[cd][0-9a-f]{2}:/.test(host) || /^fe[89ab][0-9a-f]:/.test(host);
+function isPrivateIPv4(octets: readonly number[]): boolean {
+  const [a, b] = octets;
+  return a === 127 || a === 10 || (a === 192 && b === 168) || (a === 172 && b >= 16 && b <= 31);
+}
+
+function parseIPv6Groups(part: string): number[] | null {
+  if (part === '') return [];
+  const groups = part.split(':');
+  if (groups.some((group) => !/^[0-9a-f]{1,4}$/.test(group))) return null;
+  return groups.map((group) => parseInt(group, 16));
+}
+
+/**
+ * Expand a textual IPv6 address (any compression, optional zone id and
+ * embedded IPv4 tail) into its 8 16-bit groups, or null when it is not one.
+ */
+function parseIPv6(host: string): number[] | null {
+  const address = host.split('%')[0];
+  if (!address.includes(':')) return null;
+
+  let text = address;
+  const embeddedIPv4 = /\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.exec(address);
+  if (embeddedIPv4) {
+    const octets = parseIPv4(embeddedIPv4[0]);
+    if (!octets) return null;
+    const high = ((octets[0] << 8) | octets[1]).toString(16);
+    const low = ((octets[2] << 8) | octets[3]).toString(16);
+    text = `${address.slice(0, -embeddedIPv4[0].length)}${high}:${low}`;
+  }
+
+  const halves = text.split('::');
+  if (halves.length > 2) return null;
+
+  const head = parseIPv6Groups(halves[0]);
+  if (!head) return null;
+  if (halves.length === 1) return head.length === 8 ? head : null;
+
+  const tail = parseIPv6Groups(halves[1]);
+  if (!tail) return null;
+  const missing = 8 - head.length - tail.length;
+  return missing >= 1 ? [...head, ...new Array<number>(missing).fill(0), ...tail] : null;
+}
+
+// Loopback (::1), unique-local (fc00::/7), link-local (fe80::/10) and
+// IPv4-mapped addresses (::ffff:a.b.c.d) that map to a private IPv4 range.
+function isPrivateIPv6(groups: readonly number[]): boolean {
+  const isMappedIPv4 = groups.slice(0, 5).every((group) => group === 0) && groups[5] === 0xffff;
+  if (isMappedIPv4) {
+    return isPrivateIPv4([groups[6] >> 8, groups[6] & 0xff, groups[7] >> 8, groups[7] & 0xff]);
+  }
+
+  const isLoopback = groups.slice(0, 7).every((group) => group === 0) && groups[7] === 1;
+  const isUniqueLocal = (groups[0] & 0xfe00) === 0xfc00;
+  const isLinkLocal = (groups[0] & 0xffc0) === 0xfe80;
+  return isLoopback || isUniqueLocal || isLinkLocal;
 }
 
 function parseIPv4(host: string): number[] | null {
@@ -69,14 +120,16 @@ function parseIPv4(host: string): number[] | null {
 }
 
 /**
- * Hostname the dashboard is served from. A "local" agent runs on the same
- * host, so this is what the local-agent URL and its field label should show.
+ * Host of the "same computer" agent. A self-hosted dashboard (localhost, a LAN
+ * address or a `.local` name) runs next to its agent, so the agent lives on the
+ * dashboard's own host. A dashboard served from a public hostname is only a
+ * web UI: the agent runs on the browser's machine, reached via `localhost`.
  */
 export function getLocalAgentHost(): string {
-  if (typeof window !== 'undefined' && window.location.hostname) {
-    return window.location.hostname;
-  }
-  return 'localhost';
+  if (typeof window === 'undefined') return 'localhost';
+
+  const { hostname } = window.location;
+  return hostname && isPlaintextHost(hostname) ? hostname : 'localhost';
 }
 
 /**

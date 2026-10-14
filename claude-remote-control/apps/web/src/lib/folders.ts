@@ -1,4 +1,3 @@
-import { projectSlug } from '247-shared';
 import { buildApiUrl } from '@/lib/utils';
 
 /** Join a parent folder path and a child name (`''` is the base folder). */
@@ -6,20 +5,9 @@ export function joinFolderPath(parent: string, name: string): string {
   return parent === '' ? name : `${parent}/${name}`;
 }
 
-/** True when two project references point at the same folder (path or slug form). */
-export function isSameProject(a: string, b: string): boolean {
-  return projectSlug(a) === projectSlug(b);
-}
-
-/**
- * True when `project` is the filtered folder or lives somewhere below it.
- * Compares slugs because sessions created by hooks only know the flattened
- * name prefix (`group__app`), not the real path (`group/app`).
- */
+/** True when `project` is the filtered folder or lives somewhere below it. */
 export function matchesProjectFilter(project: string, folder: string): boolean {
-  const slug = projectSlug(project);
-  const folderSlug = projectSlug(folder);
-  return slug === folderSlug || slug.startsWith(`${folderSlug}__`);
+  return project === folder || project.startsWith(`${folder}/`);
 }
 
 /** Total sessions for a folder, including everything nested under it. */

@@ -399,7 +399,7 @@ function ProjectItem({ project, collapsed, selected, onClick }: ProjectItemProps
           selected ? 'font-medium text-white' : 'text-white/70'
         )}
       >
-        {project.name.split('__').join(' / ')}
+        {project.name}
       </span>
       {project.activeSessionCount > 0 && (
         <span className="rounded bg-white/5 px-1.5 py-0.5 text-xs text-white/40">

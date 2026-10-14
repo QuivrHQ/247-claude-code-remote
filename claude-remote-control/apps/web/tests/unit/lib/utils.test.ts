@@ -3,7 +3,7 @@
  *
  * Tests for utility functions used across the application.
  */
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import {
   cn,
   stripProtocol,
@@ -65,6 +65,12 @@ describe('Utils', () => {
       '[FD12:3456:789a::1]:4678',
       '[fe80::1]:4678',
       '[febf::1]',
+      '[0:0:0:0:0:0:0:1]:4678',
+      '[0000:0000:0000:0000:0000:0000:0000:0001]',
+      '[::0001]',
+      'fe80::1%en0',
+      '[::ffff:192.168.1.5]:4678',
+      '[::ffff:7f00:1]',
     ])('treats %s as plaintext', (host) => {
       expect(isPlaintextHost(host)).toBe(true);
     });
@@ -85,6 +91,12 @@ describe('Utils', () => {
       '[fe::1]',
       'fdab.example.com:4678',
       'fe80.example.com',
+      '[::]',
+      '[::2]',
+      '[::ffff:8.8.8.8]',
+      '[1:2:3:4:5:6:7:8:9]',
+      '[1::2::3]',
+      '[gggg::1]',
     ])('treats %s as TLS', (host) => {
       expect(isPlaintextHost(host)).toBe(false);
     });
@@ -109,8 +121,33 @@ describe('Utils', () => {
   });
 
   describe('getLocalAgentHost', () => {
-    it('returns the hostname the dashboard is served from', () => {
-      expect(getLocalAgentHost()).toBe(window.location.hostname || 'localhost');
+    afterEach(() => {
+      vi.unstubAllGlobals();
+    });
+
+    function serveDashboardFrom(hostname: string) {
+      vi.stubGlobal('location', { ...window.location, hostname });
+    }
+
+    it.each(['localhost', '127.0.0.1', '10.0.10.2', '192.168.1.5', 'macbook.local', '[::1]'])(
+      'uses the dashboard host %s for self-hosted deployments',
+      (hostname) => {
+        serveDashboardFrom(hostname);
+        expect(getLocalAgentHost()).toBe(hostname);
+      }
+    );
+
+    it.each(['247.quivr.com', 'example.com', 'my-dashboard.vercel.app'])(
+      'targets localhost when the dashboard is hosted on %s',
+      (hostname) => {
+        serveDashboardFrom(hostname);
+        expect(getLocalAgentHost()).toBe('localhost');
+      }
+    );
+
+    it('falls back to localhost when there is no hostname', () => {
+      serveDashboardFrom('');
+      expect(getLocalAgentHost()).toBe('localhost');
     });
   });
 

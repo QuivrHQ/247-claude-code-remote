@@ -34,26 +34,7 @@ function useClearAppBadge() {
   }, []);
 }
 
-/**
- * Register the PWA service worker so push notifications and offline caching
- * work. No-ops in insecure contexts (e.g. plain http on a LAN IP), which is
- * fine for local self-hosted deployments.
- */
-function useRegisterServiceWorker() {
-  useEffect(() => {
-    if (typeof navigator !== 'undefined' && 'serviceWorker' in navigator) {
-      navigator.serviceWorker.register('/sw.js').catch((error: unknown) => {
-        // Insecure origins always reject; only surface real failures.
-        if (window.isSecureContext) {
-          console.error('Service worker registration failed:', error);
-        }
-      });
-    }
-  }, []);
-}
-
 export function Providers({ children }: { children: ReactNode }) {
   useClearAppBadge();
-  useRegisterServiceWorker();
   return <SessionPollingProvider>{children}</SessionPollingProvider>;
 }
