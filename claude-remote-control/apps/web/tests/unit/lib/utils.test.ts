@@ -60,6 +60,11 @@ describe('Utils', () => {
       '172.16.0.1',
       '172.31.255.255',
       '[::1]:4678',
+      '[fd00::1]:4678',
+      '[fc00::1]',
+      '[FD12:3456:789a::1]:4678',
+      '[fe80::1]:4678',
+      '[febf::1]',
     ])('treats %s as plaintext', (host) => {
       expect(isPlaintextHost(host)).toBe(true);
     });
@@ -74,6 +79,12 @@ describe('Utils', () => {
       '8.8.8.8',
       '10.0.0.999',
       '300.1.1.1',
+      '[2001:db8::1]:4678',
+      '[fec0::1]',
+      '[fd::1]',
+      '[fe::1]',
+      'fdab.example.com:4678',
+      'fe80.example.com',
     ])('treats %s as TLS', (host) => {
       expect(isPlaintextHost(host)).toBe(false);
     });
@@ -81,6 +92,13 @@ describe('Utils', () => {
     it('builds plain ws/http URLs for a bracketed IPv6 loopback', () => {
       expect(buildWebSocketUrl('[::1]:4678', '/status')).toBe('ws://[::1]:4678/status');
       expect(buildApiUrl('[::1]:4678', '/api/sessions')).toBe('http://[::1]:4678/api/sessions');
+    });
+
+    it('builds plain ws/http URLs for a unique-local IPv6 LAN agent', () => {
+      expect(buildWebSocketUrl('[fd00::1]:4678', '/status')).toBe('ws://[fd00::1]:4678/status');
+      expect(buildApiUrl('[fe80::1]:4678', '/api/sessions')).toBe(
+        'http://[fe80::1]:4678/api/sessions'
+      );
     });
 
     it('uses TLS for DNS names that merely start with a private octet', () => {

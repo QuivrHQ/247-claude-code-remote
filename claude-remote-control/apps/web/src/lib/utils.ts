@@ -16,13 +16,14 @@ export function stripProtocol(url: string): string {
 /**
  * Decide whether an agent host should be reached over plaintext (ws/http)
  * rather than TLS (wss/https). True for localhost, loopback, mDNS `.local`,
- * and private LAN ranges (10/8, 172.16/12, 192.168/16) — these are served by
- * the agent without a certificate, so TLS would fail.
+ * and private LAN ranges (IPv4 10/8, 172.16/12, 192.168/16; IPv6 unique-local
+ * fc00::/7 and link-local fe80::/10) — these are served by the agent without
+ * a certificate, so TLS would fail.
  */
 export function isPlaintextHost(cleanUrl: string): boolean {
   const { host } = parseHostPort(cleanUrl);
   if (host === 'localhost' || host.endsWith('.localhost') || host.endsWith('.local')) return true;
-  if (host === '::1') return true;
+  if (host === '::1' || isPrivateIPv6(host)) return true;
   const octets = parseIPv4(host);
   if (!octets) return false;
   const [a, b] = octets;
@@ -51,6 +52,13 @@ export function parseHostPort(cleanUrl: string): { host: string; port: string } 
     return { host: authority.toLowerCase(), port: '' };
   }
   return { host: authority.slice(0, colon).toLowerCase(), port: authority.slice(colon + 1) };
+}
+
+// Unique-local (fc00::/7) and link-local (fe80::/10) literals. Only a full
+// four-digit first group can fall in these ranges; the trailing colon rules
+// out DNS names such as `fdab.example.com`.
+function isPrivateIPv6(host: string): boolean {
+  return /^f[cd][0-9a-f]{2}:/.test(host) || /^fe[89ab][0-9a-f]:/.test(host);
 }
 
 function parseIPv4(host: string): number[] | null {
