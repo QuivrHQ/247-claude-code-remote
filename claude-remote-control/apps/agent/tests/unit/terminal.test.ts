@@ -37,54 +37,58 @@ const createMockPtyProcess = () => {
 };
 
 let mockPtyProcess: ReturnType<typeof createMockPtyProcess>;
-let execSyncResponses: Record<string, string | Error> = {};
-let execAsyncResponses: Record<string, { stdout: string; stderr: string } | Error> = {};
+let execFileSyncResponses: Record<string, string | Error> = {};
+let execFileAsyncResponses: Record<string, { stdout: string; stderr: string } | Error> = {};
 
 // Mock node-pty
 vi.mock('@homebridge/node-pty-prebuilt-multiarch', () => ({
   spawn: vi.fn(() => mockPtyProcess),
 }));
 
-// Mock child_process
+// Mock child_process: tmux is only ever spawned via execFile/execFileSync (argv array, no shell).
+// Responses are matched against the space-joined "file arg arg ..." command line.
 vi.mock('child_process', () => ({
-  execSync: vi.fn((cmd: string) => {
-    const key = Object.keys(execSyncResponses).find((k) => cmd.includes(k));
+  execFileSync: vi.fn((file: string, args: string[]) => {
+    const cmd = [file, ...args].join(' ');
+    const key = Object.keys(execFileSyncResponses).find((k) => cmd.includes(k));
     if (key) {
-      const response = execSyncResponses[key];
+      const response = execFileSyncResponses[key];
       if (response instanceof Error) throw response;
       return response;
     }
     throw new Error('Command not mocked');
   }),
-  exec: vi.fn(
-    (cmd: string, callback?: (error: Error | null, stdout: string, stderr: string) => void) => {
-      // If callback provided, call it asynchronously
-      if (callback) {
-        setImmediate(() => callback(null, '', ''));
-      }
+  execFile: vi.fn(
+    (
+      file: string,
+      args: string[],
+      _options: unknown,
+      callback: (error: Error | null, stdout: string, stderr: string) => void
+    ) => {
+      const cmd = [file, ...args].join(' ');
+      const key = Object.keys(execFileAsyncResponses).find((k) => cmd.includes(k));
+      const response = key ? execFileAsyncResponses[key] : { stdout: '', stderr: '' };
+      setImmediate(() => {
+        if (response instanceof Error) callback(response, '', '');
+        else callback(null, response.stdout, response.stderr);
+      });
     }
   ),
-}));
-
-// Mock promisify to return our async mock
-vi.mock('util', () => ({
-  promisify: () => async (cmd: string) => {
-    const key = Object.keys(execAsyncResponses).find((k) => cmd.includes(k));
-    if (key) {
-      const response = execAsyncResponses[key];
-      if (response instanceof Error) throw response;
-      return response;
-    }
-    return { stdout: '', stderr: '' };
-  },
+  // Shell-based variants must never be used to talk to tmux: fail loudly if they are.
+  exec: vi.fn(() => {
+    throw new Error('exec (shell) must not be used for tmux commands');
+  }),
+  execSync: vi.fn(() => {
+    throw new Error('execSync (shell) must not be used for tmux commands');
+  }),
 }));
 
 describe('Terminal', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockPtyProcess = createMockPtyProcess();
-    execSyncResponses = {};
-    execAsyncResponses = {};
+    execFileSyncResponses = {};
+    execFileAsyncResponses = {};
     writtenInitScripts = [];
   });
 
@@ -95,7 +99,7 @@ describe('Terminal', () => {
   describe('createTerminal', () => {
     it('creates a new tmux session when session does not exist', async () => {
       // Session does not exist
-      execSyncResponses['has-session'] = new Error('session not found');
+      execFileSyncResponses['has-session'] = new Error('session not found');
 
       const { createTerminal } = await import('../../src/terminal.js');
       const terminal = createTerminal('/tmp/test', 'test-session');
@@ -111,7 +115,7 @@ describe('Terminal', () => {
 
     it('attaches to existing tmux session when it exists', async () => {
       // Session exists
-      execSyncResponses['has-session'] = '';
+      execFileSyncResponses['has-session'] = '';
 
       // Re-import to get fresh module state
       vi.resetModules();
@@ -122,7 +126,7 @@ describe('Terminal', () => {
     });
 
     it('forwards write calls to PTY', async () => {
-      execSyncResponses['has-session'] = new Error('not found');
+      execFileSyncResponses['has-session'] = new Error('not found');
 
       vi.resetModules();
       const { createTerminal } = await import('../../src/terminal.js');
@@ -133,7 +137,7 @@ describe('Terminal', () => {
     });
 
     it('forwards resize calls to PTY', async () => {
-      execSyncResponses['has-session'] = new Error('not found');
+      execFileSyncResponses['has-session'] = new Error('not found');
 
       vi.resetModules();
       const { createTerminal } = await import('../../src/terminal.js');
@@ -144,7 +148,7 @@ describe('Terminal', () => {
     });
 
     it('sends detach command when detach is called', async () => {
-      execSyncResponses['has-session'] = new Error('not found');
+      execFileSyncResponses['has-session'] = new Error('not found');
 
       vi.resetModules();
       const { createTerminal } = await import('../../src/terminal.js');
@@ -156,8 +160,8 @@ describe('Terminal', () => {
     });
 
     it('captures history from tmux scrollback', async () => {
-      execSyncResponses['has-session'] = new Error('not found');
-      execAsyncResponses['capture-pane'] = {
+      execFileSyncResponses['has-session'] = new Error('not found');
+      execFileAsyncResponses['capture-pane'] = {
         stdout: 'line 1\nline 2\nline 3\n',
         stderr: '',
       };
@@ -171,8 +175,8 @@ describe('Terminal', () => {
     });
 
     it('returns empty string when history capture fails', async () => {
-      execSyncResponses['has-session'] = new Error('not found');
-      execAsyncResponses['capture-pane'] = new Error('tmux error');
+      execFileSyncResponses['has-session'] = new Error('not found');
+      execFileAsyncResponses['capture-pane'] = new Error('tmux error');
 
       vi.resetModules();
       const { createTerminal } = await import('../../src/terminal.js');
@@ -183,7 +187,7 @@ describe('Terminal', () => {
     });
 
     it('registers data callback', async () => {
-      execSyncResponses['has-session'] = new Error('not found');
+      execFileSyncResponses['has-session'] = new Error('not found');
 
       vi.resetModules();
       const { createTerminal } = await import('../../src/terminal.js');
@@ -198,7 +202,7 @@ describe('Terminal', () => {
     });
 
     it('registers exit callback', async () => {
-      execSyncResponses['has-session'] = new Error('not found');
+      execFileSyncResponses['has-session'] = new Error('not found');
 
       vi.resetModules();
       const { createTerminal } = await import('../../src/terminal.js');
@@ -213,7 +217,7 @@ describe('Terminal', () => {
     });
 
     it('kills PTY when kill is called', async () => {
-      execSyncResponses['has-session'] = new Error('not found');
+      execFileSyncResponses['has-session'] = new Error('not found');
 
       vi.resetModules();
       const { createTerminal } = await import('../../src/terminal.js');
@@ -224,7 +228,7 @@ describe('Terminal', () => {
     });
 
     it('writes init script with env vars for new sessions', async () => {
-      execSyncResponses['has-session'] = new Error('not found');
+      execFileSyncResponses['has-session'] = new Error('not found');
 
       vi.resetModules();
       const { createTerminal } = await import('../../src/terminal.js');
@@ -234,8 +238,8 @@ describe('Terminal', () => {
       expect(writtenInitScripts.length).toBe(1);
       const script = writtenInitScripts[0];
 
-      // Check script path
-      expect(script.path).toMatch(/247-init-init-script-test\.sh$/);
+      // Check script path (session name is hashed into the filename, not interpolated)
+      expect(script.path).toMatch(/\/247-init-[0-9a-f]{64}\.sh$/);
 
       // Check script contains required exports
       expect(script.content).toContain('export CLAUDE_TMUX_SESSION="init-script-test"');
@@ -252,7 +256,7 @@ describe('Terminal', () => {
 
     it('does not write init script for existing sessions', async () => {
       // Session exists
-      execSyncResponses['has-session'] = '';
+      execFileSyncResponses['has-session'] = '';
 
       vi.resetModules();
       const { createTerminal } = await import('../../src/terminal.js');
@@ -264,7 +268,7 @@ describe('Terminal', () => {
 
     it('onReady fires immediately for existing sessions', async () => {
       // Session exists
-      execSyncResponses['has-session'] = '';
+      execFileSyncResponses['has-session'] = '';
 
       vi.resetModules();
       const { createTerminal } = await import('../../src/terminal.js');
@@ -278,7 +282,7 @@ describe('Terminal', () => {
     });
 
     it('onReady fires after init for new sessions', async () => {
-      execSyncResponses['has-session'] = new Error('not found');
+      execFileSyncResponses['has-session'] = new Error('not found');
 
       vi.resetModules();
       const { createTerminal } = await import('../../src/terminal.js');
@@ -298,7 +302,7 @@ describe('Terminal', () => {
     });
 
     it('onReady fires multiple callbacks for new sessions', async () => {
-      execSyncResponses['has-session'] = new Error('not found');
+      execFileSyncResponses['has-session'] = new Error('not found');
 
       vi.resetModules();
       const { createTerminal } = await import('../../src/terminal.js');
@@ -317,7 +321,7 @@ describe('Terminal', () => {
     });
 
     it('onReady fires immediately if called after terminal is ready', async () => {
-      execSyncResponses['has-session'] = new Error('not found');
+      execFileSyncResponses['has-session'] = new Error('not found');
 
       vi.resetModules();
       const { createTerminal } = await import('../../src/terminal.js');
@@ -332,6 +336,98 @@ describe('Terminal', () => {
 
       // Should fire immediately since terminal is already ready
       expect(lateCallback).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('shell injection hardening', () => {
+    // The session name comes from the `session` URL parameter of the terminal WebSocket,
+    // so it is attacker-controlled and must never reach a shell.
+    const HOSTILE = 'evil"; touch /tmp/pwned; echo "';
+
+    it('checks for an existing session without going through a shell', async () => {
+      execFileSyncResponses['has-session'] = new Error('not found');
+
+      vi.resetModules();
+      const { createTerminal } = await import('../../src/terminal.js');
+      createTerminal('/tmp/test', HOSTILE);
+
+      const cp = await import('child_process');
+      expect(cp.execFileSync).toHaveBeenCalledWith('tmux', ['has-session', '-t', HOSTILE], {
+        stdio: 'ignore',
+      });
+      expect(cp.execSync).not.toHaveBeenCalled();
+      expect(cp.exec).not.toHaveBeenCalled();
+    });
+
+    it('passes the session name to new-session as a single argv element', async () => {
+      execFileSyncResponses['has-session'] = new Error('not found');
+
+      vi.resetModules();
+      const { createTerminal } = await import('../../src/terminal.js');
+      createTerminal('/tmp/test', HOSTILE);
+
+      const pty = await import('@homebridge/node-pty-prebuilt-multiarch');
+      const [file, args] = vi.mocked(pty.spawn).mock.calls[0];
+      expect(file).toBe('tmux');
+      expect((args as string[]).slice(0, 3)).toEqual(['new-session', '-s', HOSTILE]);
+    });
+
+    it('keeps session-name characters out of the init script path and tmux shell command', async () => {
+      execFileSyncResponses['has-session'] = new Error('not found');
+
+      vi.resetModules();
+      const { createTerminal } = await import('../../src/terminal.js');
+      createTerminal('/tmp/test', HOSTILE);
+
+      // tmux runs the trailing new-session argument through a shell, so the path must be inert
+      expect(writtenInitScripts).toHaveLength(1);
+      const scriptPath = writtenInitScripts[0].path;
+      expect(scriptPath).toMatch(/\/247-init-[0-9a-f]{64}\.sh$/);
+
+      const pty = await import('@homebridge/node-pty-prebuilt-multiarch');
+      const [, args] = vi.mocked(pty.spawn).mock.calls[0];
+      const tmuxArgs = args as string[];
+      expect(tmuxArgs[tmuxArgs.length - 1]).toBe(`bash --init-file ${scriptPath}`);
+    });
+
+    it('enables mouse mode on an existing session via execFile', async () => {
+      execFileSyncResponses['has-session'] = '';
+
+      vi.resetModules();
+      const { createTerminal } = await import('../../src/terminal.js');
+      createTerminal('/tmp/test', HOSTILE);
+
+      // terminal.ts applies mouse mode 100ms after attaching
+      await new Promise((r) => setTimeout(r, 150));
+
+      const cp = await import('child_process');
+      expect(cp.execFile).toHaveBeenCalledWith(
+        'tmux',
+        ['set-option', '-t', HOSTILE, 'mouse', 'on'],
+        expect.any(Object),
+        expect.any(Function)
+      );
+      expect(cp.exec).not.toHaveBeenCalled();
+    });
+
+    it('captures history with the session name as a single argv element', async () => {
+      execFileSyncResponses['has-session'] = new Error('not found');
+      execFileAsyncResponses['capture-pane'] = { stdout: 'history\n', stderr: '' };
+
+      vi.resetModules();
+      const { createTerminal } = await import('../../src/terminal.js');
+      const terminal = createTerminal('/tmp/test', HOSTILE);
+
+      await expect(terminal.captureHistory(250)).resolves.toBe('history\n');
+
+      const cp = await import('child_process');
+      expect(cp.execFile).toHaveBeenCalledWith(
+        'tmux',
+        ['capture-pane', '-t', HOSTILE, '-p', '-S', '-250', '-J'],
+        expect.any(Object),
+        expect.any(Function)
+      );
+      expect(cp.exec).not.toHaveBeenCalled();
     });
   });
 });

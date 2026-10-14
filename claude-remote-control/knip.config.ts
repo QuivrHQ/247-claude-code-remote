@@ -3,11 +3,13 @@ import type { KnipConfig } from 'knip';
 const config: KnipConfig = {
   workspaces: {
     '.': {
-      entry: ['tests/**/*.test.ts'],
-      project: ['tests/**/*.ts'],
+      // scripts/release/index.ts is run via `pnpm release` (tsx) and imports chalk/ora
+      entry: ['tests/**/*.test.ts', 'scripts/release/index.ts'],
+      project: ['tests/**/*.ts', 'scripts/**/*.ts'],
     },
     'apps/agent': {
-      entry: ['src/server.ts', 'tests/**/*.test.ts'],
+      // src/index.ts is the process entry point (node dist/index.js / tsx src/index.ts)
+      entry: ['src/index.ts', 'src/server.ts', 'tests/**/*.test.ts'],
       project: ['src/**/*.ts', 'tests/**/*.ts'],
       // pino-pretty: Used at runtime via dynamic require
       // http-proxy, web-push: Used in routes
@@ -35,7 +37,8 @@ const config: KnipConfig = {
       project: ['src/**/*.ts'],
     },
     'packages/cli': {
-      entry: ['tests/**/*.test.ts'],
+      // src/index.ts is the CLI entry point (bin "247" -> dist/index.js)
+      entry: ['src/index.ts', 'tests/**/*.test.ts'],
       project: ['src/**/*.ts', 'tests/**/*.ts'],
       // Agent dependencies bundled into CLI
       ignoreDependencies: [

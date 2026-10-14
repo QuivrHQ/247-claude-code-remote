@@ -124,6 +124,12 @@ vi.mock('child_process', () => ({
     if (callback) callback(null, { stdout: '', stderr: '' });
   }),
   execSync: vi.fn(() => ''),
+  // tmux is spawned via argv (no shell); a zero exit status means "session exists"
+  execFile: vi.fn((_file, _args, opts, cb) => {
+    const callback = typeof opts === 'function' ? opts : cb;
+    if (callback) callback(null, '', '');
+  }),
+  execFileSync: vi.fn(() => Buffer.from('')),
   spawn: vi.fn(() => {
     const proc = new EventEmitter() as any;
     proc.stdout = new EventEmitter();
@@ -240,6 +246,25 @@ describe('WebSocket Terminal', () => {
     it('accepts custom session name', async () => {
       const ws = await connectWS('allowed-project', 'custom-session-42');
       expect(ws.readyState).toBe(WebSocket.OPEN);
+      ws.close();
+    });
+
+    it('checks a client-supplied session name without going through a shell', async () => {
+      // The `session` URL parameter is attacker-controlled
+      const hostile = 'x";touch /tmp/pwned;"';
+      const { execFileSync, execSync } = await import('child_process');
+
+      const ws = await connectWS('allowed-project', encodeURIComponent(hostile));
+
+      await vi.waitFor(() => {
+        expect(execFileSync).toHaveBeenCalledWith('tmux', ['has-session', '-t', hostile], {
+          stdio: 'ignore',
+        });
+      });
+      const shellHasSession = vi
+        .mocked(execSync)
+        .mock.calls.filter(([cmd]) => String(cmd).includes('has-session'));
+      expect(shellHasSession).toHaveLength(0);
       ws.close();
     });
   });

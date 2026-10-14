@@ -1,6 +1,7 @@
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
+import { createHash } from 'crypto';
 import { execSync } from 'child_process';
 
 export interface InitScriptOptions {
@@ -463,8 +464,8 @@ printf "\\n"`;
 
   return `#!/bin/bash
 # 247 Terminal Init Script - Auto-generated
-# Session: ${sessionName}
-# Project: ${projectName}
+# Session: ${toCommentText(sessionName)}
+# Project: ${toCommentText(projectName)}
 # Init Shell: ${shell} (for script content)
 # Target Shell: ${targetShell} (interactive session)
 # Generated: ${new Date().toISOString()}
@@ -529,11 +530,19 @@ function escapeForBash(value: string): string {
 }
 
 /**
+ * Flattens a value for use in a `#` comment line.
+ * A line break would end the comment and turn the rest of the value into executable script.
+ */
+function toCommentText(value: string): string {
+  return value.replace(/[\r\n]+/g, ' ');
+}
+
+/**
  * Writes the init script to a temporary file.
  * @returns The path to the created script file.
  */
 export function writeInitScript(sessionName: string, content: string): string {
-  const scriptPath = path.join(os.tmpdir(), `247-init-${sessionName}.sh`);
+  const scriptPath = getInitScriptPath(sessionName);
   fs.writeFileSync(scriptPath, content, { mode: 0o755 });
   return scriptPath;
 }
@@ -542,7 +551,7 @@ export function writeInitScript(sessionName: string, content: string): string {
  * Removes the init script file.
  */
 export function cleanupInitScript(sessionName: string): void {
-  const scriptPath = path.join(os.tmpdir(), `247-init-${sessionName}.sh`);
+  const scriptPath = getInitScriptPath(sessionName);
   try {
     fs.unlinkSync(scriptPath);
   } catch {
@@ -552,7 +561,15 @@ export function cleanupInitScript(sessionName: string): void {
 
 /**
  * Gets the path where an init script would be written.
+ *
+ * The session name can come from a client and tmux runs `bash --init-file <path>` through a
+ * shell, so the filename must contain no shell metacharacters. It also must map one-to-one
+ * from the session name: two distinct names must not share a file, or a concurrent session
+ * could overwrite another's init script (or cleanup could delete it). A SHA-256 of the full
+ * name gives a fixed-length, collision-free, [0-9a-f]-only filename; the same name always
+ * resolves to the same path, so writeInitScript and cleanupInitScript agree.
  */
 export function getInitScriptPath(sessionName: string): string {
-  return path.join(os.tmpdir(), `247-init-${sessionName}.sh`);
+  const hash = createHash('sha256').update(sessionName, 'utf8').digest('hex');
+  return path.join(os.tmpdir(), `247-init-${hash}.sh`);
 }

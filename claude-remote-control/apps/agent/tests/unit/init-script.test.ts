@@ -3,6 +3,11 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import * as child_process from 'child_process';
+import { createHash } from 'crypto';
+
+// The init-script path is os.tmpdir() + `247-init-<sha256(name)>.sh` (os.tmpdir mocked to /tmp)
+const initPath = (name: string): string =>
+  `/tmp/247-init-${createHash('sha256').update(name, 'utf8').digest('hex')}.sh`;
 
 // Mock fs and os
 vi.mock('fs');
@@ -245,6 +250,27 @@ describe('init-script', () => {
     });
   });
 
+  describe('generateInitScript header comments', () => {
+    it('keeps line breaks in session and project names inside their comment lines', async () => {
+      const { generateInitScript } = await import('../../src/lib/init-script.js');
+
+      // A raw newline here would end the comment and start a new, executable script line
+      const script = generateInitScript({
+        sessionName: 'evil\ntouch /tmp/pwned',
+        projectName: 'proj\r\nrm -rf ~',
+        shell: 'bash',
+        targetShell: 'bash',
+      });
+
+      const lines = script.split('\n');
+      const sessionIdx = lines.findIndex((line) => line.startsWith('# Session:'));
+      expect(sessionIdx).toBeGreaterThan(-1);
+      expect(lines[sessionIdx]).toBe('# Session: evil touch /tmp/pwned');
+      expect(lines[sessionIdx + 1]).toBe('# Project: proj rm -rf ~');
+      expect(lines[sessionIdx + 2]).toMatch(/^# Init Shell:/);
+    });
+  });
+
   describe('writeInitScript', () => {
     it('writes script to temp directory with correct permissions', async () => {
       const { writeInitScript } = await import('../../src/lib/init-script.js');
@@ -252,11 +278,24 @@ describe('init-script', () => {
       const result = writeInitScript('my-session', '#!/bin/bash\necho hello');
 
       expect(fs.writeFileSync).toHaveBeenCalledWith(
-        '/tmp/247-init-my-session.sh',
+        initPath('my-session'),
         '#!/bin/bash\necho hello',
-        { mode: 0o755 }
+        {
+          mode: 0o755,
+        }
       );
-      expect(result).toBe('/tmp/247-init-my-session.sh');
+      expect(result).toBe(initPath('my-session'));
+    });
+
+    it('cannot be steered out of the temp directory or into a shell by the session name', async () => {
+      const { writeInitScript } = await import('../../src/lib/init-script.js');
+
+      // tmux runs `bash --init-file <path>` through a shell, so the path must be inert
+      const result = writeInitScript('../../etc/x;touch /tmp/pwned "$(id)" `id`', '#!/bin/bash');
+
+      expect(path.dirname(result)).toBe('/tmp');
+      expect(path.basename(result)).toMatch(/^247-init-[\w.-]+\.sh$/);
+      expect(fs.writeFileSync).toHaveBeenCalledWith(result, '#!/bin/bash', { mode: 0o755 });
     });
   });
 
@@ -266,7 +305,7 @@ describe('init-script', () => {
 
       cleanupInitScript('my-session');
 
-      expect(fs.unlinkSync).toHaveBeenCalledWith('/tmp/247-init-my-session.sh');
+      expect(fs.unlinkSync).toHaveBeenCalledWith(initPath('my-session'));
     });
 
     it('ignores errors when file does not exist', async () => {
@@ -279,6 +318,15 @@ describe('init-script', () => {
       // Should not throw
       expect(() => cleanupInitScript('nonexistent')).not.toThrow();
     });
+
+    it('removes the same sanitized path that writeInitScript wrote', async () => {
+      const { writeInitScript, cleanupInitScript } = await import('../../src/lib/init-script.js');
+
+      const written = writeInitScript('my session;touch x', '#!/bin/bash');
+      cleanupInitScript('my session;touch x');
+
+      expect(fs.unlinkSync).toHaveBeenCalledWith(written);
+    });
   });
 
   describe('getInitScriptPath', () => {
@@ -287,7 +335,25 @@ describe('init-script', () => {
 
       const result = getInitScriptPath('my-session');
 
-      expect(result).toBe('/tmp/247-init-my-session.sh');
+      expect(result).toBe(initPath('my-session'));
+      expect(result).toMatch(/^\/tmp\/247-init-[0-9a-f]{64}\.sh$/);
+    });
+
+    it('produces a shell-safe filename for any session name', async () => {
+      const { getInitScriptPath } = await import('../../src/lib/init-script.js');
+
+      for (const name of ['a b/c;d$e', '../../etc/x', 'x";touch /tmp/pwned;"', 'сессия', '']) {
+        expect(getInitScriptPath(name)).toMatch(/^\/tmp\/247-init-[0-9a-f]{64}\.sh$/);
+      }
+    });
+
+    it('is deterministic for a given name but collision-free across names', async () => {
+      const { getInitScriptPath } = await import('../../src/lib/init-script.js');
+
+      // Same name -> same path (so writeInitScript and cleanupInitScript agree)
+      expect(getInitScriptPath('foo bar')).toBe(getInitScriptPath('foo bar'));
+      // Names that previously collapsed to the same sanitized name must now differ
+      expect(getInitScriptPath('foo bar')).not.toBe(getInitScriptPath('foo_bar'));
     });
   });
 });

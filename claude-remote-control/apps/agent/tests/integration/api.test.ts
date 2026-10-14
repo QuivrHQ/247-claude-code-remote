@@ -42,6 +42,12 @@ vi.mock('child_process', () => ({
     if (callback) callback(null, { stdout: '', stderr: '' });
   }),
   execSync: vi.fn(() => ''),
+  // tmux is spawned via argv (no shell); tests configure results per case
+  execFile: vi.fn((_file, _args, opts, cb) => {
+    const callback = typeof opts === 'function' ? opts : cb;
+    if (callback) callback(null, '', '');
+  }),
+  execFileSync: vi.fn(() => Buffer.from('')),
   spawn: vi.fn(() => {
     const proc = new EventEmitter() as any;
     proc.stdout = new EventEmitter();
@@ -78,6 +84,27 @@ vi.mock('../../src/terminal.js', () => ({
     isExistingSession: vi.fn().mockReturnValue(false),
   })),
 }));
+
+type ExecFileCallback = (error: Error | null, stdout: string, stderr: string) => void;
+
+/**
+ * Make the mocked execFile resolve for every tmux call.
+ * `failFor` lists tmux subcommands (e.g. 'has-session') that should exit non-zero instead.
+ */
+async function mockTmux(stdout = '', failFor: string[] = []) {
+  const { execFile } = await import('child_process');
+  vi.mocked(execFile).mockImplementation(((
+    _file: string,
+    args: string[],
+    opts: unknown,
+    cb: unknown
+  ) => {
+    const callback = (typeof opts === 'function' ? opts : cb) as ExecFileCallback;
+    if (failFor.includes(args[0])) callback(new Error(`tmux ${args[0]} failed`), '', '');
+    else callback(null, stdout, '');
+  }) as never);
+  return execFile;
+}
 
 describe('Agent REST API', () => {
   let app: express.Express;
@@ -153,17 +180,134 @@ describe('Agent REST API', () => {
     });
 
     it('accepts valid session name', async () => {
-      const { exec } = await import('child_process');
-      vi.mocked(exec).mockImplementation((cmd: any, opts: any, cb: any) => {
-        const callback = typeof opts === 'function' ? opts : cb;
-        if (callback) callback(null, { stdout: 'line1\nline2\n', stderr: '' });
-        return null as any;
-      });
+      await mockTmux('line1\nline2\n');
 
       const res = await request(server).get('/api/sessions/project--valid-session-42/preview');
 
       // Should not be a 400 error
       expect(res.status).not.toBe(400);
+    });
+
+    it('captures the pane via execFile with the session name as one argument', async () => {
+      const execFile = await mockTmux('line1\nline2\n');
+      const { exec } = await import('child_process');
+
+      const res = await request(server).get('/api/sessions/project--abc/preview');
+
+      expect(res.status).toBe(200);
+      expect(execFile).toHaveBeenCalledWith(
+        'tmux',
+        ['capture-pane', '-t', 'project--abc', '-p', '-S', '-20'],
+        expect.any(Object),
+        expect.any(Function)
+      );
+      expect(exec).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('GET /api/sessions/:sessionName/output', () => {
+    it('captures the pane and checks the session via execFile (no shell)', async () => {
+      const execFile = await mockTmux('hello\n');
+      const { exec } = await import('child_process');
+
+      const res = await request(server).get('/api/sessions/project--abc/output?lines=50');
+
+      expect(res.status).toBe(200);
+      expect(res.body.isRunning).toBe(true);
+      expect(execFile).toHaveBeenCalledWith(
+        'tmux',
+        ['capture-pane', '-t', 'project--abc', '-p', '-S', '-50', '-J'],
+        expect.any(Object),
+        expect.any(Function)
+      );
+      expect(execFile).toHaveBeenCalledWith(
+        'tmux',
+        ['has-session', '-t', 'project--abc'],
+        expect.any(Object),
+        expect.any(Function)
+      );
+      expect(exec).not.toHaveBeenCalled();
+    });
+
+    it('rejects shell metacharacters in the session name', async () => {
+      const res = await request(server).get(
+        '/api/sessions/' + encodeURIComponent('a";id;"') + '/output'
+      );
+
+      expect(res.status).toBe(400);
+    });
+  });
+
+  describe('POST /api/sessions/:sessionName/input', () => {
+    it('sends text to tmux as one argv element after -- without a shell', async () => {
+      const execFile = await mockTmux();
+      const { exec } = await import('child_process');
+      // Would be command execution if this text ever reached a shell
+      const text = 'echo "$(touch /tmp/pwned)" `id` \\n; rm -rf ~';
+
+      const res = await request(server).post('/api/sessions/project--abc/input').send({ text });
+
+      expect(res.status).toBe(200);
+      expect(execFile).toHaveBeenCalledWith(
+        'tmux',
+        ['has-session', '-t', 'project--abc'],
+        expect.any(Object),
+        expect.any(Function)
+      );
+      expect(execFile).toHaveBeenCalledWith(
+        'tmux',
+        ['send-keys', '-t', 'project--abc', '--', text, 'Enter'],
+        expect.any(Object),
+        expect.any(Function)
+      );
+      expect(exec).not.toHaveBeenCalled();
+    });
+
+    it('does not press Enter when sendEnter is false', async () => {
+      const execFile = await mockTmux();
+
+      const res = await request(server)
+        .post('/api/sessions/project--abc/input')
+        .send({ text: 'ls', sendEnter: false });
+
+      expect(res.status).toBe(200);
+      expect(execFile).toHaveBeenCalledWith(
+        'tmux',
+        ['send-keys', '-t', 'project--abc', '--', 'ls'],
+        expect.any(Object),
+        expect.any(Function)
+      );
+    });
+
+    it('escapes a trailing semicolon so tmux does not treat it as a command separator', async () => {
+      const execFile = await mockTmux();
+
+      await request(server).post('/api/sessions/project--abc/input').send({ text: 'ls;' });
+
+      expect(execFile).toHaveBeenCalledWith(
+        'tmux',
+        ['send-keys', '-t', 'project--abc', '--', 'ls\\;', 'Enter'],
+        expect.any(Object),
+        expect.any(Function)
+      );
+    });
+
+    it('returns 404 when the session does not exist', async () => {
+      await mockTmux('', ['has-session']);
+
+      const res = await request(server)
+        .post('/api/sessions/project--gone/input')
+        .send({ text: 'ls' });
+
+      expect(res.status).toBe(404);
+    });
+
+    it('rejects shell metacharacters in the session name', async () => {
+      const res = await request(server)
+        .post('/api/sessions/' + encodeURIComponent('a";id;"') + '/input')
+        .send({ text: 'ls' });
+
+      expect(res.status).toBe(400);
     });
   });
 
@@ -174,5 +318,26 @@ describe('Agent REST API', () => {
       expect(res.status).toBe(400);
       expect(res.body.error).toBe('Invalid session name');
     });
+
+    it('kills the session via execFile with the name as one argument', async () => {
+      const execFile = await mockTmux();
+      const { exec } = await import('child_process');
+
+      const res = await request(server).delete('/api/sessions/project--abc');
+
+      expect(res.status).toBe(200);
+      expect(execFile).toHaveBeenCalledWith(
+        'tmux',
+        ['kill-session', '-t', 'project--abc'],
+        expect.any(Object),
+        expect.any(Function)
+      );
+      expect(exec).not.toHaveBeenCalled();
+    });
   });
+
+  // Note: the archive route's kill-session call is the same runTmux(['kill-session', ...])
+  // path asserted by the DELETE test above. A dedicated archive test is omitted here because
+  // archiveSession() requires a real DB row, which would write to the developer's ~/.247 DB;
+  // suite-wide test-DB isolation is tracked separately.
 });

@@ -6,6 +6,7 @@
 import { Router } from 'express';
 import type { WSSessionInfo } from '247-shared';
 import * as sessionsDb from '../db/sessions.js';
+import { runTmux, escapeSendKeysText } from '../lib/tmux.js';
 import {
   broadcastSessionRemoved,
   broadcastSessionArchived,
@@ -20,9 +21,6 @@ export function createSessionRoutes(): Router {
     const { sessionName } = req.params;
     const lines = parseInt(req.query.lines as string) || 1000;
     const format = (req.query.format as string) || 'plain';
-    const { exec } = await import('child_process');
-    const { promisify } = await import('util');
-    const execAsync = promisify(exec);
 
     if (!/^[\w-]+$/.test(sessionName)) {
       return res.status(400).json({ error: 'Invalid session name' });
@@ -32,9 +30,15 @@ export function createSessionRoutes(): Router {
     const maxLines = Math.min(lines, 50000);
 
     try {
-      const { stdout } = await execAsync(
-        `tmux capture-pane -t "${sessionName}" -p -S -${maxLines} -J 2>/dev/null`
-      );
+      const stdout = await runTmux([
+        'capture-pane',
+        '-t',
+        sessionName,
+        '-p',
+        '-S',
+        `-${maxLines}`,
+        '-J',
+      ]);
 
       let output = stdout;
 
@@ -49,7 +53,7 @@ export function createSessionRoutes(): Router {
       // Check if session is still running
       let isRunning = true;
       try {
-        await execAsync(`tmux has-session -t "${sessionName}" 2>/dev/null`);
+        await runTmux(['has-session', '-t', sessionName]);
       } catch {
         isRunning = false;
       }
@@ -75,9 +79,6 @@ export function createSessionRoutes(): Router {
       text: string;
       sendEnter?: boolean;
     };
-    const { exec } = await import('child_process');
-    const { promisify } = await import('util');
-    const execAsync = promisify(exec);
 
     if (!/^[\w-]+$/.test(sessionName)) {
       return res.status(400).json({ success: false, error: 'Invalid session name' });
@@ -89,17 +90,11 @@ export function createSessionRoutes(): Router {
 
     try {
       // Check if session exists
-      await execAsync(`tmux has-session -t "${sessionName}" 2>/dev/null`);
+      await runTmux(['has-session', '-t', sessionName]);
 
-      // Escape special characters for tmux send-keys
-      const escapedText = text.replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/;/g, '\\;');
-
-      // Send the text
-      if (sendEnter) {
-        await execAsync(`tmux send-keys -t "${sessionName}" "${escapedText}" Enter`);
-      } else {
-        await execAsync(`tmux send-keys -t "${sessionName}" "${escapedText}"`);
-      }
+      // `--` stops tmux from parsing text that starts with '-' as options
+      const sendKeysArgs = ['send-keys', '-t', sessionName, '--', escapeSendKeysText(text)];
+      await runTmux(sendEnter ? [...sendKeysArgs, 'Enter'] : sendKeysArgs);
 
       // Update last activity
       sessionsDb.upsertSession(sessionName, {
@@ -238,18 +233,13 @@ export function createSessionRoutes(): Router {
   // Get terminal preview (last N lines from tmux pane)
   router.get('/:sessionName/preview', async (req, res) => {
     const { sessionName } = req.params;
-    const { exec } = await import('child_process');
-    const { promisify } = await import('util');
-    const execAsync = promisify(exec);
 
     if (!/^[\w-]+$/.test(sessionName)) {
       return res.status(400).json({ error: 'Invalid session name' });
     }
 
     try {
-      const { stdout } = await execAsync(
-        `tmux capture-pane -t "${sessionName}" -p -S -20 2>/dev/null`
-      );
+      const stdout = await runTmux(['capture-pane', '-t', sessionName, '-p', '-S', '-20']);
 
       const allLines = stdout.split('\n');
       const lines = allLines
@@ -268,16 +258,13 @@ export function createSessionRoutes(): Router {
   // Kill a tmux session
   router.delete('/:sessionName', async (req, res) => {
     const { sessionName } = req.params;
-    const { exec } = await import('child_process');
-    const { promisify } = await import('util');
-    const execAsync = promisify(exec);
 
     if (!/^[\w-]+$/.test(sessionName)) {
       return res.status(400).json({ error: 'Invalid session name' });
     }
 
     try {
-      await execAsync(`tmux kill-session -t "${sessionName}" 2>/dev/null`);
+      await runTmux(['kill-session', '-t', sessionName]);
       console.log(`Killed tmux session: ${sessionName}`);
 
       sessionsDb.deleteSession(sessionName);
@@ -292,9 +279,6 @@ export function createSessionRoutes(): Router {
   // Archive a session (mark as done and keep in history)
   router.post('/:sessionName/archive', async (req, res) => {
     const { sessionName } = req.params;
-    const { exec } = await import('child_process');
-    const { promisify } = await import('util');
-    const execAsync = promisify(exec);
 
     if (!/^[\w-]+$/.test(sessionName)) {
       return res.status(400).json({ error: 'Invalid session name' });
@@ -306,7 +290,7 @@ export function createSessionRoutes(): Router {
     }
 
     try {
-      await execAsync(`tmux kill-session -t "${sessionName}" 2>/dev/null`);
+      await runTmux(['kill-session', '-t', sessionName]);
       console.log(`[Archive] Killed tmux session: ${sessionName}`);
     } catch {
       console.log(`[Archive] Tmux session ${sessionName} was already gone`);
