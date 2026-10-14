@@ -108,7 +108,10 @@ export function createProjectRoutes(): Router {
     const targetPath = path.join(resolvedBase, repoName);
 
     // Defense in depth: the resolved target must stay inside the base directory.
-    if (targetPath !== resolvedBase && !targetPath.startsWith(resolvedBase + path.sep)) {
+    // Don't double the separator when basePath is the filesystem root ('/'),
+    // otherwise a valid child like '/myrepo' would be wrongly rejected.
+    const baseWithSep = resolvedBase.endsWith(path.sep) ? resolvedBase : resolvedBase + path.sep;
+    if (targetPath !== resolvedBase && !targetPath.startsWith(baseWithSep)) {
       return res
         .status(400)
         .json({ success: false, error: 'Resolved clone path escapes the projects directory' });
