@@ -295,7 +295,8 @@ export function useHomeState() {
 
   const getAgentUrl = useCallback(() => {
     if (!selectedSession) return '';
-    const connection = agentConnections.find((c) => c.id === selectedSession.machineId);
+    const connection =
+      agentConnections.find((c) => c.id === selectedSession.machineId) ?? agentConnections[0];
     return connection?.url || '';
   }, [selectedSession, agentConnections]);
 

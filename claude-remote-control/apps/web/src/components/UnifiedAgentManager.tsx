@@ -349,7 +349,13 @@ function AddAgentForm({
   const [testState, setTestState] = useState<'idle' | 'testing' | 'success' | 'error'>('idle');
 
   const getFullUrl = useCallback(() => {
-    if (type === 'local') return `localhost:${url}`;
+    if (type === 'local') {
+      const host =
+        typeof window !== 'undefined' && window.location.hostname
+          ? window.location.hostname
+          : 'localhost';
+      return `${host}:${url}`;
+    }
     return url;
   }, [type, url]);
 

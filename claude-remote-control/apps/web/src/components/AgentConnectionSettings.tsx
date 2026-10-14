@@ -438,7 +438,7 @@ export function AgentConnectionSettings({
   // Get the current URL based on state
   const getCurrentUrl = useCallback(() => {
     if (connectionType === 'local') {
-      return `localhost:${localhostPort}`;
+      return `${typeof window !== 'undefined' && window.location.hostname ? window.location.hostname : 'localhost'}:${localhostPort}`;
     }
     return customUrl;
   }, [connectionType, localhostPort, customUrl]);

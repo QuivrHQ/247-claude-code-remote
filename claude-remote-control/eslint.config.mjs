@@ -15,6 +15,8 @@ export default tseslint.config(
       '**/coverage/**',
       '**/*.d.ts',
       'pnpm-lock.yaml',
+      // Generated service worker bundle (serwist minified output)
+      'apps/web/public/sw.js',
       // CommonJS config files
       '**/postcss.config.js',
       '**/tailwind.config.js',

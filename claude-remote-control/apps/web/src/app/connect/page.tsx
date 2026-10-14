@@ -5,7 +5,7 @@ import { useSearchParams, useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Check, Loader2, AlertTriangle, Server, Sparkles, ArrowLeft } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { authClient } from '@/lib/auth-client';
+import { useAgentConnections } from '@/hooks/useAgentConnections';
 
 interface AgentInfo {
   machineId: string;
@@ -59,29 +59,16 @@ function Confetti() {
 function ConnectContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
+  const { addConnection } = useAgentConnections();
 
   const [status, setStatus] = useState<'loading' | 'ready' | 'connecting' | 'success' | 'error'>(
     'loading'
   );
   const [agentInfo, setAgentInfo] = useState<AgentInfo | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
 
   const token = searchParams.get('token');
   const code = searchParams.get('code');
-
-  // Check authentication status on mount
-  useEffect(() => {
-    async function checkAuth() {
-      try {
-        const session = await authClient.getSession();
-        setIsAuthenticated(!!session?.data?.user);
-      } catch {
-        setIsAuthenticated(false);
-      }
-    }
-    checkAuth();
-  }, []);
 
   // Validate token or code on mount
   useEffect(() => {
@@ -122,39 +109,15 @@ function ConnectContent() {
   const handleConfirm = async () => {
     if (!agentInfo) return;
 
-    // Check if user is authenticated
-    if (!isAuthenticated) {
-      // Redirect to auth with return URL
-      const returnUrl = encodeURIComponent(window.location.href);
-      router.push(`/auth/sign-in?returnTo=${returnUrl}`);
-      return;
-    }
-
     setStatus('connecting');
-
     try {
-      // Create the connection via API
-      const res = await fetch('/api/connections', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          url: agentInfo.agentUrl,
-          name: agentInfo.machineName,
-          machineId: agentInfo.machineId,
-          method: agentInfo.agentUrl.includes('.ts.net') ? 'tailscale' : 'custom',
-        }),
+      await addConnection({
+        url: agentInfo.agentUrl,
+        name: agentInfo.machineName,
+        method: agentInfo.agentUrl.includes('.ts.net') ? 'tailscale' : 'custom',
       });
-
-      if (!res.ok) {
-        throw new Error('Failed to save connection');
-      }
-
       setStatus('success');
-
-      // Redirect to home after a short delay
-      setTimeout(() => {
-        router.push('/?connected=true');
-      }, 1500);
+      setTimeout(() => router.push('/?connected=true'), 1500);
     } catch {
       setStatus('error');
       setErrorMessage('Failed to save connection. Please try again.');
@@ -271,20 +234,6 @@ function ConnectContent() {
               </div>
             </div>
 
-            {!isAuthenticated && (
-              <div className="mb-6 rounded-xl border border-amber-500/20 bg-amber-500/5 p-4">
-                <div className="flex items-start gap-3">
-                  <AlertTriangle className="h-5 w-5 shrink-0 text-amber-400" />
-                  <div className="text-sm">
-                    <p className="mb-1 font-medium text-amber-400">Sign in required</p>
-                    <p className="text-white/50">
-                      You&apos;ll be redirected to sign in before completing the connection.
-                    </p>
-                  </div>
-                </div>
-              </div>
-            )}
-
             <div className="flex gap-3">
               <button
                 onClick={handleCancel}
@@ -311,7 +260,7 @@ function ConnectContent() {
                 ) : (
                   <>
                     <Sparkles className="h-4 w-4" />
-                    {isAuthenticated ? 'Connect' : 'Sign in & Connect'}
+                    Connect Agent
                   </>
                 )}
               </button>
