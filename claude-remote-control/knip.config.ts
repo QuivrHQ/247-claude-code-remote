@@ -3,11 +3,15 @@ import type { KnipConfig } from 'knip';
 const config: KnipConfig = {
   workspaces: {
     '.': {
-      entry: ['tests/**/*.test.ts'],
-      project: ['tests/**/*.ts'],
+      // scripts/release/index.ts is the `pnpm release` entry; include the
+      // release scripts so their real dependency usage (chalk, ora) is seen.
+      entry: ['scripts/release/index.ts', 'tests/**/*.test.ts'],
+      project: ['scripts/**/*.ts', 'tests/**/*.ts'],
     },
     'apps/agent': {
-      entry: ['src/server.ts', 'tests/**/*.test.ts'],
+      // src/index.ts is the process entry (dev: tsx watch src/index.ts,
+      // start: node dist/index.js); server.ts is its library surface.
+      entry: ['src/index.ts', 'src/server.ts', 'tests/**/*.test.ts'],
       project: ['src/**/*.ts', 'tests/**/*.ts'],
       // pino-pretty: Used at runtime via dynamic require
       // http-proxy, web-push: Used in routes
@@ -35,7 +39,9 @@ const config: KnipConfig = {
       project: ['src/**/*.ts'],
     },
     'packages/cli': {
-      entry: ['tests/**/*.test.ts'],
+      // src/index.ts is the CLI entry (package.json bin: 247 -> dist/index.js);
+      // it wires up all the command modules.
+      entry: ['src/index.ts', 'tests/**/*.test.ts'],
       project: ['src/**/*.ts', 'tests/**/*.ts'],
       // Agent dependencies bundled into CLI
       ignoreDependencies: [
@@ -54,7 +60,7 @@ const config: KnipConfig = {
   },
   ignore: ['vitest.workspace.ts'],
   ignoreExportsUsedInFile: true,
-  // Root-level dev dependencies that are tooling
+  // Root-level dev dependencies that are tooling.
   ignoreDependencies: ['husky', 'lint-staged', '@vitest/coverage-v8'],
   // Disable vitest plugin at root - each workspace has its own vitest config
   vitest: false,

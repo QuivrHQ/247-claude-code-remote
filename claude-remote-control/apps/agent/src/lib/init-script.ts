@@ -53,6 +53,8 @@ export function generateInitScript(options: InitScriptOptions): string {
 
   const escapedSession = escapeForBash(sessionName);
   const escapedProject = escapeForBash(projectName);
+  // Project name embedded in tmux status strings needs '#' doubled as well.
+  const tmuxProject = escapeForTmuxStatus(projectName);
 
   // Build custom env var exports
   const customExports: string[] = [];
@@ -80,7 +82,7 @@ tmux set-option -t "${escapedSession}" status on 2>/dev/null
 tmux set-option -t "${escapedSession}" status-position bottom 2>/dev/null
 tmux set-option -t "${escapedSession}" status-interval 10 2>/dev/null
 tmux set-option -t "${escapedSession}" status-style "bg=#1a1a2e,fg=#e4e4e7" 2>/dev/null
-tmux set-option -t "${escapedSession}" status-left "#[fg=#f97316,bold] 247 #[fg=#52525b]|#[fg=#e4e4e7] ${escapedProject} " 2>/dev/null
+tmux set-option -t "${escapedSession}" status-left "#[fg=#f97316,bold] 247 #[fg=#52525b]|#[fg=#e4e4e7] ${tmuxProject} " 2>/dev/null
 tmux set-option -t "${escapedSession}" status-left-length 40 2>/dev/null
 tmux set-option -t "${escapedSession}" status-right "#[fg=#52525b]|#[fg=#4ade80] %H:%M " 2>/dev/null
 tmux set-option -t "${escapedSession}" status-right-length 20 2>/dev/null`;
@@ -526,6 +528,19 @@ function escapeForBash(value: string): string {
     .replace(/"/g, '\\"')
     .replace(/\$/g, '\\$')
     .replace(/`/g, '\\`');
+}
+
+/**
+ * Escapes a string for safe use inside a tmux status string.
+ *
+ * tmux interprets '#' in status strings as the start of a directive — `#(cmd)`
+ * runs a shell command, `#[attr]` sets attributes, `#{var}` expands a variable.
+ * A literal '#' must be written as '##', otherwise a project directory named
+ * like `#(cmd)` would execute `cmd` on every status refresh. Bash double-quote
+ * escaping is applied as well, since the value is still embedded in one.
+ */
+function escapeForTmuxStatus(value: string): string {
+  return escapeForBash(value).replace(/#/g, '##');
 }
 
 /**
