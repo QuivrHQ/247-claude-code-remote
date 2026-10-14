@@ -5,7 +5,7 @@ import { useSearchParams, useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Check, Loader2, AlertTriangle, Server, Sparkles, ArrowLeft } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { authClient } from '@/lib/auth-client';
+import { getAuthSession } from '@/lib/auth-client';
 
 interface AgentInfo {
   machineId: string;
@@ -74,7 +74,7 @@ function ConnectContent() {
   useEffect(() => {
     async function checkAuth() {
       try {
-        const session = await authClient.getSession();
+        const session = await getAuthSession();
         setIsAuthenticated(!!session?.data?.user);
       } catch {
         setIsAuthenticated(false);

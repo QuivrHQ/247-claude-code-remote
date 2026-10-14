@@ -14,9 +14,12 @@ const nextConfig = {
       bodySizeLimit: '2mb',
     },
   },
-  // Inject version at build time for auto-update system
   env: {
+    // Inject version at build time for auto-update system
     NEXT_PUBLIC_APP_VERSION: APP_VERSION,
+    // Local mode (no Neon Auth): /api/auth/* responds 500 without NEON_AUTH_BASE_URL,
+    // so tell the client up front to skip those requests. See src/lib/auth-config.ts.
+    NEXT_PUBLIC_AUTH_ENABLED: process.env.NEON_AUTH_BASE_URL ? 'true' : 'false',
   },
 };
 
