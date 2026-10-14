@@ -238,8 +238,8 @@ describe('Terminal', () => {
       expect(writtenInitScripts.length).toBe(1);
       const script = writtenInitScripts[0];
 
-      // Check script path
-      expect(script.path).toMatch(/247-init-init-script-test\.sh$/);
+      // Check script path (session name is hashed into the filename, not interpolated)
+      expect(script.path).toMatch(/\/247-init-[0-9a-f]{64}\.sh$/);
 
       // Check script contains required exports
       expect(script.content).toContain('export CLAUDE_TMUX_SESSION="init-script-test"');
@@ -382,7 +382,7 @@ describe('Terminal', () => {
       // tmux runs the trailing new-session argument through a shell, so the path must be inert
       expect(writtenInitScripts).toHaveLength(1);
       const scriptPath = writtenInitScripts[0].path;
-      expect(scriptPath).toMatch(/\/247-init-[\w.-]+\.sh$/);
+      expect(scriptPath).toMatch(/\/247-init-[0-9a-f]{64}\.sh$/);
 
       const pty = await import('@homebridge/node-pty-prebuilt-multiarch');
       const [, args] = vi.mocked(pty.spawn).mock.calls[0];

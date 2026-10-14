@@ -1,6 +1,7 @@
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
+import { createHash } from 'crypto';
 import { execSync } from 'child_process';
 
 export interface InitScriptOptions {
@@ -562,9 +563,13 @@ export function cleanupInitScript(sessionName: string): void {
  * Gets the path where an init script would be written.
  *
  * The session name can come from a client and tmux runs `bash --init-file <path>` through a
- * shell, so every character outside [A-Za-z0-9._-] (including `/`) is replaced with `_`.
+ * shell, so the filename must contain no shell metacharacters. It also must map one-to-one
+ * from the session name: two distinct names must not share a file, or a concurrent session
+ * could overwrite another's init script (or cleanup could delete it). A SHA-256 of the full
+ * name gives a fixed-length, collision-free, [0-9a-f]-only filename; the same name always
+ * resolves to the same path, so writeInitScript and cleanupInitScript agree.
  */
 export function getInitScriptPath(sessionName: string): string {
-  const safeName = sessionName.replace(/[^\w.-]/g, '_');
-  return path.join(os.tmpdir(), `247-init-${safeName}.sh`);
+  const hash = createHash('sha256').update(sessionName, 'utf8').digest('hex');
+  return path.join(os.tmpdir(), `247-init-${hash}.sh`);
 }

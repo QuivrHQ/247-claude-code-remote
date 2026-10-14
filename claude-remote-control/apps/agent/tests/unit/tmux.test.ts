@@ -32,6 +32,8 @@ const HOSTILE_NAMES = [
   'x\ntouch /tmp/pwned',
   'a b',
   '-t other',
+  // Non-ASCII names must be preserved too (they are why we don't reject on a strict charset)
+  'сессия-café-日本語',
 ];
 
 describe('tmux helpers', () => {

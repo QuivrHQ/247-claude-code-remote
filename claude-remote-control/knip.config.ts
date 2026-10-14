@@ -3,8 +3,9 @@ import type { KnipConfig } from 'knip';
 const config: KnipConfig = {
   workspaces: {
     '.': {
-      entry: ['tests/**/*.test.ts'],
-      project: ['tests/**/*.ts'],
+      // scripts/release/index.ts is run via `pnpm release` (tsx) and imports chalk/ora
+      entry: ['tests/**/*.test.ts', 'scripts/release/index.ts'],
+      project: ['tests/**/*.ts', 'scripts/**/*.ts'],
     },
     'apps/agent': {
       // src/index.ts is the process entry point (node dist/index.js / tsx src/index.ts)
@@ -56,10 +57,8 @@ const config: KnipConfig = {
   },
   ignore: ['vitest.workspace.ts'],
   ignoreExportsUsedInFile: true,
-  // Root-level dev dependencies that are tooling.
-  // chalk/ora are imported in packages/cli (and declared there); the root copies
-  // are kept for hoisting/bundling, so knip sees them as unused at the root.
-  ignoreDependencies: ['husky', 'lint-staged', '@vitest/coverage-v8', 'chalk', 'ora'],
+  // Root-level dev dependencies that are tooling
+  ignoreDependencies: ['husky', 'lint-staged', '@vitest/coverage-v8'],
   // Disable vitest plugin at root - each workspace has its own vitest config
   vitest: false,
   // Ignore intentional duplicate exports (aliases like checkNode = checkNodeVersion)

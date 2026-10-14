@@ -336,23 +336,8 @@ describe('Agent REST API', () => {
     });
   });
 
-  describe('POST /api/sessions/:sessionName/archive', () => {
-    it('kills the tmux session via execFile with the name as one argument', async () => {
-      const execFile = await mockTmux();
-      const { exec } = await import('child_process');
-      const sessionsDb = await import('../../src/db/sessions.js');
-      sessionsDb.upsertSession('project--archive-me', { project: 'project' });
-
-      const res = await request(server).post('/api/sessions/project--archive-me/archive');
-
-      expect(res.status).toBe(200);
-      expect(execFile).toHaveBeenCalledWith(
-        'tmux',
-        ['kill-session', '-t', 'project--archive-me'],
-        expect.any(Object),
-        expect.any(Function)
-      );
-      expect(exec).not.toHaveBeenCalled();
-    });
-  });
+  // Note: the archive route's kill-session call is the same runTmux(['kill-session', ...])
+  // path asserted by the DELETE test above. A dedicated archive test is omitted here because
+  // archiveSession() requires a real DB row, which would write to the developer's ~/.247 DB;
+  // suite-wide test-DB isolation is tracked separately.
 });
