@@ -4,8 +4,8 @@
  */
 
 import { WebSocket } from 'ws';
-import { execSync } from 'child_process';
 import { createTerminal } from './terminal.js';
+import { tmuxSessionExists } from './lib/tmux.js';
 import { config } from './config.js';
 import * as sessionsDb from './db/sessions.js';
 import type { WSMessageToAgent, WSSessionInfo, WSSessionsMessageFromAgent } from '247-shared';
@@ -22,18 +22,6 @@ function generateSessionName(project: string): string {
   const timestamp = Date.now().toString(36);
   const counter = (sessionCounter++).toString(36);
   return `${project}--${timestamp}${counter}`;
-}
-
-/**
- * Check if a tmux session exists
- */
-function tmuxSessionExists(sessionName: string): boolean {
-  try {
-    execSync(`tmux has-session -t "${sessionName}" 2>/dev/null`);
-    return true;
-  } catch {
-    return false;
-  }
 }
 
 /**

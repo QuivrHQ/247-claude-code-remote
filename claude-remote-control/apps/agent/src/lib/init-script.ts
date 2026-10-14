@@ -463,8 +463,8 @@ printf "\\n"`;
 
   return `#!/bin/bash
 # 247 Terminal Init Script - Auto-generated
-# Session: ${sessionName}
-# Project: ${projectName}
+# Session: ${toCommentText(sessionName)}
+# Project: ${toCommentText(projectName)}
 # Init Shell: ${shell} (for script content)
 # Target Shell: ${targetShell} (interactive session)
 # Generated: ${new Date().toISOString()}
@@ -529,11 +529,19 @@ function escapeForBash(value: string): string {
 }
 
 /**
+ * Flattens a value for use in a `#` comment line.
+ * A line break would end the comment and turn the rest of the value into executable script.
+ */
+function toCommentText(value: string): string {
+  return value.replace(/[\r\n]+/g, ' ');
+}
+
+/**
  * Writes the init script to a temporary file.
  * @returns The path to the created script file.
  */
 export function writeInitScript(sessionName: string, content: string): string {
-  const scriptPath = path.join(os.tmpdir(), `247-init-${sessionName}.sh`);
+  const scriptPath = getInitScriptPath(sessionName);
   fs.writeFileSync(scriptPath, content, { mode: 0o755 });
   return scriptPath;
 }
@@ -542,7 +550,7 @@ export function writeInitScript(sessionName: string, content: string): string {
  * Removes the init script file.
  */
 export function cleanupInitScript(sessionName: string): void {
-  const scriptPath = path.join(os.tmpdir(), `247-init-${sessionName}.sh`);
+  const scriptPath = getInitScriptPath(sessionName);
   try {
     fs.unlinkSync(scriptPath);
   } catch {
@@ -552,7 +560,11 @@ export function cleanupInitScript(sessionName: string): void {
 
 /**
  * Gets the path where an init script would be written.
+ *
+ * The session name can come from a client and tmux runs `bash --init-file <path>` through a
+ * shell, so every character outside [A-Za-z0-9._-] (including `/`) is replaced with `_`.
  */
 export function getInitScriptPath(sessionName: string): string {
-  return path.join(os.tmpdir(), `247-init-${sessionName}.sh`);
+  const safeName = sessionName.replace(/[^\w.-]/g, '_');
+  return path.join(os.tmpdir(), `247-init-${safeName}.sh`);
 }

@@ -1,15 +1,12 @@
 import * as pty from '@homebridge/node-pty-prebuilt-multiarch';
-import { exec, execSync } from 'child_process';
-import { promisify } from 'util';
 import {
   generateInitScript,
   writeInitScript,
   cleanupInitScript,
   detectUserShell,
 } from './lib/init-script.js';
+import { tmuxSessionExists, runTmux } from './lib/tmux.js';
 import * as path from 'path';
-
-const execAsync = promisify(exec);
 
 export interface Terminal {
   write(data: string): void;
@@ -40,15 +37,12 @@ export function createTerminal(
       : (options as Record<string, string>);
 
   // Check if session already exists before spawning
-  let existingSession = false;
-  try {
-    execSync(`tmux has-session -t "${sessionName}" 2>/dev/null`);
-    existingSession = true;
-    console.log(`[Terminal] Session '${sessionName}' exists, will attach`);
-  } catch {
-    existingSession = false;
-    console.log(`[Terminal] Session '${sessionName}' does not exist, will create`);
-  }
+  const existingSession = tmuxSessionExists(sessionName);
+  console.log(
+    existingSession
+      ? `[Terminal] Session '${sessionName}' exists, will attach`
+      : `[Terminal] Session '${sessionName}' does not exist, will create`
+  );
 
   if (Object.keys(customEnvVars).length > 0) {
     console.log(
@@ -184,7 +178,8 @@ export function createTerminal(
     // For existing sessions, just ensure mouse is enabled
     // isReady is already true for existing sessions (set above)
     setTimeout(() => {
-      exec(`tmux set-option -t "${sessionName}" mouse on`);
+      // Best effort: the session may have exited in the meantime
+      runTmux(['set-option', '-t', sessionName, 'mouse', 'on']).catch(() => undefined);
     }, 100);
   }
 
@@ -216,10 +211,7 @@ export function createTerminal(
         // -p = print to stdout
         // -S -N = start from N lines back (negative = from start of history)
         // -J = preserve trailing spaces for proper formatting
-        const { stdout } = await execAsync(
-          `tmux capture-pane -t "${sessionName}" -p -S -${lines} -J 2>/dev/null`
-        );
-        return stdout;
+        return await runTmux(['capture-pane', '-t', sessionName, '-p', '-S', `-${lines}`, '-J']);
       } catch {
         return '';
       }

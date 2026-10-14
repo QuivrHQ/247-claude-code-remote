@@ -43,6 +43,12 @@ vi.mock('child_process', () => ({
     if (callback) callback(null, { stdout: '', stderr: '' });
   }),
   execSync: vi.fn(() => ''),
+  // tmux is spawned via argv (no shell); tests configure results per case
+  execFile: vi.fn((_file, _args, opts, cb) => {
+    const callback = typeof opts === 'function' ? opts : cb;
+    if (callback) callback(null, '', '');
+  }),
+  execFileSync: vi.fn(() => Buffer.from('')),
   spawn: vi.fn(() => {
     const proc = new EventEmitter() as any;
     proc.stdout = new EventEmitter();
@@ -188,19 +194,26 @@ describe('API Response Contract Tests', () => {
 
   describe('Session Preview Endpoint', () => {
     it('returns preview with expected structure', async () => {
-      const { exec } = await import('child_process');
-      vi.mocked(exec).mockImplementation((cmd: any, opts: any, cb: any) => {
-        const callback = typeof opts === 'function' ? opts : cb;
-        if (callback) callback(null, { stdout: '$ echo hello\nhello\n$ ', stderr: '' });
-        return null as any;
-      });
+      const { execFile } = await import('child_process');
+      vi.mocked(execFile).mockImplementation(((
+        _file: string,
+        _args: string[],
+        opts: unknown,
+        cb: unknown
+      ) => {
+        const callback = (typeof opts === 'function' ? opts : cb) as (
+          error: Error | null,
+          stdout: string,
+          stderr: string
+        ) => void;
+        callback(null, '$ echo hello\nhello\n$ ', '');
+      }) as never);
 
       const res = await request(server).get('/api/sessions/test--valid-session-1/preview');
 
-      if (res.status === 200) {
-        expect(Array.isArray(res.body.lines)).toBe(true);
-        expect(typeof res.body.timestamp).toBe('number');
-      }
+      expect(res.status).toBe(200);
+      expect(Array.isArray(res.body.lines)).toBe(true);
+      expect(typeof res.body.timestamp).toBe('number');
     });
   });
 });

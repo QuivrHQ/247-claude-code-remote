@@ -245,6 +245,27 @@ describe('init-script', () => {
     });
   });
 
+  describe('generateInitScript header comments', () => {
+    it('keeps line breaks in session and project names inside their comment lines', async () => {
+      const { generateInitScript } = await import('../../src/lib/init-script.js');
+
+      // A raw newline here would end the comment and start a new, executable script line
+      const script = generateInitScript({
+        sessionName: 'evil\ntouch /tmp/pwned',
+        projectName: 'proj\r\nrm -rf ~',
+        shell: 'bash',
+        targetShell: 'bash',
+      });
+
+      const lines = script.split('\n');
+      const sessionIdx = lines.findIndex((line) => line.startsWith('# Session:'));
+      expect(sessionIdx).toBeGreaterThan(-1);
+      expect(lines[sessionIdx]).toBe('# Session: evil touch /tmp/pwned');
+      expect(lines[sessionIdx + 1]).toBe('# Project: proj rm -rf ~');
+      expect(lines[sessionIdx + 2]).toMatch(/^# Init Shell:/);
+    });
+  });
+
   describe('writeInitScript', () => {
     it('writes script to temp directory with correct permissions', async () => {
       const { writeInitScript } = await import('../../src/lib/init-script.js');
@@ -257,6 +278,17 @@ describe('init-script', () => {
         { mode: 0o755 }
       );
       expect(result).toBe('/tmp/247-init-my-session.sh');
+    });
+
+    it('cannot be steered out of the temp directory or into a shell by the session name', async () => {
+      const { writeInitScript } = await import('../../src/lib/init-script.js');
+
+      // tmux runs `bash --init-file <path>` through a shell, so the path must be inert
+      const result = writeInitScript('../../etc/x;touch /tmp/pwned "$(id)" `id`', '#!/bin/bash');
+
+      expect(path.dirname(result)).toBe('/tmp');
+      expect(path.basename(result)).toMatch(/^247-init-[\w.-]+\.sh$/);
+      expect(fs.writeFileSync).toHaveBeenCalledWith(result, '#!/bin/bash', { mode: 0o755 });
     });
   });
 
@@ -279,6 +311,15 @@ describe('init-script', () => {
       // Should not throw
       expect(() => cleanupInitScript('nonexistent')).not.toThrow();
     });
+
+    it('removes the same sanitized path that writeInitScript wrote', async () => {
+      const { writeInitScript, cleanupInitScript } = await import('../../src/lib/init-script.js');
+
+      const written = writeInitScript('my session;touch x', '#!/bin/bash');
+      cleanupInitScript('my session;touch x');
+
+      expect(fs.unlinkSync).toHaveBeenCalledWith(written);
+    });
   });
 
   describe('getInitScriptPath', () => {
@@ -288,6 +329,13 @@ describe('init-script', () => {
       const result = getInitScriptPath('my-session');
 
       expect(result).toBe('/tmp/247-init-my-session.sh');
+    });
+
+    it('keeps dots, dashes and underscores and replaces every other character with an underscore', async () => {
+      const { getInitScriptPath } = await import('../../src/lib/init-script.js');
+
+      expect(getInitScriptPath('proj_1.2--abc')).toBe('/tmp/247-init-proj_1.2--abc.sh');
+      expect(getInitScriptPath('a b/c;d$e')).toBe('/tmp/247-init-a_b_c_d_e.sh');
     });
   });
 });

@@ -7,7 +7,8 @@ const config: KnipConfig = {
       project: ['tests/**/*.ts'],
     },
     'apps/agent': {
-      entry: ['src/server.ts', 'tests/**/*.test.ts'],
+      // src/index.ts is the process entry point (node dist/index.js / tsx src/index.ts)
+      entry: ['src/index.ts', 'src/server.ts', 'tests/**/*.test.ts'],
       project: ['src/**/*.ts', 'tests/**/*.ts'],
       // pino-pretty: Used at runtime via dynamic require
       // http-proxy, web-push: Used in routes
@@ -35,7 +36,8 @@ const config: KnipConfig = {
       project: ['src/**/*.ts'],
     },
     'packages/cli': {
-      entry: ['tests/**/*.test.ts'],
+      // src/index.ts is the CLI entry point (bin "247" -> dist/index.js)
+      entry: ['src/index.ts', 'tests/**/*.test.ts'],
       project: ['src/**/*.ts', 'tests/**/*.ts'],
       // Agent dependencies bundled into CLI
       ignoreDependencies: [
@@ -54,8 +56,10 @@ const config: KnipConfig = {
   },
   ignore: ['vitest.workspace.ts'],
   ignoreExportsUsedInFile: true,
-  // Root-level dev dependencies that are tooling
-  ignoreDependencies: ['husky', 'lint-staged', '@vitest/coverage-v8'],
+  // Root-level dev dependencies that are tooling.
+  // chalk/ora are imported in packages/cli (and declared there); the root copies
+  // are kept for hoisting/bundling, so knip sees them as unused at the root.
+  ignoreDependencies: ['husky', 'lint-staged', '@vitest/coverage-v8', 'chalk', 'ora'],
   // Disable vitest plugin at root - each workspace has its own vitest config
   vitest: false,
   // Ignore intentional duplicate exports (aliases like checkNode = checkNodeVersion)
