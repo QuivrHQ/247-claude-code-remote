@@ -139,7 +139,8 @@ describe('Agent REST API', () => {
         '/tmp/test-projects/allowed-project/src',
         { withFileTypes: true }
       );
-      expect(res.body).not.toContain('.hidden');
+      // Only non-hidden child directories, sorted; files and dotfiles excluded.
+      expect(res.body).toEqual(['allowed-project', 'another-project', 'unlisted-project']);
     });
 
     it.each(['../etc', 'allowed-project/../../etc', '/etc', '.hidden', 'a\\b'])(

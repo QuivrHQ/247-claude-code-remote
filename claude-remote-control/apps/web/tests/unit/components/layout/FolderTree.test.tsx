@@ -40,6 +40,9 @@ describe('FolderTree', () => {
     expect(screen.getByText('docs')).toBeTruthy();
     expect(fetchMock).toHaveBeenCalledWith('http://localhost:4678/api/folders?path=app');
     expect(screen.getByRole('button', { name: 'Collapse app' })).toBeTruthy();
+    // Collapsing hides the children again.
+    fireEvent.click(screen.getByRole('button', { name: 'Collapse app' }));
+    expect(screen.queryByText('src')).toBeNull();
   });
 
   it('supports several levels of nesting', async () => {

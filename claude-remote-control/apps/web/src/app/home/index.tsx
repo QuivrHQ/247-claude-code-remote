@@ -181,6 +181,17 @@ export function HomeContent() {
     }));
   }, [allSessions]);
 
+  // Per-machine session counts keyed by project path, for machine-scoped
+  // folder badges in the sidebar.
+  const sessionCountsByMachine = useMemo(() => {
+    const counts: Record<string, Record<string, number>> = {};
+    allSessions.forEach((s) => {
+      const forMachine = (counts[s.machineId] ??= {});
+      forMachine[s.project] = (forMachine[s.project] ?? 0) + 1;
+    });
+    return counts;
+  }, [allSessions]);
+
   // Compute selectedSessionId for the new layout
   const selectedSessionId = selectedSession
     ? `${selectedSession.machineId}-${selectedSession.sessionName}`
@@ -391,6 +402,7 @@ export function HomeContent() {
           onAddMachine={() => setUnifiedManagerOpen(true)}
           selectedProjectName={projectFilter}
           onSelectProject={handleSelectProject}
+          sessionCountsByMachine={sessionCountsByMachine}
           onStartSessionInFolder={(machineId, path) => handleStartSession(machineId, path)}
           onEditMachine={handleEditMachineFromSidebar}
           onRemoveMachine={handleRemoveMachineFromSidebar}

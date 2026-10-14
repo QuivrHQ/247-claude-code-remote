@@ -51,6 +51,8 @@ interface SidebarProps {
   onAddMachine?: () => void;
   onSelectProject?: (projectName: string) => void;
   selectedProjectName?: string | null;
+  /** Session counts per project path, keyed by machine id, for folder badges. */
+  sessionCountsByMachine?: Record<string, Record<string, number>>;
   /** Start a new session in a folder (path relative to the projects base). */
   onStartSessionInFolder?: (machineId: string, path: string) => void;
   onEditMachine?: (machine: SidebarMachine) => void;
@@ -424,6 +426,7 @@ export function Sidebar({
   onAddMachine,
   onSelectProject,
   selectedProjectName,
+  sessionCountsByMachine,
   onStartSessionInFolder,
   onEditMachine,
   onRemoveMachine,
@@ -438,9 +441,9 @@ export function Sidebar({
     !collapsed && folderMachine && folderMachine.status !== 'offline'
       ? folderMachine.url
       : undefined;
-  const sessionCounts = Object.fromEntries(
-    projects.map((project) => [project.path, project.activeSessionCount])
-  );
+  // Scope badges to the folder machine so a project used on another machine
+  // does not inflate the count shown here.
+  const sessionCounts = (folderMachine && sessionCountsByMachine?.[folderMachine.id]) ?? {};
 
   return (
     <aside

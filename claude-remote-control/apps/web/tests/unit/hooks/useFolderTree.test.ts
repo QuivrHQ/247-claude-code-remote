@@ -82,16 +82,22 @@ describe('useFolderTree', () => {
   });
 
   it('resets and reloads when the loader changes (machine switch)', async () => {
-    const first = makeLoader({ '': ['one'] });
+    const first = makeLoader({ '': ['one'], one: ['sub'] });
     const second = makeLoader({ '': ['two'] });
     const { result, rerender } = renderHook(({ loader }) => useFolderTree(loader), {
       initialProps: { loader: first },
     });
     await waitFor(() => expect(result.current.nodes['']?.children).toEqual(['one']));
 
+    // Expand a folder so there is real expansion state to clear.
+    act(() => result.current.toggle('one'));
+    await waitFor(() => expect(result.current.nodes['one']?.status).toBe('loaded'));
+    expect(result.current.expanded.has('one')).toBe(true);
+
     rerender({ loader: second });
 
     await waitFor(() => expect(result.current.nodes['']?.children).toEqual(['two']));
     expect(result.current.expanded.size).toBe(0);
+    expect(result.current.nodes['one']).toBeUndefined();
   });
 });
