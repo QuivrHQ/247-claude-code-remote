@@ -101,12 +101,18 @@ function Section({ title, children, collapsed, defaultExpanded = true, action }:
         )}
       >
         <button
+          type="button"
           onClick={() => setExpanded(!expanded)}
-          className="flex items-center gap-1.5 transition-colors duration-150 hover:text-foreground-muted"
+          aria-expanded={expanded}
+          className="flex flex-1 items-center gap-1.5 transition-colors duration-150 hover:text-foreground-muted"
         >
-          <motion.div animate={{ rotate: expanded ? 90 : 0 }} transition={spring.snappy}>
+          <motion.span
+            className="flex"
+            animate={{ rotate: expanded ? 90 : 0 }}
+            transition={spring.snappy}
+          >
             <ChevronRight className="h-3 w-3" />
-          </motion.div>
+          </motion.span>
           <span>{title}</span>
         </button>
         {action}

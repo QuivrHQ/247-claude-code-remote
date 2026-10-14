@@ -53,7 +53,8 @@ const AGENT_PORT = 4678;
 // Stable id for the auto-seeded local agent so that session deep-links
 // (?machine=<id>) resolve to the same machine across reloads, browsers and
 // devices — a random per-browser UUID would break those links.
-const LOCAL_DEFAULT_ID = 'local-default';
+export const LOCAL_DEFAULT_ID = 'local-default';
+const SAVE_ERROR_MESSAGE = 'Could not save connections to this browser (storage blocked or full).';
 
 function newId(): string {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
@@ -62,19 +63,23 @@ function newId(): string {
   return `conn-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
 }
 
+// Only host[:port] is case-insensitive; paths must stay distinct.
 function normalizeUrl(url: string): string {
-  return stripProtocol(url).toLowerCase();
+  const [authority, ...path] = stripProtocol(url).split('/');
+  return [authority.toLowerCase(), ...path].join('/');
 }
 
-function readStore(): AgentConnection[] {
-  if (typeof window === 'undefined') return [];
+// Returns null when nothing usable is stored (key absent, unreadable or
+// corrupt) so first run can be told apart from a deliberately emptied list.
+function readStore(): AgentConnection[] | null {
+  if (typeof window === 'undefined') return null;
   try {
     const raw = window.localStorage.getItem(STORAGE_KEY);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? (parsed as AgentConnection[]) : [];
+    if (raw === null) return null;
+    const parsed: unknown = JSON.parse(raw);
+    return Array.isArray(parsed) ? (parsed as AgentConnection[]) : null;
   } catch {
-    return [];
+    return null;
   }
 }
 
@@ -96,7 +101,8 @@ function defaultConnection(): AgentConnection {
     typeof window !== 'undefined' && window.location.hostname
       ? window.location.hostname
       : 'localhost';
-  const isLoopback = host === 'localhost' || host === '127.0.0.1' || host === '::1';
+  const isLoopback =
+    host === 'localhost' || host === '127.0.0.1' || host === '::1' || host === '[::1]';
   return {
     id: LOCAL_DEFAULT_ID,
     url: `${host}:${AGENT_PORT}`,
@@ -111,20 +117,23 @@ export function useAgentConnections(): UseAgentConnectionsReturn {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Throws when the write fails so callers never report a false success.
   const persist = useCallback((next: AgentConnection[]) => {
-    const ok = writeStore(next);
+    if (!writeStore(next)) {
+      setError(SAVE_ERROR_MESSAGE);
+      throw new Error(SAVE_ERROR_MESSAGE);
+    }
     setConnections(next);
-    setError(ok ? null : 'Could not save connections to this browser (storage blocked or full).');
-    return ok;
+    setError(null);
   }, []);
 
   const fetchConnections = useCallback(async () => {
     try {
       setError(null);
       let stored = readStore();
-      // Seed a default local agent on first run so the dashboard connects
-      // straight away without any sign-in.
-      if (stored.length === 0) {
+      // Seed a default local agent only when nothing was ever stored, so an
+      // intentionally emptied list stays empty across reloads.
+      if (stored === null) {
         stored = [defaultConnection()];
         writeStore(stored);
       }
@@ -141,19 +150,21 @@ export function useAgentConnections(): UseAgentConnectionsReturn {
     if (typeof window === 'undefined') return;
     // Keep multiple open tabs in sync.
     const onStorage = (e: StorageEvent) => {
-      if (e.key === STORAGE_KEY) setConnections(readStore());
+      if (e.key === STORAGE_KEY) setConnections(readStore() ?? []);
     };
     window.addEventListener('storage', onStorage);
     return () => window.removeEventListener('storage', onStorage);
   }, [fetchConnections]);
 
+  // Mutations re-read storage right before writing (never the React snapshot),
+  // so changes made in another tab are merged rather than overwritten.
   const addConnection = async (data: {
     url: string;
     name: string;
     method?: string;
     color?: string;
   }): Promise<AgentConnection> => {
-    const current = readStore();
+    const current = readStore() ?? [];
     // Dedupe by normalized URL so the same agent is never registered twice
     // (which would open duplicate WebSockets and list every session twice).
     const existing = current.find((c) => normalizeUrl(c.url) === normalizeUrl(data.url));
@@ -180,14 +191,14 @@ export function useAgentConnections(): UseAgentConnectionsReturn {
   };
 
   const removeConnection = async (id: string): Promise<void> => {
-    persist(readStore().filter((c) => c.id !== id));
+    persist((readStore() ?? []).filter((c) => c.id !== id));
   };
 
   const updateConnection = async (
     id: string,
     data: { url?: string; name?: string; method?: string; color?: string }
   ): Promise<AgentConnection> => {
-    const current = readStore();
+    const current = readStore() ?? [];
     const existing = current.find((c) => c.id === id);
     if (!existing) {
       throw new Error('Connection not found');

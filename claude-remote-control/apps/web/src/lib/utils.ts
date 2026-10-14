@@ -20,14 +20,55 @@ export function stripProtocol(url: string): string {
  * the agent without a certificate, so TLS would fail.
  */
 export function isPlaintextHost(cleanUrl: string): boolean {
-  const host = cleanUrl.split('/')[0].split(':')[0].toLowerCase();
+  const { host } = parseHostPort(cleanUrl);
   if (host === 'localhost' || host.endsWith('.localhost') || host.endsWith('.local')) return true;
-  if (host === '::1' || host.startsWith('127.')) return true;
-  // IPv4 private ranges
-  if (/^10\./.test(host)) return true;
-  if (/^192\.168\./.test(host)) return true;
-  if (/^172\.(1[6-9]|2\d|3[01])\./.test(host)) return true;
-  return false;
+  if (host === '::1') return true;
+  const octets = parseIPv4(host);
+  if (!octets) return false;
+  const [a, b] = octets;
+  return a === 127 || a === 10 || (a === 192 && b === 168) || (a === 172 && b >= 16 && b <= 31);
+}
+
+/**
+ * Split a protocol-less agent URL into host and port. Understands bracketed
+ * IPv6 literals (`[::1]:4678`); the returned host never includes brackets.
+ */
+export function parseHostPort(cleanUrl: string): { host: string; port: string } {
+  const authority = cleanUrl.split('/')[0];
+  if (authority.startsWith('[')) {
+    const end = authority.indexOf(']');
+    if (end !== -1) {
+      const rest = authority.slice(end + 1);
+      return {
+        host: authority.slice(1, end).toLowerCase(),
+        port: rest.startsWith(':') ? rest.slice(1) : '',
+      };
+    }
+  }
+  const colon = authority.indexOf(':');
+  // No colon, or several colons without brackets (bare IPv6): no port to split off.
+  if (colon === -1 || colon !== authority.lastIndexOf(':')) {
+    return { host: authority.toLowerCase(), port: '' };
+  }
+  return { host: authority.slice(0, colon).toLowerCase(), port: authority.slice(colon + 1) };
+}
+
+function parseIPv4(host: string): number[] | null {
+  const match = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(host);
+  if (!match) return null;
+  const octets = match.slice(1).map(Number);
+  return octets.every((octet) => octet <= 255) ? octets : null;
+}
+
+/**
+ * Hostname the dashboard is served from. A "local" agent runs on the same
+ * host, so this is what the local-agent URL and its field label should show.
+ */
+export function getLocalAgentHost(): string {
+  if (typeof window !== 'undefined' && window.location.hostname) {
+    return window.location.hostname;
+  }
+  return 'localhost';
 }
 
 /**

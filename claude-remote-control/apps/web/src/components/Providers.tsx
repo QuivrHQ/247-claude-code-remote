@@ -42,7 +42,12 @@ function useClearAppBadge() {
 function useRegisterServiceWorker() {
   useEffect(() => {
     if (typeof navigator !== 'undefined' && 'serviceWorker' in navigator) {
-      navigator.serviceWorker.register('/sw.js').catch(() => {});
+      navigator.serviceWorker.register('/sw.js').catch((error: unknown) => {
+        // Insecure origins always reject; only surface real failures.
+        if (window.isSecureContext) {
+          console.error('Service worker registration failed:', error);
+        }
+      });
     }
   }, []);
 }
