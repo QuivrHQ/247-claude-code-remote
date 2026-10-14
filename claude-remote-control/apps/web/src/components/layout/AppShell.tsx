@@ -22,6 +22,7 @@ export interface AppShellProps {
   onAddMachine?: () => void;
   onSelectProject?: (projectName: string) => void;
   selectedProjectName?: string | null;
+  onStartSessionInFolder?: (machineId: string, path: string) => void;
   onEditMachine?: (machine: SidebarMachine) => void;
   onRemoveMachine?: (machine: SidebarMachine) => void;
   canRemoveMachine?: (machine: SidebarMachine) => boolean;
@@ -70,6 +71,7 @@ export function AppShell({
   onAddMachine,
   onSelectProject,
   selectedProjectName,
+  onStartSessionInFolder,
   onEditMachine,
   onRemoveMachine,
   canRemoveMachine,
@@ -148,6 +150,7 @@ export function AppShell({
               onAddMachine={onAddMachine}
               onSelectProject={onSelectProject}
               selectedProjectName={selectedProjectName}
+              onStartSessionInFolder={onStartSessionInFolder}
               onEditMachine={onEditMachine}
               onRemoveMachine={onRemoveMachine}
               canRemoveMachine={canRemoveMachine}

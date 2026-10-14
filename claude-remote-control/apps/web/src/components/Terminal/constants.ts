@@ -2,6 +2,8 @@
  * Terminal constants and theme configuration
  */
 
+import { projectSlug } from '247-shared';
+
 // Reconnection constants
 export const WS_RECONNECT_BASE_DELAY = 1000; // 1 second
 export const WS_RECONNECT_MAX_DELAY = 30000; // 30 seconds
@@ -55,5 +57,5 @@ export function generateSessionName(project: string): string {
   const adj = adjectives[Math.floor(Math.random() * adjectives.length)];
   const noun = nouns[Math.floor(Math.random() * nouns.length)];
   const num = Math.floor(Math.random() * 100);
-  return `${project}--${adj}-${noun}-${num}`;
+  return `${projectSlug(project)}--${adj}-${noun}-${num}`;
 }

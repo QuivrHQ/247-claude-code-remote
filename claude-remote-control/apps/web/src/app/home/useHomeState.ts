@@ -2,7 +2,12 @@
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { buildSessionName, isValidSessionLabel, sanitizeSessionLabel } from '247-shared';
+import {
+  buildSessionName,
+  isValidSessionLabel,
+  projectSlug,
+  sanitizeSessionLabel,
+} from '247-shared';
 import { useSessionPolling } from '@/contexts/SessionPollingContext';
 import {
   useAgentConnections,
@@ -185,7 +190,7 @@ export function useHomeState() {
       const label = sessionLabel ? sanitizeSessionLabel(sessionLabel) : '';
       const newSessionName = isValidSessionLabel(label)
         ? buildSessionName(project, label)
-        : `${project}--new`;
+        : `${projectSlug(project)}--new`;
       setSelectedSession({
         machineId,
         sessionName: newSessionName,

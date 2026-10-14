@@ -19,6 +19,7 @@ import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { cn } from '@/lib/utils';
 import { variants, spring, stagger } from '@/lib/animations';
 import { StatusDot, type ConnectionStatus } from '@/components/ui/status-indicator';
+import { FolderTree } from './FolderTree';
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Types
@@ -50,6 +51,8 @@ interface SidebarProps {
   onAddMachine?: () => void;
   onSelectProject?: (projectName: string) => void;
   selectedProjectName?: string | null;
+  /** Start a new session in a folder (path relative to the projects base). */
+  onStartSessionInFolder?: (machineId: string, path: string) => void;
   onEditMachine?: (machine: SidebarMachine) => void;
   onRemoveMachine?: (machine: SidebarMachine) => void;
   canRemoveMachine?: (machine: SidebarMachine) => boolean;
@@ -396,7 +399,7 @@ function ProjectItem({ project, collapsed, selected, onClick }: ProjectItemProps
           selected ? 'font-medium text-white' : 'text-white/70'
         )}
       >
-        {project.name}
+        {project.name.split('__').join(' / ')}
       </span>
       {project.activeSessionCount > 0 && (
         <span className="rounded bg-white/5 px-1.5 py-0.5 text-xs text-white/40">
@@ -421,10 +424,24 @@ export function Sidebar({
   onAddMachine,
   onSelectProject,
   selectedProjectName,
+  onStartSessionInFolder,
   onEditMachine,
   onRemoveMachine,
   canRemoveMachine,
 }: SidebarProps) {
+  // Browse the selected machine's folders (or the only machine, if just one)
+  const folderMachine =
+    machines.find((m) => m.id === selectedMachineId) ??
+    (machines.length === 1 ? machines[0] : undefined);
+  // Folders come from the agent's REST API, so only an unreachable machine hides them
+  const folderAgentUrl =
+    !collapsed && folderMachine && folderMachine.status !== 'offline'
+      ? folderMachine.url
+      : undefined;
+  const sessionCounts = Object.fromEntries(
+    projects.map((project) => [project.path, project.activeSessionCount])
+  );
+
   return (
     <aside
       className={cn('panel flex h-full w-full flex-col', 'transition-all duration-200')}
@@ -531,6 +548,27 @@ export function Sidebar({
               />
             ))}
           </Section>
+        )}
+
+        {/* Folders Section - browse subfolders and other projects */}
+        {folderMachine && folderAgentUrl && (
+          <>
+            <div className="mx-3 my-2 h-px bg-white/5" />
+            <Section title="Folders" collapsed={collapsed}>
+              <FolderTree
+                key={folderMachine.id}
+                agentUrl={folderAgentUrl}
+                selectedPath={selectedProjectName}
+                sessionCounts={sessionCounts}
+                onSelectFolder={onSelectProject}
+                onStartSession={
+                  onStartSessionInFolder
+                    ? (path) => onStartSessionInFolder(folderMachine.id, path)
+                    : undefined
+                }
+              />
+            </Section>
+          </>
         )}
       </div>
     </aside>

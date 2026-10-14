@@ -12,7 +12,7 @@ import type { WSMessageToAgent, WSSessionInfo, WSSessionsMessageFromAgent } from
 import { getAgentVersion, needsUpdate } from './version.js';
 import { triggerUpdate, isUpdateInProgress } from './updater.js';
 import { projectSlug } from '247-shared';
-import { resolveProjectPath } from './lib/project-path.js';
+import { resolveProjectPath, sessionProject } from './lib/project-path.js';
 
 // Connection tracking
 const activeConnections = new Map<string, Set<WebSocket>>();
@@ -384,10 +384,9 @@ export function handleSessionsConnection(ws: WebSocket, url?: URL): void {
 
       for (const line of stdout.trim().split('\n').filter(Boolean)) {
         const [name, created] = line.split('|');
-        const [project] = name.split('--');
-
         // Get DB data if available
         const dbSession = sessionsDb.getSession(name);
+        const project = sessionProject(name, dbSession?.project);
 
         sessions.push({
           name,
