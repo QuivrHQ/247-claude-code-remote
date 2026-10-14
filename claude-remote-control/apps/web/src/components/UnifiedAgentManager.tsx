@@ -23,7 +23,7 @@ import {
   Sparkles,
   Pencil,
 } from 'lucide-react';
-import { cn, buildWebSocketUrl, stripProtocol } from '@/lib/utils';
+import { cn, buildWebSocketUrl, stripProtocol, getLocalAgentHost } from '@/lib/utils';
 import type { StoredAgentConnection } from './AgentConnectionSettings';
 import { EditAgentModal } from './EditAgentModal';
 
@@ -349,7 +349,9 @@ function AddAgentForm({
   const [testState, setTestState] = useState<'idle' | 'testing' | 'success' | 'error'>('idle');
 
   const getFullUrl = useCallback(() => {
-    if (type === 'local') return `localhost:${url}`;
+    if (type === 'local') {
+      return `${getLocalAgentHost()}:${url}`;
+    }
     return url;
   }, [type, url]);
 
@@ -427,7 +429,7 @@ function AddAgentForm({
           <div>
             <label className="mb-2 block text-xs font-medium text-white/60">Agent Port</label>
             <div className="flex items-center gap-3">
-              <span className="font-mono text-sm text-white/50">localhost:</span>
+              <span className="font-mono text-sm text-white/50">{getLocalAgentHost()}:</span>
               <input
                 type="text"
                 value={url}

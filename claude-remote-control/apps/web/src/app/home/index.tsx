@@ -27,6 +27,7 @@ import { useSessionPolling, type SessionWithMachine } from '@/contexts/SessionPo
 // New layout components
 import { AppShell } from '@/components/layout';
 import type { SidebarMachine, SidebarProject } from '@/components/layout/Sidebar';
+import { countSessionsByMachine, matchesProjectFilter } from '@/lib/folders';
 import type { SessionListItem } from '@/components/layout/SessionListPanel';
 import type { SessionStatus } from '@/components/ui/status-indicator';
 
@@ -143,6 +144,7 @@ export function HomeContent() {
           type: mapMachineType(conn.method),
           status: machineData?.error ? 'offline' : wsConnected ? 'online' : 'connecting',
           sessionCount: machineData?.sessions?.length ?? 0,
+          url: conn.url,
           color: conn.color,
         };
       }),
@@ -179,6 +181,10 @@ export function HomeContent() {
     }));
   }, [allSessions]);
 
+  // Per-machine session counts keyed by project path, for machine-scoped
+  // folder badges in the sidebar.
+  const sessionCountsByMachine = useMemo(() => countSessionsByMachine(allSessions), [allSessions]);
+
   // Compute selectedSessionId for the new layout
   const selectedSessionId = selectedSession
     ? `${selectedSession.machineId}-${selectedSession.sessionName}`
@@ -191,7 +197,7 @@ export function HomeContent() {
       filtered = filtered.filter((s) => s.machineId === machineFilter);
     }
     if (projectFilter) {
-      filtered = filtered.filter((s) => s.project === projectFilter);
+      filtered = filtered.filter((s) => matchesProjectFilter(s.project, projectFilter));
     }
     return filtered;
   }, [sessionListItems, machineFilter, projectFilter]);
@@ -338,6 +344,7 @@ export function HomeContent() {
         open={newSessionOpen}
         onOpenChange={setNewSessionOpen}
         machines={machines}
+        existingSessions={allSessions}
         onStartSession={handleStartSession}
       />
 
@@ -388,6 +395,8 @@ export function HomeContent() {
           onAddMachine={() => setUnifiedManagerOpen(true)}
           selectedProjectName={projectFilter}
           onSelectProject={handleSelectProject}
+          sessionCountsByMachine={sessionCountsByMachine}
+          onStartSessionInFolder={(machineId, path) => handleStartSession(machineId, path)}
           onEditMachine={handleEditMachineFromSidebar}
           onRemoveMachine={handleRemoveMachineFromSidebar}
           canRemoveMachine={canRemoveMachine}

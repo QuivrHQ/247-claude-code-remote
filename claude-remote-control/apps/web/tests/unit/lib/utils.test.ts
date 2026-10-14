@@ -3,10 +3,154 @@
  *
  * Tests for utility functions used across the application.
  */
-import { describe, it, expect } from 'vitest';
-import { cn, stripProtocol, buildWebSocketUrl, buildApiUrl } from '@/lib/utils';
+import { describe, it, expect, vi, afterEach } from 'vitest';
+import {
+  cn,
+  stripProtocol,
+  buildWebSocketUrl,
+  buildApiUrl,
+  isPlaintextHost,
+  parseHostPort,
+  getLocalAgentHost,
+} from '@/lib/utils';
 
 describe('Utils', () => {
+  describe('parseHostPort', () => {
+    it('splits host and port', () => {
+      expect(parseHostPort('example.com:4678')).toEqual({ host: 'example.com', port: '4678' });
+    });
+
+    it('returns an empty port when none is given', () => {
+      expect(parseHostPort('example.com')).toEqual({ host: 'example.com', port: '' });
+    });
+
+    it('ignores the path', () => {
+      expect(parseHostPort('example.com:4678/api/x:y')).toEqual({
+        host: 'example.com',
+        port: '4678',
+      });
+    });
+
+    it('lowercases the host', () => {
+      expect(parseHostPort('Example.COM:4678').host).toBe('example.com');
+    });
+
+    it('parses a bracketed IPv6 literal with a port', () => {
+      expect(parseHostPort('[::1]:4678')).toEqual({ host: '::1', port: '4678' });
+    });
+
+    it('parses a bracketed IPv6 literal without a port', () => {
+      expect(parseHostPort('[::1]')).toEqual({ host: '::1', port: '' });
+    });
+
+    it('treats a bare IPv6 literal as host only', () => {
+      expect(parseHostPort('::1')).toEqual({ host: '::1', port: '' });
+    });
+  });
+
+  describe('isPlaintextHost', () => {
+    it.each([
+      'localhost:4678',
+      'app.localhost:4678',
+      'macbook.local:4678',
+      '127.0.0.1:4678',
+      '127.8.9.10',
+      '10.0.10.2:4678',
+      '192.168.1.5:4678',
+      '172.16.0.1',
+      '172.31.255.255',
+      '[::1]:4678',
+      '[fd00::1]:4678',
+      '[fc00::1]',
+      '[FD12:3456:789a::1]:4678',
+      '[fe80::1]:4678',
+      '[febf::1]',
+      '[0:0:0:0:0:0:0:1]:4678',
+      '[0000:0000:0000:0000:0000:0000:0000:0001]',
+      '[::0001]',
+      'fe80::1%en0',
+      '[::ffff:192.168.1.5]:4678',
+      '[::ffff:7f00:1]',
+    ])('treats %s as plaintext', (host) => {
+      expect(isPlaintextHost(host)).toBe(true);
+    });
+
+    it.each([
+      'example.com:4678',
+      '10.example.com:4678',
+      '192.168.example.com',
+      '127.example.com',
+      '172.32.0.1',
+      '172.15.0.1',
+      '8.8.8.8',
+      '10.0.0.999',
+      '300.1.1.1',
+      '[2001:db8::1]:4678',
+      '[fec0::1]',
+      '[fd::1]',
+      '[fe::1]',
+      'fdab.example.com:4678',
+      'fe80.example.com',
+      '[::]',
+      '[::2]',
+      '[::ffff:8.8.8.8]',
+      '[1:2:3:4:5:6:7:8:9]',
+      '[1::2::3]',
+      '[gggg::1]',
+    ])('treats %s as TLS', (host) => {
+      expect(isPlaintextHost(host)).toBe(false);
+    });
+
+    it('builds plain ws/http URLs for a bracketed IPv6 loopback', () => {
+      expect(buildWebSocketUrl('[::1]:4678', '/status')).toBe('ws://[::1]:4678/status');
+      expect(buildApiUrl('[::1]:4678', '/api/sessions')).toBe('http://[::1]:4678/api/sessions');
+    });
+
+    it('builds plain ws/http URLs for a unique-local IPv6 LAN agent', () => {
+      expect(buildWebSocketUrl('[fd00::1]:4678', '/status')).toBe('ws://[fd00::1]:4678/status');
+      expect(buildApiUrl('[fe80::1]:4678', '/api/sessions')).toBe(
+        'http://[fe80::1]:4678/api/sessions'
+      );
+    });
+
+    it('uses TLS for DNS names that merely start with a private octet', () => {
+      expect(buildApiUrl('10.example.com:4678', '/api/sessions')).toBe(
+        'https://10.example.com:4678/api/sessions'
+      );
+    });
+  });
+
+  describe('getLocalAgentHost', () => {
+    afterEach(() => {
+      vi.unstubAllGlobals();
+    });
+
+    function serveDashboardFrom(hostname: string) {
+      vi.stubGlobal('location', { ...window.location, hostname });
+    }
+
+    it.each(['localhost', '127.0.0.1', '10.0.10.2', '192.168.1.5', 'macbook.local', '[::1]'])(
+      'uses the dashboard host %s for self-hosted deployments',
+      (hostname) => {
+        serveDashboardFrom(hostname);
+        expect(getLocalAgentHost()).toBe(hostname);
+      }
+    );
+
+    it.each(['247.quivr.com', 'example.com', 'my-dashboard.vercel.app'])(
+      'targets localhost when the dashboard is hosted on %s',
+      (hostname) => {
+        serveDashboardFrom(hostname);
+        expect(getLocalAgentHost()).toBe('localhost');
+      }
+    );
+
+    it('falls back to localhost when there is no hostname', () => {
+      serveDashboardFrom('');
+      expect(getLocalAgentHost()).toBe('localhost');
+    });
+  });
+
   describe('cn function', () => {
     it('merges class names', () => {
       expect(cn('foo', 'bar')).toBe('foo bar');

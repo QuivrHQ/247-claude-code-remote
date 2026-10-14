@@ -33,6 +33,8 @@ vi.mock('fs/promises', () => ({
   ]),
   access: vi.fn().mockRejectedValue(new Error('ENOENT')),
   rm: vi.fn().mockResolvedValue(undefined),
+  // Default: no symlinks — realpath is the identity, so targets stay in-root.
+  realpath: vi.fn(async (p: string) => p),
 }));
 
 // Mock child_process
@@ -125,6 +127,54 @@ describe('Agent REST API', () => {
 
       expect(res.status).toBe(200);
       expect(res.body).toEqual([...res.body].sort());
+    });
+
+    it('lists subfolders of a nested path', async () => {
+      const fsPromises = await import('fs/promises');
+
+      const res = await request(server).get('/api/folders').query({ path: 'allowed-project/src' });
+
+      expect(res.status).toBe(200);
+      expect(fsPromises.readdir).toHaveBeenLastCalledWith(
+        '/tmp/test-projects/allowed-project/src',
+        { withFileTypes: true }
+      );
+      // Only non-hidden child directories, sorted; files and dotfiles excluded.
+      expect(res.body).toEqual(['allowed-project', 'another-project', 'unlisted-project']);
+    });
+
+    it.each(['../etc', 'allowed-project/../../etc', '/etc', '.hidden', 'a\\b'])(
+      'rejects unsafe path %s',
+      async (unsafePath) => {
+        const res = await request(server).get('/api/folders').query({ path: unsafePath });
+
+        expect(res.status).toBe(400);
+      }
+    );
+
+    it('returns 404 when the folder does not exist', async () => {
+      const fsPromises = await import('fs/promises');
+      // realpath succeeds (default identity) so the readdir ENOENT path is what
+      // produces the 404.
+      vi.mocked(fsPromises.readdir).mockRejectedValueOnce(
+        Object.assign(new Error('missing'), { code: 'ENOENT' })
+      );
+
+      const res = await request(server).get('/api/folders').query({ path: 'gone' });
+
+      expect(res.status).toBe(404);
+    });
+
+    it('rejects a path whose symlink target escapes the base path', async () => {
+      const fsPromises = await import('fs/promises');
+      // basePath realpath is the identity; the nested target resolves outside it.
+      vi.mocked(fsPromises.realpath).mockImplementation(async (p) =>
+        String(p).endsWith('/link') ? '/etc/secret' : String(p)
+      );
+
+      const res = await request(server).get('/api/folders').query({ path: 'allowed-project/link' });
+
+      expect(res.status).toBe(400);
     });
   });
 

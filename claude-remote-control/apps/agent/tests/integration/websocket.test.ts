@@ -44,6 +44,8 @@ vi.mock('fs/promises', () => ({
   readdir: vi.fn().mockResolvedValue([]),
   access: vi.fn().mockRejectedValue(new Error('ENOENT')),
   rm: vi.fn().mockResolvedValue(undefined),
+  // No symlinks in tests: realpath is the identity so project paths stay in-root.
+  realpath: vi.fn(async (p: string) => p),
 }));
 
 // Mock database modules

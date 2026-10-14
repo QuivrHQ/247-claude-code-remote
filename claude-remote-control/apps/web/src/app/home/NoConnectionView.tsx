@@ -272,34 +272,14 @@ function AuthButton() {
   );
 }
 
-// Connect Agent Card - requires authentication
-function ConnectAgentCard({
-  onConnect,
-  isAuthenticated,
-  isCheckingAuth,
-}: {
-  onConnect: () => void;
-  isAuthenticated: boolean;
-  isCheckingAuth: boolean;
-}) {
-  const handleClick = () => {
-    if (isCheckingAuth) return;
-
-    if (!isAuthenticated) {
-      // Redirect to sign-in, then back to home
-      window.location.href = '/auth/sign-in';
-      return;
-    }
-
-    onConnect();
-  };
-
+// Connect Agent Card - local mode has no accounts, so it always opens the connect modal
+function ConnectAgentCard({ onConnect }: { onConnect: () => void }) {
   return (
     <motion.div
       whileHover={{ scale: 1.02, y: -4 }}
       whileTap={{ scale: 0.98 }}
       className="group relative w-full max-w-md cursor-pointer overflow-hidden rounded-2xl border border-orange-500/20 bg-gradient-to-br from-orange-500/5 to-amber-500/5 p-8 backdrop-blur-sm transition-all hover:border-orange-500/40 hover:from-orange-500/10 hover:to-amber-500/10"
-      onClick={handleClick}
+      onClick={onConnect}
     >
       {/* Glow effect */}
       <div className="pointer-events-none absolute -right-20 -top-20 h-40 w-40 rounded-full bg-orange-500/20 opacity-0 blur-3xl transition-opacity group-hover:opacity-100" />
@@ -329,29 +309,13 @@ function ConnectAgentCard({
       </div>
 
       {/* Button */}
-      <button
-        disabled={isCheckingAuth}
-        className="flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-orange-500 to-amber-500 px-4 py-3.5 text-sm font-medium text-white shadow-lg shadow-orange-500/25 transition-all hover:shadow-orange-500/40 disabled:opacity-50"
-      >
-        {isCheckingAuth ? (
-          <Loader2 className="h-4 w-4 animate-spin" />
-        ) : isAuthenticated ? (
-          <>
-            <Wifi className="h-4 w-4" />
-            Connect Agent
-          </>
-        ) : (
-          <>
-            <User className="h-4 w-4" />
-            Sign in to Connect
-          </>
-        )}
+      <button className="flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-orange-500 to-amber-500 px-4 py-3.5 text-sm font-medium text-white shadow-lg shadow-orange-500/25 transition-all hover:shadow-orange-500/40">
+        <Wifi className="h-4 w-4" />
+        Connect Agent
       </button>
 
       {/* Footer */}
-      <p className="mt-4 text-center text-xs text-white/30">
-        {isAuthenticated ? 'Already have 247 installed?' : 'Sign in required to connect agents'}
-      </p>
+      <p className="mt-4 text-center text-xs text-white/30">Already have 247 installed?</p>
     </motion.div>
   );
 }
@@ -523,24 +487,6 @@ export function NoConnectionView({
   onModalOpenChange,
   onConnectionSaved,
 }: NoConnectionViewProps) {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [isCheckingAuth, setIsCheckingAuth] = useState(true);
-
-  // Check auth status on mount
-  useEffect(() => {
-    const checkAuth = async () => {
-      try {
-        const session = await authClient.getSession();
-        setIsAuthenticated(!!session?.data?.user);
-      } catch {
-        setIsAuthenticated(false);
-      } finally {
-        setIsCheckingAuth(false);
-      }
-    };
-    checkAuth();
-  }, []);
-
   return (
     <main className="relative min-h-screen overflow-hidden bg-[#0a0a10] selection:bg-orange-500/20">
       <HeroBackground />
@@ -587,11 +533,7 @@ export function NoConnectionView({
 
           {/* Connect Agent Card */}
           <motion.div variants={itemVariants} className="mt-10 flex w-full justify-center">
-            <ConnectAgentCard
-              onConnect={() => onModalOpenChange(true)}
-              isAuthenticated={isAuthenticated}
-              isCheckingAuth={isCheckingAuth}
-            />
+            <ConnectAgentCard onConnect={() => onModalOpenChange(true)} />
           </motion.div>
 
           {/* Security Badge */}

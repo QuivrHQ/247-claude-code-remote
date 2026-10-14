@@ -2,9 +2,16 @@
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
+import {
+  buildSessionName,
+  isValidSessionLabel,
+  projectSlug,
+  sanitizeSessionLabel,
+} from '247-shared';
 import { useSessionPolling } from '@/contexts/SessionPollingContext';
 import {
   useAgentConnections,
+  LOCAL_DEFAULT_ID,
   type AgentConnection as DbAgentConnection,
 } from '@/hooks/useAgentConnections';
 import type { LocalMachine, SelectedSession } from './types';
@@ -179,8 +186,11 @@ export function useHomeState() {
   );
 
   const handleStartSession = useCallback(
-    (machineId: string, project: string, environmentId?: string) => {
-      const newSessionName = `${project}--new`;
+    (machineId: string, project: string, environmentId?: string, sessionLabel?: string) => {
+      const label = sessionLabel ? sanitizeSessionLabel(sessionLabel) : '';
+      const newSessionName = isValidSessionLabel(label)
+        ? buildSessionName(project, label)
+        : `${projectSlug(project)}--new`;
       setSelectedSession({
         machineId,
         sessionName: newSessionName,
@@ -295,7 +305,15 @@ export function useHomeState() {
 
   const getAgentUrl = useCallback(() => {
     if (!selectedSession) return '';
-    const connection = agentConnections.find((c) => c.id === selectedSession.machineId);
+    // Only the legacy default machine id maps onto the seeded local agent; any
+    // other unknown id (e.g. a stale link to a removed remote machine) stays
+    // unresolved instead of routing the terminal to the wrong host.
+    const { machineId } = selectedSession;
+    const connection =
+      agentConnections.find((c) => c.id === machineId) ??
+      (machineId === DEFAULT_MACHINE_ID
+        ? agentConnections.find((c) => c.id === LOCAL_DEFAULT_ID)
+        : undefined);
     return connection?.url || '';
   }, [selectedSession, agentConnections]);
 

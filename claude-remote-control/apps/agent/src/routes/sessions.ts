@@ -6,6 +6,7 @@
 import { Router } from 'express';
 import type { WSSessionInfo } from '247-shared';
 import * as sessionsDb from '../db/sessions.js';
+import { sessionProject } from '../lib/project-path.js';
 import {
   broadcastSessionRemoved,
   broadcastSessionArchived,
@@ -131,10 +132,9 @@ export function createSessionRoutes(): Router {
 
       for (const line of stdout.trim().split('\n').filter(Boolean)) {
         const [name, created] = line.split('|');
-        const [project] = name.split('--');
-
         // Get DB data if available
         const dbSession = sessionsDb.getSession(name);
+        const project = sessionProject(name, dbSession?.project);
 
         sessions.push({
           name,

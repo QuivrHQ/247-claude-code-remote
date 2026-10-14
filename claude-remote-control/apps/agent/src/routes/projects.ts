@@ -5,6 +5,12 @@
 import { Router } from 'express';
 import { spawn } from 'child_process';
 import { config } from '../config.js';
+import { resolveRealProjectPath } from '../lib/project-path.js';
+
+function isMissingDirectoryError(err: unknown): boolean {
+  const code = (err as NodeJS.ErrnoException | null)?.code;
+  return code === 'ENOENT' || code === 'ENOTDIR';
+}
 
 export function createProjectRoutes(): Router {
   const router = Router();
@@ -14,13 +20,24 @@ export function createProjectRoutes(): Router {
     res.json(config.projects.whitelist);
   });
 
-  // Dynamic folder listing - scans basePath for directories
-  router.get('/folders', async (_req, res) => {
+  // Dynamic folder listing - scans basePath (or basePath/<path>) for directories
+  router.get('/folders', async (req, res) => {
     try {
       const fs = await import('fs/promises');
       const basePath = config.projects.basePath.replace('~', process.env.HOME!);
 
-      const entries = await fs.readdir(basePath, { withFileTypes: true });
+      const relativePath = typeof req.query.path === 'string' ? req.query.path : '';
+      let directory = basePath;
+      if (relativePath !== '') {
+        // Follows symlinks so a link under basePath can't escape the root.
+        const resolved = await resolveRealProjectPath(basePath, relativePath);
+        if (!resolved) {
+          return res.status(400).json({ error: 'Invalid path' });
+        }
+        directory = resolved;
+      }
+
+      const entries = await fs.readdir(directory, { withFileTypes: true });
       const folders = entries
         .filter((entry) => entry.isDirectory() && !entry.name.startsWith('.'))
         .map((entry) => entry.name)
@@ -28,6 +45,9 @@ export function createProjectRoutes(): Router {
 
       res.json(folders);
     } catch (err) {
+      if (isMissingDirectoryError(err)) {
+        return res.status(404).json({ error: 'Folder not found' });
+      }
       console.error('Failed to list folders:', err);
       res.status(500).json({ error: 'Failed to list folders' });
     }

@@ -5,7 +5,8 @@
  *
  * Note: The storage format changed to support multiple agents:
  * - Old: 'agentConnection' key with single AgentConnection object
- * - New: 'agentConnections' key with array of StoredAgentConnection objects
+ * - New: '247-local-connections' key with array of StoredAgentConnection objects,
+ *   shared with the useAgentConnections hook
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import {
@@ -20,7 +21,7 @@ import {
 
 // Storage keys
 const OLD_STORAGE_KEY = 'agentConnection';
-const STORAGE_KEY = 'agentConnections';
+const STORAGE_KEY = '247-local-connections';
 
 describe('AgentConnectionSettings', () => {
   beforeEach(() => {

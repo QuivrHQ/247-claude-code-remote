@@ -19,6 +19,7 @@ import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { cn } from '@/lib/utils';
 import { variants, spring, stagger } from '@/lib/animations';
 import { StatusDot, type ConnectionStatus } from '@/components/ui/status-indicator';
+import { FolderTree } from './FolderTree';
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Types
@@ -50,6 +51,10 @@ interface SidebarProps {
   onAddMachine?: () => void;
   onSelectProject?: (projectName: string) => void;
   selectedProjectName?: string | null;
+  /** Session counts per project path, keyed by machine id, for folder badges. */
+  sessionCountsByMachine?: Record<string, Record<string, number>>;
+  /** Start a new session in a folder (path relative to the projects base). */
+  onStartSessionInFolder?: (machineId: string, path: string) => void;
   onEditMachine?: (machine: SidebarMachine) => void;
   onRemoveMachine?: (machine: SidebarMachine) => void;
   canRemoveMachine?: (machine: SidebarMachine) => boolean;
@@ -91,24 +96,32 @@ function Section({ title, children, collapsed, defaultExpanded = true, action }:
 
   return (
     <div className="py-1">
-      {/* Section Header */}
-      <button
-        onClick={() => setExpanded(!expanded)}
+      {/* Section Header — the collapse toggle and the action must be SIBLINGS,
+          never a <button> nested inside another <button> (invalid HTML / hydration error). */}
+      <div
         className={cn(
           'flex w-full items-center justify-between',
           'px-3 py-2 text-xs font-semibold uppercase tracking-wider',
-          'text-foreground-subtle hover:text-foreground-muted',
-          'transition-colors duration-150'
+          'text-foreground-subtle'
         )}
       >
-        <div className="flex items-center gap-1.5">
-          <motion.div animate={{ rotate: expanded ? 90 : 0 }} transition={spring.snappy}>
+        <button
+          type="button"
+          onClick={() => setExpanded(!expanded)}
+          aria-expanded={expanded}
+          className="flex flex-1 items-center gap-1.5 transition-colors duration-150 hover:text-foreground-muted"
+        >
+          <motion.span
+            className="flex"
+            animate={{ rotate: expanded ? 90 : 0 }}
+            transition={spring.snappy}
+          >
             <ChevronRight className="h-3 w-3" />
-          </motion.div>
+          </motion.span>
           <span>{title}</span>
-        </div>
+        </button>
         {action}
-      </button>
+      </div>
 
       {/* Section Content */}
       <AnimatePresence>
@@ -413,10 +426,25 @@ export function Sidebar({
   onAddMachine,
   onSelectProject,
   selectedProjectName,
+  sessionCountsByMachine,
+  onStartSessionInFolder,
   onEditMachine,
   onRemoveMachine,
   canRemoveMachine,
 }: SidebarProps) {
+  // Browse the selected machine's folders (or the only machine, if just one)
+  const folderMachine =
+    machines.find((m) => m.id === selectedMachineId) ??
+    (machines.length === 1 ? machines[0] : undefined);
+  // Folders come from the agent's REST API, so only an unreachable machine hides them
+  const folderAgentUrl =
+    !collapsed && folderMachine && folderMachine.status !== 'offline'
+      ? folderMachine.url
+      : undefined;
+  // Scope badges to the folder machine so a project used on another machine
+  // does not inflate the count shown here.
+  const sessionCounts = (folderMachine && sessionCountsByMachine?.[folderMachine.id]) ?? {};
+
   return (
     <aside
       className={cn('panel flex h-full w-full flex-col', 'transition-all duration-200')}
@@ -523,6 +551,27 @@ export function Sidebar({
               />
             ))}
           </Section>
+        )}
+
+        {/* Folders Section - browse subfolders and other projects */}
+        {folderMachine && folderAgentUrl && (
+          <>
+            <div className="mx-3 my-2 h-px bg-white/5" />
+            <Section title="Folders" collapsed={collapsed}>
+              <FolderTree
+                key={folderMachine.id}
+                agentUrl={folderAgentUrl}
+                selectedPath={selectedProjectName}
+                sessionCounts={sessionCounts}
+                onSelectFolder={onSelectProject}
+                onStartSession={
+                  onStartSessionInFolder
+                    ? (path) => onStartSessionInFolder(folderMachine.id, path)
+                    : undefined
+                }
+              />
+            </Section>
+          </>
         )}
       </div>
     </aside>

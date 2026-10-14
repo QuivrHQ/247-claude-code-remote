@@ -17,12 +17,20 @@ import {
   ArrowLeft,
   Sparkles,
 } from 'lucide-react';
-import { cn, buildWebSocketUrl, stripProtocol } from '@/lib/utils';
+import {
+  cn,
+  buildWebSocketUrl,
+  stripProtocol,
+  parseHostPort,
+  getLocalAgentHost,
+} from '@/lib/utils';
+import { CONNECTIONS_STORAGE_KEY } from '@/lib/connection-storage';
 
 // Old storage key (for migration)
 const OLD_STORAGE_KEY = 'agentConnection';
-// New storage key for multiple connections
-const STORAGE_KEY = 'agentConnections';
+// Storage key for multiple connections, shared with useAgentConnections so the
+// dashboard and this modal always read and write the same list
+const STORAGE_KEY = CONNECTIONS_STORAGE_KEY;
 
 // Legacy single connection type (kept for migration, now extended for cloud)
 export interface AgentConnection {
@@ -415,7 +423,7 @@ export function AgentConnectionSettings({
       if (existing) {
         if (existing.method === 'localhost') {
           setConnectionType('local');
-          const port = existing.url.split(':')[1] || '4678';
+          const port = parseHostPort(stripProtocol(existing.url)).port || '4678';
           setLocalhostPort(port);
         } else {
           setConnectionType('remote');
@@ -438,7 +446,7 @@ export function AgentConnectionSettings({
   // Get the current URL based on state
   const getCurrentUrl = useCallback(() => {
     if (connectionType === 'local') {
-      return `localhost:${localhostPort}`;
+      return `${getLocalAgentHost()}:${localhostPort}`;
     }
     return customUrl;
   }, [connectionType, localhostPort, customUrl]);
@@ -729,7 +737,7 @@ export function AgentConnectionSettings({
                         Agent Port
                       </label>
                       <div className="flex items-center gap-3">
-                        <span className="font-mono text-white/50">localhost:</span>
+                        <span className="font-mono text-white/50">{getLocalAgentHost()}:</span>
                         <input
                           type="text"
                           value={localhostPort}
