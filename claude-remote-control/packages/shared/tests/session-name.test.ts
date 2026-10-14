@@ -107,7 +107,9 @@ describe('buildSessionName', () => {
 
   it('escapes spaces, dots and shell metacharacters in the project', () => {
     expect(buildSessionName('my app', 'api')).toBe('my_20app--api');
-    expect(buildSessionName('a"$(x)', 'api')).toMatch(/^[A-Za-z0-9_-]+$/);
+    // Each metacharacter becomes its reversible UTF-8 byte escape.
+    expect(buildSessionName('a"$(x)', 'api')).toBe('a_22_24_28x_29--api');
+    expect(projectFromSessionName(buildSessionName('a"$(x)', 'api'))).toBe('a"$(x)');
   });
 
   it('keeps nested projects and similarly named flat folders apart', () => {

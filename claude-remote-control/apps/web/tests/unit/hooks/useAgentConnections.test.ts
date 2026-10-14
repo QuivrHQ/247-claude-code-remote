@@ -65,6 +65,39 @@ describe('useAgentConnections', () => {
       expect(result.current.connections).toEqual([]);
       expect(window.localStorage.getItem(STORAGE_KEY)).toBeNull();
     });
+
+    it('preserves a genuinely empty stored array without re-seeding', async () => {
+      window.localStorage.setItem(STORAGE_KEY, '[]');
+
+      const { result } = await renderLoaded();
+
+      expect(result.current.connections).toEqual([]);
+    });
+
+    it('re-seeds when every stored entry is malformed', async () => {
+      window.localStorage.setItem(STORAGE_KEY, JSON.stringify([{ nope: true }, 42]));
+
+      const { result } = await renderLoaded();
+
+      expect(result.current.connections).toHaveLength(1);
+      expect(result.current.connections[0].id).toBe(LOCAL_DEFAULT_ID);
+    });
+
+    it('surfaces an error when the initial seed write fails', async () => {
+      vi.stubGlobal('localStorage', {
+        getItem: () => null,
+        removeItem: () => undefined,
+        setItem: () => {
+          throw new DOMException('Quota exceeded', 'QuotaExceededError');
+        },
+      });
+
+      const { result } = await renderLoaded();
+
+      // The seeded agent is still usable this session, but the failure is surfaced.
+      expect(result.current.connections).toHaveLength(1);
+      expect(result.current.error).toMatch(/Could not save connections/);
+    });
   });
 
   describe('legacy migration', () => {

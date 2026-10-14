@@ -98,13 +98,19 @@ function parseJson(raw: string | null): unknown {
   }
 }
 
-// Returns null when nothing usable is stored (key absent, unreadable or
-// corrupt) so first run can be told apart from a deliberately emptied list.
+// Returns null when nothing usable is stored (key absent, unreadable, or a
+// corrupt value) so first run can be told apart from a deliberately emptied
+// list. A genuinely empty array is preserved as []; a nonempty array whose
+// entries are all malformed is treated as corrupt (null) so migration and
+// seeding still run.
 function readStore(): AgentConnection[] | null {
   if (typeof window === 'undefined') return null;
   try {
     const parsed = parseJson(window.localStorage.getItem(CONNECTIONS_STORAGE_KEY));
-    return Array.isArray(parsed) ? parsed.filter(isStoredConnection) : null;
+    if (!Array.isArray(parsed)) return null;
+    if (parsed.length === 0) return [];
+    const valid = parsed.filter(isStoredConnection);
+    return valid.length > 0 ? valid : null;
   } catch {
     return null;
   }
@@ -204,15 +210,13 @@ export function useAgentConnections(
         // agent. Seeding only happens when nothing was ever stored, so an
         // intentionally emptied list stays empty across reloads.
         const migrated = readLegacyConnections();
-        if (migrated.length > 0) {
-          stored = migrated;
-          writeStore(stored);
-        } else if (seedDefault) {
-          stored = [defaultConnection()];
-          writeStore(stored);
-        } else {
-          stored = [];
+        const seeded = migrated.length > 0 ? migrated : seedDefault ? [defaultConnection()] : [];
+        // Surface a storage failure rather than reporting the seeded/migrated
+        // list as persisted when it was not.
+        if (seeded.length > 0 && !writeStore(seeded)) {
+          setError(SAVE_ERROR_MESSAGE);
         }
+        stored = seeded;
       }
       setConnections(stored);
     } catch (err) {

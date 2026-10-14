@@ -154,10 +154,9 @@ describe('Agent REST API', () => {
 
     it('returns 404 when the folder does not exist', async () => {
       const fsPromises = await import('fs/promises');
+      // realpath succeeds (default identity) so the readdir ENOENT path is what
+      // produces the 404.
       vi.mocked(fsPromises.readdir).mockRejectedValueOnce(
-        Object.assign(new Error('missing'), { code: 'ENOENT' })
-      );
-      vi.mocked(fsPromises.realpath).mockRejectedValueOnce(
         Object.assign(new Error('missing'), { code: 'ENOENT' })
       );
 
