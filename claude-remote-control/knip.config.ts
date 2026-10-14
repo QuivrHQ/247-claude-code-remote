@@ -3,11 +3,16 @@ import type { KnipConfig } from 'knip';
 const config: KnipConfig = {
   workspaces: {
     '.': {
-      entry: ['tests/**/*.test.ts'],
+      // scripts/release/index.ts is the entrypoint of the root `release`
+      // script (`tsx scripts/release/index.ts`); its import graph covers the
+      // release helpers and root devDependencies such as chalk/ora.
+      entry: ['tests/**/*.test.ts', 'scripts/release/index.ts'],
       project: ['tests/**/*.ts'],
     },
     'apps/agent': {
-      entry: ['src/server.ts', 'tests/**/*.test.ts'],
+      // src/index.ts is the process entrypoint (`start`/`dev` scripts);
+      // src/server.ts is imported by it and by tests.
+      entry: ['src/index.ts', 'src/server.ts', 'tests/**/*.test.ts', 'tests/setup.ts'],
       project: ['src/**/*.ts', 'tests/**/*.ts'],
       // pino-pretty: Used at runtime via dynamic require
       // http-proxy, web-push: Used in routes
@@ -35,7 +40,8 @@ const config: KnipConfig = {
       project: ['src/**/*.ts'],
     },
     'packages/cli': {
-      entry: ['tests/**/*.test.ts'],
+      // src/index.ts is the CLI bin entrypoint (`bin` -> dist/index.js).
+      entry: ['src/index.ts', 'tests/**/*.test.ts'],
       project: ['src/**/*.ts', 'tests/**/*.ts'],
       // Agent dependencies bundled into CLI
       ignoreDependencies: [

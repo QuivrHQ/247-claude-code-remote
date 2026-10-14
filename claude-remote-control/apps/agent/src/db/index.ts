@@ -4,12 +4,29 @@ import { dirname, join, resolve } from 'path';
 import { CREATE_TABLES_SQL, SCHEMA_VERSION, RETENTION_CONFIG, MIGRATION_16 } from './schema.js';
 import type { DbSchemaVersion } from './schema.js';
 
-// Database file location: ~/.247/data/agent.db
-const DATA_DIR = resolve(process.env.HOME || '~', '.247', 'data');
-const DB_PATH = join(DATA_DIR, 'agent.db');
+// In-memory SQLite identifier, used by tests for a throwaway database.
+const IN_MEMORY_DB = ':memory:';
 
 // Singleton database instance
 let db: Database.Database | null = null;
+
+/**
+ * Resolve the database file location.
+ *
+ * Defaults to ~/.247/data/agent.db (computed from $HOME). The AGENT_DB_PATH
+ * environment variable overrides it so tests can point at a throwaway file (or
+ * ":memory:") and never touch the developer's real database. Read at call time
+ * so an override set after this module loads is still honored.
+ */
+export function getDefaultDbPath(): string {
+  const override = process.env.AGENT_DB_PATH;
+  if (override && override.trim() !== '') {
+    return override;
+  }
+
+  const dataDir = resolve(process.env.HOME || '~', '.247', 'data');
+  return join(dataDir, 'agent.db');
+}
 
 /**
  * Get or create the database instance
@@ -29,13 +46,15 @@ export function getDatabase(): Database.Database {
  * - Sets WAL mode for better performance
  */
 export function initDatabase(dbPath?: string): Database.Database {
-  const path = dbPath ?? DB_PATH;
+  const path = dbPath ?? getDefaultDbPath();
 
-  // Create data directory if it doesn't exist
-  const dataDir = dirname(path);
-  if (!existsSync(dataDir)) {
-    console.log(`[DB] Creating data directory: ${dataDir}`);
-    mkdirSync(dataDir, { recursive: true });
+  // Create data directory if it doesn't exist (in-memory databases have no file)
+  if (path !== IN_MEMORY_DB) {
+    const dataDir = dirname(path);
+    if (!existsSync(dataDir)) {
+      console.log(`[DB] Creating data directory: ${dataDir}`);
+      mkdirSync(dataDir, { recursive: true });
+    }
   }
 
   // Open database (creates if doesn't exist)
@@ -55,7 +74,7 @@ export function initDatabase(dbPath?: string): Database.Database {
  * Create an in-memory database for testing
  */
 export function initTestDatabase(): Database.Database {
-  db = new Database(':memory:');
+  db = new Database(IN_MEMORY_DB);
   runMigrations(db);
   return db;
 }
