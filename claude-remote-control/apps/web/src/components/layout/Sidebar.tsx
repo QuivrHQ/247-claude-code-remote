@@ -91,24 +91,32 @@ function Section({ title, children, collapsed, defaultExpanded = true, action }:
 
   return (
     <div className="py-1">
-      {/* Section Header */}
-      <button
-        onClick={() => setExpanded(!expanded)}
+      {/* Section Header — the collapse toggle and the action must be SIBLINGS,
+          never a <button> nested inside another <button> (invalid HTML / hydration error). */}
+      <div
         className={cn(
           'flex w-full items-center justify-between',
           'px-3 py-2 text-xs font-semibold uppercase tracking-wider',
-          'text-foreground-subtle hover:text-foreground-muted',
-          'transition-colors duration-150'
+          'text-foreground-subtle'
         )}
       >
-        <div className="flex items-center gap-1.5">
-          <motion.div animate={{ rotate: expanded ? 90 : 0 }} transition={spring.snappy}>
+        <button
+          type="button"
+          onClick={() => setExpanded(!expanded)}
+          aria-expanded={expanded}
+          className="flex flex-1 items-center gap-1.5 transition-colors duration-150 hover:text-foreground-muted"
+        >
+          <motion.span
+            className="flex"
+            animate={{ rotate: expanded ? 90 : 0 }}
+            transition={spring.snappy}
+          >
             <ChevronRight className="h-3 w-3" />
-          </motion.div>
+          </motion.span>
           <span>{title}</span>
-        </div>
+        </button>
         {action}
-      </button>
+      </div>
 
       {/* Section Content */}
       <AnimatePresence>

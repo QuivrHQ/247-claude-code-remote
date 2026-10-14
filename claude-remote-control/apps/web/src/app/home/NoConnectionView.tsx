@@ -283,14 +283,7 @@ function ConnectAgentCard({
   isCheckingAuth: boolean;
 }) {
   const handleClick = () => {
-    if (isCheckingAuth) return;
-
-    if (!isAuthenticated) {
-      // Redirect to sign-in, then back to home
-      window.location.href = '/auth/sign-in';
-      return;
-    }
-
+    // Local mode has no accounts — always open the connect modal.
     onConnect();
   };
 

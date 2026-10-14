@@ -5,6 +5,7 @@ import { useSearchParams, useRouter } from 'next/navigation';
 import { useSessionPolling } from '@/contexts/SessionPollingContext';
 import {
   useAgentConnections,
+  LOCAL_DEFAULT_ID,
   type AgentConnection as DbAgentConnection,
 } from '@/hooks/useAgentConnections';
 import type { LocalMachine, SelectedSession } from './types';
@@ -295,7 +296,12 @@ export function useHomeState() {
 
   const getAgentUrl = useCallback(() => {
     if (!selectedSession) return '';
-    const connection = agentConnections.find((c) => c.id === selectedSession.machineId);
+    // Only the auto-seeded local agent may stand in for an unknown machine id;
+    // falling back to an arbitrary connection could route the terminal to the
+    // wrong host.
+    const connection =
+      agentConnections.find((c) => c.id === selectedSession.machineId) ??
+      agentConnections.find((c) => c.id === LOCAL_DEFAULT_ID);
     return connection?.url || '';
   }, [selectedSession, agentConnections]);
 

@@ -119,7 +119,12 @@ export function usePushNotifications() {
       pushLogger.info('Fetching VAPID key...');
       const vapidResponse = await fetch('/api/push/vapid-key');
       if (!vapidResponse.ok) {
-        throw new Error('Failed to get VAPID key');
+        setState((s) => ({
+          ...s,
+          isLoading: false,
+          error: 'Push notifications are not configured on this server (local mode).',
+        }));
+        return false;
       }
       const { publicKey } = await vapidResponse.json();
       pushLogger.info('Got VAPID key');

@@ -14,7 +14,7 @@ import {
   WS_PONG_TIMEOUT,
   WS_ACTIVITY_PAUSE,
 } from '../constants';
-import { buildWebSocketUrl } from '@/lib/utils';
+import { buildWebSocketUrl, buildApiUrl } from '@/lib/utils';
 import { terminalLogger } from '@/lib/logger';
 
 interface UseTerminalConnectionProps {
@@ -524,7 +524,7 @@ export function useTerminalConnection({
           // Acknowledge session on first input (reset needs_attention)
           if (!hasAcknowledgedRef.current && sessionName && agentUrl) {
             hasAcknowledgedRef.current = true;
-            fetch(`${agentUrl}/api/sessions/${sessionName}/acknowledge`, {
+            fetch(buildApiUrl(agentUrl, `/api/sessions/${encodeURIComponent(sessionName)}/acknowledge`), {
               method: 'POST',
             }).catch(console.error);
           }
